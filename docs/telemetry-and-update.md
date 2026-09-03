@@ -16,7 +16,7 @@ Phase 1 的文件及职责如下：
 - 云函数：`cloudbase/functions/telemetry/index.js`、`cloudbase/functions/telemetry/package.json`、`cloudbase/functions/telemetry/src/burst-guard.js`、`cloudbase/functions/telemetry/src/handler.js`、`cloudbase/functions/telemetry/src/validation.js`、`cloudbase/functions/telemetry/src/writer.js`、`cloudbase/functions/telemetry/test/telemetry.test.js`。
 - 更新清单：`cloudbase/updates/update.schema.json`、`cloudbase/updates/example-tool/windows.json`。
 - 示例与仓库测试：`examples/host-integration.ts`、`examples/telemetry-event.json`、`examples/tsconfig.json`、`tests/repository-contract.test.mjs`。
-- Python SDK 手动测试客户端：`tools/python-sdk-test-client/client.py`、`tools/python-sdk-test-client/bridge.mjs`、`tools/python-sdk-test-client/README.md`、`tools/python-sdk-test-client/tests/test_client.py`；Node 跨语言集成测试为 `tests/python-sdk-test-client.test.mjs`。
+- Python SDK GUI / CLI 手动测试客户端：`tools/python-sdk-test-client/gui.py`、`tools/python-sdk-test-client/client.py`、`tools/python-sdk-test-client/bridge.mjs`、`tools/python-sdk-test-client/README.md`、`tools/python-sdk-test-client/tests/test_client.py`、`tools/python-sdk-test-client/tests/test_gui.py`；Node 跨语言集成测试为 `tests/python-sdk-test-client.test.mjs`。
 - 文档：`cloudbase/README.md`、`docs/telemetry-and-update.md`、`docs/cloudbase-deployment.md`。
 
 `example-tool` 和所有 `.example.invalid` URL 都是明确的 smoke/不可用占位值，不是现有业务产品或生产下载地址。Task4/Task8 部署 `example-tool` 仅用于验证基础设施。
@@ -227,7 +227,7 @@ npm run build
 npm run check
 ```
 
-工作区脚本会构建 SDK，运行 SDK 测试、telemetry 函数测试、仓库契约测试、Node bridge 集成测试和 Python unittest。测试覆盖身份首次/再次初始化、事件清洗、网络失败与超时静默、SemVer 和灰度、更新决策、非法请求及未知 app 零写入、服务端 `received_at`、CORS、实例 burst guard 以及 `_id=event_id` 写入策略。
+工作区脚本会构建 SDK，运行 SDK 测试、telemetry 函数测试、仓库契约测试、Node bridge 集成测试和 Python unittest。测试覆盖身份首次/再次初始化、事件清洗、网络失败与超时静默、SemVer 和灰度、更新决策、非法请求及未知 app 零写入、服务端 `received_at`、CORS、实例 burst guard、`_id=event_id` 写入策略，以及 GUI 的确认门禁、桥接请求映射、忙碌状态和主线程结果交付。
 
 也可以只运行 Python 手动测试客户端的专项测试：
 
@@ -237,7 +237,16 @@ node --test .\tests\python-sdk-test-client.test.mjs
 python -m unittest discover -s .\tools\python-sdk-test-client\tests -p "test_*.py" -v
 ```
 
-该工具通过薄 Node JSONL bridge 调用构建后的真实 TypeScript SDK；自动测试只使用捕获 transport、注入 fetch 或 mock，不会向公网 POST/GET。启动和人工操作说明见 [`tools/python-sdk-test-client/README.md`](../tools/python-sdk-test-client/README.md)。
+构建 SDK 后，Windows GUI 与保留的 CLI 分别用以下命令启动：
+
+```powershell
+python .\tools\python-sdk-test-client\gui.py
+python .\tools\python-sdk-test-client\client.py
+```
+
+GUI 默认 endpoint/base URL 为空，启动只执行本地 bridge `ping`。本地事件和本地更新页零网络；每个 Live POST/GET 都必须在确认框中重输完整精确 URL 和区分大小写的 HTTP method，桥接层再执行第二次 consent 与 SDK URL 检查。所有桥接调用在 worker 中运行，普通错误写入结构化结果区，不阻塞或终止窗口。更新清单字段和 URL 只按不可信纯文本显示，工具绝不下载、打开或安装 `download_url`。
+
+该工具通过薄 Node JSONL bridge 调用构建后的真实 TypeScript SDK；GUI 的无窗口测试使用 fake bridge，跨语言测试使用捕获 transport、注入 fetch 或 mock，均不会向公网 POST/GET。启动和人工操作说明见 [`tools/python-sdk-test-client/README.md`](../tools/python-sdk-test-client/README.md)。Task13 只完成实现和自动构建验证，没有启动真实 GUI、真实联网或完成人工运行交付。
 
 这些是依赖注入/mocked 的本地测试，不等于真实 CloudBase、真实公网、真实数据库或真实宿主 GUI 测试。
 

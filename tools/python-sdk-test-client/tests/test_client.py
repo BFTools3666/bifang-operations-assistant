@@ -81,6 +81,18 @@ class BridgeProcessTests(unittest.TestCase):
                 )
                 self.assertFalse(preview["network_performed"])
 
+    def test_request_after_close_fails_immediately(self):
+        bridge = CLIENT.BridgeProcess(CLIENT_PATH.with_name("bridge.mjs"))
+        bridge.request("ping", timeout=5)
+        bridge.close()
+
+        before = time.monotonic()
+        with self.assertRaises(CLIENT.BridgeError) as raised:
+            bridge.request("status", timeout=35)
+
+        self.assertEqual(raised.exception.code, "bridge_closed")
+        self.assertLess(time.monotonic() - before, 0.5)
+
 
 class MainTests(unittest.TestCase):
     def test_short_missing_bridge_path_returns_error_without_traceback(self):

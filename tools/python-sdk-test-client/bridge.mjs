@@ -307,6 +307,25 @@ export function createBridgeDispatcher() {
       };
     }
 
+    if (action === "build_update_url") {
+      const baseUrl = requireString(request.base_url, "base_url");
+      const requestUrl = buildUpdateUrl(
+        baseUrl,
+        request.app_id,
+        request.platform,
+      );
+      if (!requestUrl) {
+        throw new BridgeRequestError(
+          "unsafe_update_url",
+          "base_url must build an SDK-approved public HTTPS update URL",
+        );
+      }
+      return {
+        request_url: requestUrl,
+        network_performed: false,
+      };
+    }
+
     if (action === "check_update_live") {
       requireNetworkConsent(request, "GET");
       const baseUrl = requireString(request.base_url, "base_url");

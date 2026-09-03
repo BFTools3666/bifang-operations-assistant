@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from collections import deque
 from dataclasses import dataclass
@@ -59,6 +60,7 @@ class BridgeProcess:
         self._pending: Dict[str, "queue.Queue[Dict[str, Any]]"] = {}
         self._pending_lock = threading.Lock()
         self._write_lock = threading.Lock()
+        self._close_lock = threading.Lock()
         self._stderr_lines = deque(maxlen=20)
         self._closed = False
         self._stdout_thread = threading.Thread(
@@ -71,14 +73,13 @@ class BridgeProcess:
         self._stderr_thread.start()
 
     def request(self, action: str, timeout: float = 15.0, **payload: Any) -> Any:
-        if self._closed:
-            raise BridgeError("bridge_closed", "the Node bridge is closed")
-        if self._process.poll() is not None:
-            raise self._process_error()
-
         request_id = str(uuid.uuid4())
         response_queue: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=1)
         with self._pending_lock:
+            if self._closed:
+                raise BridgeError("bridge_closed", "the Node bridge is closed")
+            if self._process.poll() is not None:
+                raise self._process_error()
             self._pending[request_id] = response_queue
 
         request = {**payload, "request_id": request_id, "action": action}
@@ -96,7 +97,7 @@ class BridgeProcess:
             raise BridgeError(
                 "bridge_timeout", f"no response within {timeout:g} seconds"
             ) from error
-        except (BrokenPipeError, OSError) as error:
+        except (BrokenPipeError, OSError, ValueError) as error:
             raise self._process_error() from error
         finally:
             with self._pending_lock:
@@ -113,81 +114,107 @@ class BridgeProcess:
         return response.get("result")
 
     def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        if self._process.stdin is not None:
+        with self._close_lock:
+            with self._pending_lock:
+                if self._closed:
+                    return
+                self._closed = True
+            deadline = time.monotonic() + 4.0
+
+            def remaining(limit: float) -> float:
+                return max(0.01, min(limit, deadline - time.monotonic()))
+
+            self._fail_pending(self._process_error())
             try:
-                self._process.stdin.close()
-            except OSError:
-                pass
-        try:
-            try:
-                self._process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                try:
-                    self._process.terminate()
-                except OSError:
-                    pass
-                try:
-                    self._process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
+                if self._process.poll() is None:
                     try:
-                        self._process.kill()
+                        self._process.terminate()
                     except OSError:
                         pass
+                if self._process.poll() is None:
                     try:
-                        self._process.wait(timeout=2)
+                        self._process.wait(timeout=remaining(0.75))
+                    except subprocess.TimeoutExpired:
+                        try:
+                            self._process.kill()
+                        except OSError:
+                            pass
+                if self._process.poll() is None:
+                    try:
+                        self._process.wait(timeout=remaining(1.0))
                     except (OSError, subprocess.TimeoutExpired):
                         pass
-        except OSError:
-            pass
-        finally:
-            self._stdout_thread.join(timeout=1)
-            self._stderr_thread.join(timeout=1)
-            for stream in (self._process.stdout, self._process.stderr):
-                if stream is not None:
-                    try:
-                        stream.close()
-                    except OSError:
-                        pass
-            self._fail_pending(self._process_error())
+            except OSError:
+                pass
+            finally:
+                self._stdout_thread.join(timeout=remaining(0.25))
+                self._stderr_thread.join(timeout=remaining(0.25))
+
+                def close_streams() -> None:
+                    for stream in (
+                        self._process.stdin,
+                        self._process.stdout,
+                        self._process.stderr,
+                    ):
+                        if stream is not None:
+                            try:
+                                stream.close()
+                            except (OSError, ValueError):
+                                pass
+
+                stream_closer = threading.Thread(
+                    target=close_streams,
+                    name="bifang-bridge-stream-close",
+                    daemon=True,
+                )
+                stream_closer.start()
+                stream_closer.join(timeout=remaining(0.5))
 
     def _read_stdout(self) -> None:
         if self._process.stdout is None:
             return
-        for line in self._process.stdout:
-            try:
-                response = json.loads(line)
-            except json.JSONDecodeError:
-                self._fail_pending(
-                    BridgeError("invalid_bridge_output", "bridge emitted non-JSON output")
-                )
-                continue
-            request_id = response.get("request_id") if isinstance(response, dict) else None
-            if not isinstance(request_id, str):
-                self._fail_pending(
-                    BridgeError(
-                        "invalid_bridge_output",
-                        "bridge response is missing a request_id",
-                    )
-                )
-                continue
-            with self._pending_lock:
-                target = self._pending.get(request_id)
-            if target is not None:
+        try:
+            for line in self._process.stdout:
                 try:
-                    target.put_nowait(response)
-                except queue.Full:
-                    pass
+                    response = json.loads(line)
+                except json.JSONDecodeError:
+                    self._fail_pending(
+                        BridgeError(
+                            "invalid_bridge_output", "bridge emitted non-JSON output"
+                        )
+                    )
+                    continue
+                request_id = (
+                    response.get("request_id") if isinstance(response, dict) else None
+                )
+                if not isinstance(request_id, str):
+                    self._fail_pending(
+                        BridgeError(
+                            "invalid_bridge_output",
+                            "bridge response is missing a request_id",
+                        )
+                    )
+                    continue
+                with self._pending_lock:
+                    target = self._pending.get(request_id)
+                if target is not None:
+                    try:
+                        target.put_nowait(response)
+                    except queue.Full:
+                        pass
+        except (OSError, ValueError):
+            pass
         if not self._closed:
             self._fail_pending(self._process_error())
 
     def _read_stderr(self) -> None:
         if self._process.stderr is None:
             return
-        for line in self._process.stderr:
-            self._stderr_lines.append(line.rstrip())
+        try:
+            for line in self._process.stderr:
+                self._stderr_lines.append(line.rstrip())
+        except (OSError, ValueError):
+            pass
 
     def _fail_pending(self, error: BridgeError) -> None:
         response = {
@@ -234,6 +261,12 @@ class ClientConfig:
             "arch": self.arch,
             "channel": self.channel,
         }
+
+
+def state_directory_for_app(state_root: Path, mode: str, app_id: str) -> Path:
+    """Return the tool-owned identity directory for one app and session mode."""
+    app_namespace = hashlib.sha256(app_id.encode("utf-8")).hexdigest()[:16]
+    return state_root.expanduser().resolve() / mode / app_namespace
 
 
 @dataclass
@@ -503,10 +536,7 @@ class InteractiveClient:
         return value or current
 
     def _state_directory(self, mode: str) -> Path:
-        app_namespace = hashlib.sha256(
-            self.config.app_id.encode("utf-8")
-        ).hexdigest()[:16]
-        return self.state_root / mode / app_namespace
+        return state_directory_for_app(self.state_root, mode, self.config.app_id)
 
     def _write_json(self, value: Any) -> None:
         self._write(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))

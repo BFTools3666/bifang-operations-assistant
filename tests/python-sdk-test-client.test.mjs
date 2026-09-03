@@ -270,6 +270,40 @@ test("live actions fail closed without exact consent or an SDK-safe URL", async 
   });
 });
 
+test("live update preflight builds the exact SDK URL without network", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("preflight must stay offline");
+  };
+  try {
+    const dispatch = createBridgeDispatcher();
+    const prepared = await dispatch({
+      action: "build_update_url",
+      base_url: "https://updates.example.com/base",
+      ...BASE_REQUEST,
+    });
+    assert.deepEqual(prepared, {
+      request_url: "https://updates.example.com/base/example-tool/windows.json",
+      network_performed: false,
+    });
+    await assert.rejects(
+      dispatch({
+        action: "build_update_url",
+        base_url: "http://localhost/updates",
+        ...BASE_REQUEST,
+      }),
+      (error) =>
+        error instanceof BridgeRequestError &&
+        error.code === "unsafe_update_url",
+    );
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("live event send requires the exact initialized endpoint", async () => {
   await withTemporaryDirectory(async (stateDirectory) => {
     const originalFetch = globalThis.fetch;
