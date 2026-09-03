@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "01234567-89ab-4def-8123-456789abcdef",
+  "event": "feature_used",
+  "app_id": "example-tool",
+  "app_version": "0.1.0",
+  "install_id": "11111111-1111-4111-8111-111111111111",
+  "session_id": "22222222-2222-4222-8222-222222222222",
+  "platform": "windows",
+  "arch": "x64",
+  "channel": "stable",
+  "sdk_version": "1.0.0",
+  "occurred_at": "2026-09-03T00:00:00.000Z",
+  "properties": {
+    "feature": "example-action"
+  }
+}

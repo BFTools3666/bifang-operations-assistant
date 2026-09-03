@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "version": "2.1",
+  "envId": "{{env.ENV_ID}}",
+  "functionRoot": "./cloudbase/functions",
+  "functions": [
+    {
+      "name": "telemetry",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 5,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ALLOWED_APP_IDS": "{{env.ALLOWED_APP_IDS}}"
+      }
+    }
+  ],
+  "hosting": [
+    {
+      "name": "updates",
+      "root": "./cloudbase/updates",
+      "framework": "static",
+      "installCommand": "",
+      "buildCommand": "",
+      "outputDir": ".",
+      "deployPath": "/updates",
+      "verify": true,
+      "safe": true
+    }
+  ],
+  "gateway": {
+    "routes": [
+      {
+        "path": "/v1/track",
+        "target": "function:telemetry",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/updates",
+        "target": "hosting:updates",
+        "enableAuth": false
+      }
+    ]
+  }
+}

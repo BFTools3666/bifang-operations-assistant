@@ -1,0 +1,29 @@
+{
+  "name": "bifang-telemetry-update-infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reusable telemetry ingestion and update-checking infrastructure for small desktop tools.",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*",
+    "cloudbase/functions/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:examples": "npm run build --workspace @bifang/telemetry-update-sdk && tsc -p examples/tsconfig.json --noEmit",
+    "test": "npm run test:workspaces && node --test tests/*.test.mjs",
+    "test:workspaces": "npm run test --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
+    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run typecheck:examples"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2"
+  }
+}

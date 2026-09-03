@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.example.invalid/bifang/update-manifest-v1.schema.json",
+  "title": "Bifang update manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "app_id",
+    "platform",
+    "latest_version",
+    "min_supported_version",
+    "enabled",
+    "force_update",
+    "rollout",
+    "download_url",
+    "release_notes_url"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "platform": {
+      "enum": ["windows", "macos", "linux"]
+    },
+    "latest_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "min_supported_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "force_update": {
+      "type": "boolean"
+    },
+    "rollout": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "download_url": {
+      "type": "string",
+      "maxLength": 2048,
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "release_notes_url": {
+      "type": "string",
+      "maxLength": 2048,
+      "format": "uri",
+      "pattern": "^https://"
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+    }
+  }
+}

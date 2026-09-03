@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "app_id": "example-tool",
+  "platform": "windows",
+  "latest_version": "0.1.0",
+  "min_supported_version": "0.1.0",
+  "enabled": true,
+  "force_update": false,
+  "rollout": 100,
+  "download_url": "https://downloads.example.invalid/replace-me/example-tool-0.1.0-windows.exe",
+  "release_notes_url": "https://releases.example.invalid/replace-me/example-tool/0.1.0"
+}

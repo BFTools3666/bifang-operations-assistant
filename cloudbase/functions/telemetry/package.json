@@ -1,0 +1,19 @@
+{
+  "name": "@bifang/cloudbase-telemetry-function",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal CloudBase Event function for the Bifang telemetry protocol",
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node --check index.js && node --check src/burst-guard.js && node --check src/handler.js && node --check src/validation.js && node --check src/writer.js",
+    "check": "npm run build",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "3.8.2"
+  }
+}
