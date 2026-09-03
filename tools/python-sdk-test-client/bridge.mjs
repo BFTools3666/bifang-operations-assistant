@@ -1,13 +1,18 @@
+import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   FetchTelemetryTransport,
+  InstallIdentity,
   SDK_VERSION,
   TelemetryClient,
   UpdateChecker,
   buildUpdateUrl,
   isSafeExternalUrl,
+  isValidSemVer,
+  parseSemVer,
+  parseUpdateConfig,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
@@ -15,11 +20,98 @@ const CAPTURE_ENDPOINT =
   "https://telemetry.example.invalid/python-sdk-test-client/capture";
 const PREVIEW_UPDATE_BASE_URL =
   "https://updates.example.invalid/python-sdk-test-client/preview";
+const SIMULATION_POST_INTERVAL_MS = 175;
+const TEST_BATCH_EVENTS = Object.freeze([
+  ["feature_used", { feature_id: "cloudbase_validation" }],
+  ["task_started", { task_type: "cloudbase_validation" }],
+  ["task_succeeded", { task_type: "cloudbase_validation", duration_ms: 120 }],
+  [
+    "task_failed",
+    { task_type: "cloudbase_validation", error_code: "EXPECTED_TEST_FAILURE" },
+  ],
+  ["update_prompt_shown", { target_version: "1.1.0" }],
+  ["update_clicked", { target_version: "1.1.0" }],
+]);
+const SIMULATED_DEVICE_PLANS = Object.freeze([
+  {
+    versionSlot: 0,
+    channel: "official",
+    arch: "x64",
+    featureId: "quick_start",
+    succeeds: true,
+  },
+  {
+    versionSlot: 0,
+    channel: "official",
+    arch: "x64",
+    featureId: "batch_export",
+    succeeds: true,
+  },
+  {
+    versionSlot: 1,
+    channel: "official",
+    arch: "x64",
+    featureId: "cloud_sync",
+    succeeds: false,
+  },
+  {
+    versionSlot: 1,
+    channel: "official",
+    arch: "arm64",
+    featureId: "quick_start",
+    succeeds: true,
+  },
+  {
+    versionSlot: 2,
+    channel: "official",
+    arch: "x64",
+    featureId: "batch_export",
+    succeeds: true,
+  },
+  {
+    versionSlot: 0,
+    channel: "wechat",
+    arch: "x64",
+    featureId: "cloud_sync",
+    succeeds: false,
+  },
+  {
+    versionSlot: 1,
+    channel: "wechat",
+    arch: "arm64",
+    featureId: "quick_start",
+    succeeds: true,
+  },
+  {
+    versionSlot: 2,
+    channel: "wechat",
+    arch: "x64",
+    featureId: "batch_export",
+    succeeds: true,
+  },
+  {
+    versionSlot: 1,
+    channel: "bilibili",
+    arch: "x64",
+    featureId: "cloud_sync",
+    succeeds: false,
+  },
+  {
+    versionSlot: 2,
+    channel: "bilibili",
+    arch: "arm64",
+    featureId: "quick_start",
+    succeeds: true,
+  },
+]);
 const SERIAL_TELEMETRY_ACTIONS = new Set([
   "init_capture",
   "track_capture",
   "init_live",
   "track_live",
+  "send_test_batch",
+  "simulate_devices",
+  "check_update_url",
   "reset_sessions",
 ]);
 
@@ -54,13 +146,46 @@ class ObservedFetchTelemetryTransport {
     };
     this.records.push(record);
     try {
-      await this.transport.send(endpoint, event, signal);
+      const receipt = await this.transport.send(endpoint, event, signal);
       record.transport_result = "http_ok";
+      record.http_status = receipt.httpStatus;
+      record.ack = structuredClone(receipt.ack);
+      return receipt;
     } catch (error) {
       record.transport_result = "dropped";
       record.error = error instanceof Error ? error.name : "unknown";
       throw error;
     }
+  }
+}
+
+class ThrottledFetchTelemetryTransport {
+  constructor(intervalMs = SIMULATION_POST_INTERVAL_MS) {
+    this.intervalMs = intervalMs;
+    this.transport = new FetchTelemetryTransport();
+    this.queue = Promise.resolve();
+    this.lastStartedAt = Number.NEGATIVE_INFINITY;
+  }
+
+  send(endpoint, event, signal) {
+    const sendAfterPrevious = async () => {
+      const remaining =
+        this.intervalMs - (performance.now() - this.lastStartedAt);
+      if (remaining > 0) {
+        await abortableDelay(remaining, signal);
+      }
+      if (signal.aborted) {
+        throw new Error("telemetry_aborted");
+      }
+      this.lastStartedAt = performance.now();
+      return this.transport.send(endpoint, event, signal);
+    };
+    const result = this.queue.then(sendAfterPrevious, sendAfterPrevious);
+    this.queue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 }
 
@@ -101,6 +226,212 @@ function requireNetworkConsent(request, verb) {
   }
 }
 
+function requireCanonicalExternalUrl(value, name) {
+  const candidate = requireString(value, name);
+  if (!isSafeExternalUrl(candidate)) {
+    throw new BridgeRequestError(
+      `unsafe_${name}`,
+      `${name} must be an SDK-approved public HTTPS URL`,
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new BridgeRequestError(
+      `unsafe_${name}`,
+      `${name} must be a canonical public HTTPS URL`,
+    );
+  }
+  if (parsed.hash !== "" || parsed.toString() !== candidate) {
+    throw new BridgeRequestError(
+      `unsafe_${name}`,
+      `${name} must be a canonical public HTTPS URL without a fragment`,
+    );
+  }
+  return candidate;
+}
+
+function deriveExactUpdateBaseUrl(updateUrl, appId, platform) {
+  const parsed = new URL(updateUrl);
+  const suffix = `/${appId}/${platform}.json`;
+  if (parsed.search !== "" || !parsed.pathname.endsWith(suffix)) {
+    throw new BridgeRequestError(
+      "unsafe_update_url",
+      "update_url must end with the canonical app_id/platform.json path",
+    );
+  }
+
+  const base = new URL(parsed.toString());
+  const basePath = parsed.pathname.slice(0, -suffix.length);
+  base.pathname = basePath === "" ? "/" : basePath;
+  base.search = "";
+  base.hash = "";
+  const baseUrl = base.toString();
+  const rebuilt = buildUpdateUrl(baseUrl, appId, platform);
+  if (rebuilt !== updateUrl) {
+    throw new BridgeRequestError(
+      "unsafe_update_url",
+      "update_url must exactly match the SDK canonical update URL",
+    );
+  }
+  return baseUrl;
+}
+
+export function deriveSimulationVersions(currentVersion) {
+  const parsed =
+    typeof currentVersion === "string" ? parseSemVer(currentVersion) : null;
+  if (!parsed) {
+    throw new BridgeRequestError(
+      "invalid_request",
+      "app_version must be a strict Semantic Version",
+    );
+  }
+
+  const previous = previousCoreVersion(parsed);
+  const next = nextCoreVersion(parsed);
+  if (previous && next) {
+    return [previous, currentVersion, next];
+  }
+  if (!previous && next) {
+    const secondNext = nextCoreVersion(parseSemVer(next));
+    if (secondNext) {
+      return [currentVersion, next, secondNext];
+    }
+  }
+  if (previous && !next) {
+    const secondPrevious = previousCoreVersion(parseSemVer(previous));
+    if (secondPrevious) {
+      return [secondPrevious, previous, currentVersion];
+    }
+  }
+  throw new BridgeRequestError(
+    "invalid_request",
+    "app_version cannot produce three safe simulation versions",
+  );
+}
+
+function previousCoreVersion(parsed) {
+  if (!parsed) {
+    return null;
+  }
+  const major = BigInt(parsed.major);
+  const minor = BigInt(parsed.minor);
+  const patch = BigInt(parsed.patch);
+  if (patch > 0n) {
+    return validCoreVersion(major, minor, patch - 1n);
+  }
+  if (minor > 0n) {
+    return validCoreVersion(major, minor - 1n, 0n);
+  }
+  if (major > 0n) {
+    return validCoreVersion(major - 1n, 0n, 0n);
+  }
+  return null;
+}
+
+function nextCoreVersion(parsed) {
+  if (!parsed) {
+    return null;
+  }
+  const major = BigInt(parsed.major);
+  const minor = BigInt(parsed.minor);
+  const patch = BigInt(parsed.patch);
+  return (
+    validCoreVersion(major, minor, patch + 1n) ??
+    validCoreVersion(major, minor + 1n, 0n) ??
+    validCoreVersion(major + 1n, 0n, 0n)
+  );
+}
+
+function validCoreVersion(major, minor, patch) {
+  const candidate = `${major}.${minor}.${patch}`;
+  return isValidSemVer(candidate) ? candidate : null;
+}
+
+function abortableDelay(delayMs, signal) {
+  if (signal.aborted) {
+    return Promise.reject(new Error("telemetry_aborted"));
+  }
+  return new Promise((resolveDelay, rejectDelay) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolveDelay();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      rejectDelay(new Error("telemetry_aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function uniqueStateDirectory(root, prefix) {
+  return join(
+    resolve(requireString(root, "state_dir")),
+    `${prefix}-${randomUUID()}`,
+  );
+}
+
+function publicDelivery(result, metadata = {}) {
+  const acknowledged = result.outcome === "acknowledged";
+  const failure = result.outcome === "failed" ? result.failure : null;
+  return {
+    ...metadata,
+    event: result.event,
+    event_id: result.eventId,
+    acknowledged,
+    status: acknowledged
+      ? result.receipt.httpStatus
+      : (failure?.httpStatus ?? null),
+    ack: acknowledged ? structuredClone(result.receipt.ack) : null,
+    error: failure
+      ? {
+          code: failure.code,
+          ...(failure.httpStatus === undefined
+            ? {}
+            : { http_status: failure.httpStatus }),
+          ...(failure.serverError === undefined
+            ? {}
+            : { server_error: failure.serverError }),
+        }
+      : null,
+  };
+}
+
+function safeUpdateConfig(config) {
+  if (!config) {
+    return null;
+  }
+  return {
+    app_id: config.app_id,
+    platform: config.platform,
+    enabled: config.enabled,
+    latest_version: config.latest_version,
+    min_supported_version: config.min_supported_version,
+    force_update: config.force_update,
+    rollout: config.rollout,
+    title: config.title,
+    message: config.message,
+    download_url: config.download_url,
+    release_notes_url: config.release_notes_url,
+    published_at: config.published_at,
+  };
+}
+
+function parseCheckedUpdateConfig(responseText, appId, platform) {
+  if (typeof responseText !== "string" || responseText.length > 16_384) {
+    return null;
+  }
+  try {
+    return parseUpdateConfig(JSON.parse(responseText), appId, platform);
+  } catch {
+    return null;
+  }
+}
+
 function telemetryConfig(request, identityStorage, extras) {
   const config = {
     appId: request.app_id,
@@ -136,11 +467,17 @@ function currentInstallId(state) {
   return client.installId;
 }
 
-export function createBridgeDispatcher() {
+export function createBridgeDispatcher(options = {}) {
   const state = {
     capture: null,
     live: null,
   };
+  const simulationTimeoutMs =
+    Number.isInteger(options.simulationTimeoutMs) &&
+    options.simulationTimeoutMs > 0 &&
+    options.simulationTimeoutMs <= 30_000
+      ? options.simulationTimeoutMs
+      : 30_000;
   let telemetryQueue = Promise.resolve();
 
   const dispatch = async function dispatch(rawRequest) {
@@ -172,6 +509,243 @@ export function createBridgeDispatcher() {
       state.capture = null;
       state.live = null;
       return { reset: true, network_performed: false };
+    }
+
+    if (action === "send_test_batch") {
+      requireNetworkConsent(request, "POST");
+      const endpoint = requireCanonicalExternalUrl(
+        request.endpoint,
+        "endpoint",
+      );
+      const stateDirectory = uniqueStateDirectory(request.state_dir, "batch");
+      const logger = new BufferLogger();
+      const client = await TelemetryClient.init(
+        telemetryConfig(request, new NodeFileIdentityStorage(stateDirectory), {
+          enabled: true,
+          endpoint,
+          transport: new FetchTelemetryTransport(),
+          logger,
+          timeoutMs: 10_000,
+        }),
+      );
+      for (const [event, properties] of TEST_BATCH_EVENTS) {
+        client.track(event, properties);
+      }
+      const results = await client.drainResults();
+      const deliveries = results.map((result) => publicDelivery(result));
+      return {
+        session_id: client.sessionId,
+        install_id: client.installId,
+        deliveries,
+        acknowledged_count: deliveries.filter(
+          (delivery) => delivery.acknowledged,
+        ).length,
+        network_performed: deliveries.length > 0,
+        debug: structuredClone(logger.records),
+      };
+    }
+
+    if (action === "simulate_devices") {
+      requireNetworkConsent(request, "POST");
+      const endpoint = requireCanonicalExternalUrl(
+        request.endpoint,
+        "endpoint",
+      );
+      const stateRoot = resolve(requireString(request.state_dir, "state_dir"));
+      const deviceSetups = [];
+      const transport = new ThrottledFetchTelemetryTransport();
+      const simulationVersions = deriveSimulationVersions(request.app_version);
+
+      for (const [index, plan] of SIMULATED_DEVICE_PLANS.entries()) {
+        const deviceNumber = index + 1;
+        const appVersion = simulationVersions[plan.versionSlot];
+        const stateDirectory = join(
+          stateRoot,
+          `device-${deviceNumber}-${randomUUID()}`,
+        );
+        const logger = new BufferLogger();
+        const client = await TelemetryClient.init({
+          appId: request.app_id,
+          appVersion,
+          platform: request.platform,
+          arch: plan.arch,
+          channel: plan.channel,
+          identityStorage: new NodeFileIdentityStorage(stateDirectory),
+          scheduler: (task) => task(),
+          enabled: true,
+          endpoint,
+          transport,
+          logger,
+          timeoutMs: simulationTimeoutMs,
+        });
+        client.track("feature_used", { feature_id: plan.featureId });
+        client.track("task_started", { task_type: "sample_workflow" });
+        if (plan.succeeds) {
+          client.track("task_succeeded", {
+            task_type: "sample_workflow",
+            duration_ms: 100 + deviceNumber * 10,
+          });
+        } else {
+          client.track("task_failed", {
+            task_type: "sample_workflow",
+            error_code: "EXPECTED_SAMPLE_FAILURE",
+          });
+        }
+        const metadata = {
+          device_number: deviceNumber,
+          app_version: appVersion,
+          platform: request.platform,
+          arch: plan.arch,
+          channel: plan.channel,
+          install_id: client.installId,
+          session_id: client.sessionId,
+          planned_task_result: plan.succeeds ? "succeeded" : "failed",
+        };
+        deviceSetups.push({ client, logger, metadata });
+      }
+
+      // Start every device before waiting so one hanging endpoint is bounded by
+      // one shared timeout window instead of ten consecutive timeout windows.
+      const devices = await Promise.all(
+        deviceSetups.map(async ({ client, logger, metadata }) => {
+          const deliveries = (await client.drainResults()).map((result) =>
+            publicDelivery(result, {
+              device_number: metadata.device_number,
+            }),
+          );
+          return {
+            ...metadata,
+            deliveries,
+            debug: structuredClone(logger.records),
+          };
+        }),
+      );
+
+      const deliveries = devices.flatMap((device) => device.deliveries);
+      return {
+        device_count: devices.length,
+        simulation_versions: simulationVersions,
+        devices,
+        deliveries,
+        acknowledged_count: deliveries.filter(
+          (delivery) => delivery.acknowledged,
+        ).length,
+        network_performed: deliveries.length > 0,
+      };
+    }
+
+    if (action === "check_update_url") {
+      requireNetworkConsent(request, "GET");
+      const updateUrl = requireCanonicalExternalUrl(
+        request.update_url,
+        "update_url",
+      );
+      const updateBaseUrl = deriveExactUpdateBaseUrl(
+        updateUrl,
+        request.app_id,
+        request.platform,
+      );
+      const stateDirectory = resolve(
+        requireString(request.state_dir, "state_dir"),
+      );
+      const logger = new BufferLogger();
+      const identity = await new InstallIdentity(
+        new NodeFileIdentityStorage(stateDirectory),
+        { logger },
+      ).initialize();
+      const fetchDiagnostic = {
+        original_url: updateUrl,
+        actual_url: updateUrl,
+        attempted: false,
+      };
+      let responseText = null;
+      let responseWasOk = false;
+      const checker = new UpdateChecker({
+        baseUrl: updateBaseUrl,
+        appId: request.app_id,
+        platform: request.platform,
+        currentVersion: request.app_version,
+        installId: identity.installId,
+        enabled: true,
+        logger,
+        fetch: async (sdkRequestUrl, init) => {
+          if (sdkRequestUrl !== updateUrl) {
+            throw new BridgeRequestError(
+              "unsafe_update_url",
+              "SDK update URL does not exactly match update_url",
+            );
+          }
+          fetchDiagnostic.attempted = true;
+          fetchDiagnostic.sdk_request_url = sdkRequestUrl;
+          fetchDiagnostic.method = init.method;
+          fetchDiagnostic.cache = init.cache ?? "no-store";
+          fetchDiagnostic.headers = structuredClone(init.headers);
+          if (typeof globalThis.fetch !== "function") {
+            fetchDiagnostic.error = { code: "fetch_unavailable" };
+            throw new Error("fetch_unavailable");
+          }
+
+          let response;
+          try {
+            response = await globalThis.fetch(sdkRequestUrl, {
+              method: init.method,
+              headers: init.headers,
+              signal: init.signal,
+              cache: init.cache ?? "no-store",
+              credentials: "omit",
+              redirect: "error",
+              referrerPolicy: "no-referrer",
+            });
+          } catch {
+            fetchDiagnostic.error = { code: "network_error" };
+            throw new Error("network_error");
+          }
+          responseWasOk = response.ok === true;
+          fetchDiagnostic.http_status = Number.isInteger(response.status)
+            ? response.status
+            : null;
+          fetchDiagnostic.http_ok = responseWasOk;
+          if (!responseWasOk) {
+            fetchDiagnostic.error = {
+              code: "http_error",
+              ...(Number.isInteger(response.status)
+                ? { http_status: response.status }
+                : {}),
+            };
+          }
+          return {
+            ok: responseWasOk,
+            text: async () => {
+              try {
+                responseText = await response.text();
+                return responseText;
+              } catch {
+                fetchDiagnostic.error = { code: "network_error" };
+                throw new Error("network_error");
+              }
+            },
+          };
+        },
+      });
+      const decision = await checker.check();
+      const parsedConfig = responseWasOk
+        ? parseCheckedUpdateConfig(
+            responseText,
+            request.app_id,
+            request.platform,
+          )
+        : null;
+      return {
+        decision,
+        config: safeUpdateConfig(parsedConfig),
+        install_id: identity.installId,
+        is_first_install: identity.isFirstInstall,
+        original_url: updateUrl,
+        actual_url: updateUrl,
+        fetch_diagnostic: fetchDiagnostic,
+        debug: structuredClone(logger.records),
+        network_performed: fetchDiagnostic.attempted,
+      };
     }
 
     if (action === "init_capture") {
@@ -242,7 +816,7 @@ export function createBridgeDispatcher() {
         debug: structuredClone(logger.records),
         network_performed: transport.records.length > 0,
         receipt_scope:
-          "HTTP response only; this does not prove backend persistence",
+          "HTTP success plus an explicit server {ok:true} acknowledgement",
       };
     }
 
@@ -270,7 +844,7 @@ export function createBridgeDispatcher() {
         transport_records: structuredClone(records),
         network_performed: records.length > 0,
         receipt_scope:
-          "HTTP response only; this does not prove backend persistence",
+          "HTTP success plus an explicit server {ok:true} acknowledgement",
       };
     }
 
@@ -291,6 +865,7 @@ export function createBridgeDispatcher() {
             url,
             method: init.method,
             headers: structuredClone(init.headers),
+            cache: init.cache,
           });
           return {
             ok: true,

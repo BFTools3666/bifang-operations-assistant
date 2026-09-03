@@ -206,9 +206,11 @@ test("safe URL validation rejects credentials and non-HTTPS protocols", () => {
 
 test("checker requests the canonical path and returns none on network failure", async () => {
   let requestedUrl;
+  let requestedInit;
   const successful = checker(manifest(), {
-    fetch: async (url) => {
+    fetch: async (url, init) => {
       requestedUrl = url;
+      requestedInit = init;
       return { ok: true, text: async () => JSON.stringify(manifest()) };
     },
   });
@@ -225,6 +227,8 @@ test("checker requests the canonical path and returns none on network failure", 
     ),
     requestedUrl,
   );
+  assert.equal(requestedInit.cache, "no-store");
+  assert.deepEqual(requestedInit.headers, { accept: "application/json" });
 
   const unavailable = checker(manifest(), {
     fetch: async () => {

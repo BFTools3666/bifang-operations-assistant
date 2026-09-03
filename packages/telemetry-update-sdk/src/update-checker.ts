@@ -116,8 +116,11 @@ export class UpdateChecker {
       const response = await Promise.race([
         fetcher(url, {
           method: "GET",
-          headers: { accept: "application/json" },
+          headers: {
+            accept: "application/json",
+          },
           signal: controller.signal,
+          cache: "no-store",
         }),
         timeoutPromise,
       ]);
@@ -320,6 +323,7 @@ const defaultFetch: UpdateFetch = async (url, init) => {
     method: init.method,
     headers: init.headers,
     signal: init.signal,
+    cache: init.cache ?? "no-store",
     credentials: "omit",
     redirect: "error",
   });

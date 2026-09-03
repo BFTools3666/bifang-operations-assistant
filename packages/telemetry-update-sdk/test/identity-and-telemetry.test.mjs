@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  FetchTelemetryTransport,
   MemoryIdentityStorage,
   TelemetryClient,
+  TelemetryTransportError,
   isUuidV4,
   sanitizeEventProperties,
 } from "../dist/index.js";
@@ -12,6 +14,13 @@ class CaptureTransport {
 
   async send(_endpoint, event) {
     this.events.push(structuredClone(event));
+  }
+}
+
+class AcknowledgingTransport extends CaptureTransport {
+  async send(endpoint, event, signal) {
+    await super.send(endpoint, event, signal);
+    return { httpStatus: 202, ack: { ok: true } };
   }
 }
 
@@ -49,6 +58,298 @@ test("first init persists identity and queues app_install then app_start", async
   assert.equal(transport.events[0].sdk_version, "1.0.0");
   assert.equal(transport.events[0].channel, "official");
   assert.deepEqual(transport.events[0].properties, {});
+});
+
+test("drainResults retains synchronous init deliveries and returns each SDK event id", async () => {
+  const transport = new CaptureTransport();
+  const client = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), transport),
+  );
+
+  const results = await client.drainResults();
+  assert.deepEqual(
+    results.map(({ event, outcome, receipt }) => ({
+      event,
+      outcome,
+      receipt,
+    })),
+    [
+      { event: "app_install", outcome: "sent", receipt: null },
+      { event: "app_start", outcome: "sent", receipt: null },
+    ],
+  );
+  assert.deepEqual(
+    results.map((result) => result.eventId),
+    transport.events.map((event) => event.event_id),
+  );
+  assert.ok(results.every((result) => isUuidV4(result.eventId)));
+  assert.deepEqual(await client.drainResults(), []);
+});
+
+test("drainResults distinguishes strict service acknowledgements", async () => {
+  const transport = new AcknowledgingTransport();
+  const client = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), transport),
+  );
+
+  const automatic = await client.drainResults();
+  assert.equal(automatic.length, 2);
+  assert.ok(
+    automatic.every(
+      (result) =>
+        result.outcome === "acknowledged" &&
+        result.receipt.httpStatus === 202 &&
+        result.receipt.ack.ok === true,
+    ),
+  );
+
+  client.track("feature_used", { feature_id: "cloudbase_validation" });
+  client.track("task_succeeded", {
+    task_type: "cloudbase_validation",
+    duration_ms: 1,
+  });
+  const manual = await client.drainResults();
+  assert.deepEqual(
+    manual.map(({ event, outcome }) => ({ event, outcome })),
+    [
+      { event: "feature_used", outcome: "acknowledged" },
+      { event: "task_succeeded", outcome: "acknowledged" },
+    ],
+  );
+  assert.deepEqual(
+    manual.map((result) => result.eventId),
+    transport.events.slice(-2).map((event) => event.event_id),
+  );
+});
+
+test("default HTTP transport requires a JSON ok acknowledgement", async () => {
+  const originalFetch = globalThis.fetch;
+  const cases = [
+    {
+      response: { ok: true, status: 202, body: '{"ok":true}' },
+      expected: {
+        outcome: "acknowledged",
+        receipt: { httpStatus: 202, ack: { ok: true } },
+      },
+    },
+    {
+      response: {
+        ok: false,
+        status: 403,
+        body: '{"ok":false,"error":"unknown_app"}',
+      },
+      expected: {
+        outcome: "failed",
+        failure: {
+          code: "server_rejected",
+          httpStatus: 403,
+          serverError: "unknown_app",
+        },
+      },
+    },
+    {
+      response: { ok: false, status: 404, body: "not json" },
+      expected: {
+        outcome: "failed",
+        failure: { code: "http_error", httpStatus: 404 },
+      },
+    },
+    {
+      response: { ok: false, status: 500, body: '{"ok":true}' },
+      expected: {
+        outcome: "failed",
+        failure: { code: "http_error", httpStatus: 500 },
+      },
+    },
+    {
+      response: { ok: true, status: 202, body: "not json" },
+      expected: {
+        outcome: "failed",
+        failure: { code: "invalid_response", httpStatus: 202 },
+      },
+    },
+    {
+      response: {
+        ok: true,
+        status: 202,
+        body: '{"ok":false,"error":"invalid_payload"}',
+      },
+      expected: {
+        outcome: "failed",
+        failure: {
+          code: "server_rejected",
+          httpStatus: 202,
+          serverError: "invalid_payload",
+        },
+      },
+    },
+  ];
+
+  try {
+    for (const { response, expected } of cases) {
+      globalThis.fetch = async () => ({
+        ok: response.ok,
+        status: response.status,
+        text: async () => response.body,
+      });
+      const client = await TelemetryClient.init(
+        clientConfig(
+          new MemoryIdentityStorage(),
+          new FetchTelemetryTransport(),
+        ),
+      );
+      const results = await client.drainResults();
+      assert.equal(results.length, 2);
+      for (const result of results) {
+        assert.equal(result.outcome, expected.outcome);
+        if (expected.receipt) {
+          assert.deepEqual(result.receipt, expected.receipt);
+        } else {
+          assert.equal(result.receipt, null);
+          assert.deepEqual(result.failure, expected.failure);
+        }
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("custom transport cannot acknowledge a non-2xx receipt", async () => {
+  const client = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), {
+      async send() {
+        return { httpStatus: 500, ack: { ok: true } };
+      },
+    }),
+  );
+  const results = await client.drainResults();
+  assert.equal(results.length, 2);
+  assert.ok(
+    results.every(
+      (result) =>
+        result.outcome === "failed" &&
+        result.receipt === null &&
+        result.failure.code === "http_error" &&
+        result.failure.httpStatus === 500,
+    ),
+  );
+});
+
+test("drainResults exposes network, timeout, and scheduler failures without rejecting", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => {
+      throw new TypeError("private network detail");
+    };
+    const networkClient = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), new FetchTelemetryTransport()),
+    );
+    const networkResults = await networkClient.drainResults();
+    assert.ok(
+      networkResults.every(
+        (result) =>
+          result.outcome === "failed" &&
+          result.failure.code === "network_error",
+      ),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const timeoutClient = await TelemetryClient.init(
+    clientConfig(
+      new MemoryIdentityStorage(),
+      { send: () => new Promise(() => undefined) },
+      { timeoutMs: 5 },
+    ),
+  );
+  const timeoutResults = await timeoutClient.drainResults();
+  assert.ok(
+    timeoutResults.every(
+      (result) =>
+        result.outcome === "failed" && result.failure.code === "timeout",
+    ),
+  );
+
+  const schedulerClient = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
+      scheduler() {
+        throw new Error("broken scheduler");
+      },
+    }),
+  );
+  const schedulerResults = await schedulerClient.drainResults();
+  assert.ok(
+    schedulerResults.every(
+      (result) =>
+        result.outcome === "failed" &&
+        result.failure.code === "scheduler_error",
+    ),
+  );
+
+  const droppedSchedulerClient = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
+      timeoutMs: 5,
+      scheduler() {},
+    }),
+  );
+  const droppedSchedulerResults = await droppedSchedulerClient.drainResults();
+  assert.ok(
+    droppedSchedulerResults.every(
+      (result) =>
+        result.outcome === "failed" &&
+        result.failure.code === "scheduler_error",
+    ),
+  );
+});
+
+test("transport errors expose only bounded structured server details", () => {
+  const error = new TelemetryTransportError("server_rejected", {
+    httpStatus: 403,
+    serverError: "unknown_app",
+  });
+  assert.equal(error.code, "server_rejected");
+  assert.equal(error.httpStatus, 403);
+  assert.equal(error.serverError, "unknown_app");
+
+  const unsafe = new TelemetryTransportError("server_rejected", {
+    httpStatus: 999,
+    serverError: "raw private response text!",
+  });
+  assert.equal(unsafe.httpStatus, undefined);
+  assert.equal(unsafe.serverError, undefined);
+});
+
+test("concurrent drain callers both wait for the same pending sends", async () => {
+  const releases = [];
+  const client = await TelemetryClient.init(
+    clientConfig(new MemoryIdentityStorage(), {
+      send() {
+        return new Promise((resolve) => releases.push(resolve));
+      },
+    }),
+  );
+  assert.equal(releases.length, 2);
+
+  let firstFinished = false;
+  let secondFinished = false;
+  const first = client.drain().then(() => {
+    firstFinished = true;
+  });
+  const second = client.drain().then(() => {
+    secondFinished = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(firstFinished, false);
+  assert.equal(secondFinished, false);
+
+  for (const release of releases) {
+    release();
+  }
+  await Promise.all([first, second]);
+  assert.equal(firstFinished, true);
+  assert.equal(secondFinished, true);
 });
 
 test("second init keeps install_id, changes session_id, and does not repeat app_install", async () => {

@@ -5,7 +5,10 @@ import {
   TELEMETRY_SCHEMA_VERSION,
 } from "./constants.js";
 import { InstallIdentity } from "./identity.js";
-import { FetchTelemetryTransport } from "./transport.js";
+import {
+  FetchTelemetryTransport,
+  TelemetryTransportError,
+} from "./transport.js";
 import type {
   AvailableUpdateDecision,
   EmptyTelemetryEventName,
@@ -14,9 +17,12 @@ import type {
   PropertyTelemetryEventName,
   SanitizedProperties,
   TelemetryClientConfig,
+  TelemetryDeliveryFailure,
+  TelemetryDeliveryResult,
   TelemetryEvent,
   TelemetryEventName,
   TelemetryTransport,
+  TelemetryTransportReceipt,
 } from "./types.js";
 import {
   isAppId,
@@ -41,13 +47,22 @@ interface ClientContext {
   identity: InstallIdentityState;
 }
 
+interface DeliveryRecord {
+  readonly promise: Promise<TelemetryDeliveryResult>;
+  settled: boolean;
+  consumed: boolean;
+}
+
+const MAX_RETAINED_DELIVERY_RESULTS = 100;
+
 export class TelemetryClient {
   readonly #config: TelemetryClientConfig;
   readonly #context: ClientContext;
   readonly #transport: TelemetryTransport;
   readonly #enabled: boolean;
   readonly #timeoutMs: number;
-  readonly #pending = new Set<Promise<void>>();
+  readonly #pending = new Set<Promise<TelemetryDeliveryResult>>();
+  readonly #deliveries: DeliveryRecord[] = [];
 
   private constructor(
     config: TelemetryClientConfig,
@@ -153,7 +168,24 @@ export class TelemetryClient {
 
   /** Waits only for currently queued sends. It never retries failed events. */
   async drain(): Promise<void> {
-    await Promise.allSettled([...this.#pending]);
+    const pending = [...this.#pending];
+    this.#takeDeliveryRecords();
+    await Promise.all(pending);
+    this.#trimDeliveryHistory();
+  }
+
+  /**
+   * Waits for and returns the uncollected delivery results queued so far.
+   * A result is `acknowledged` only when the HTTP service returned `{ok:true}`;
+   * legacy custom transports that resolve `void` are reported as `sent`.
+   * Pending results are never dropped; at most 100 completed results are kept
+   * when a host never calls either drain method.
+   */
+  async drainResults(): Promise<TelemetryDeliveryResult[]> {
+    const records = this.#takeDeliveryRecords();
+    const results = await Promise.all(records.map((record) => record.promise));
+    this.#trimDeliveryHistory();
+    return results;
   }
 
   #buildEvent(
@@ -179,35 +211,63 @@ export class TelemetryClient {
 
   #schedule(payload: TelemetryEvent): void {
     const scheduler = this.#config.scheduler ?? defaultScheduler;
-    let resolvePending: (() => void) | undefined;
-    const pending = new Promise<void>((resolve) => {
+    let resolvePending: ((result: TelemetryDeliveryResult) => void) | undefined;
+    const pending = new Promise<TelemetryDeliveryResult>((resolve) => {
       resolvePending = resolve;
     });
+    const record: DeliveryRecord = {
+      promise: pending,
+      settled: false,
+      consumed: false,
+    };
     this.#pending.add(pending);
-    void pending.finally(() => this.#pending.delete(pending));
+    this.#deliveries.push(record);
+    void pending.then(() => {
+      record.settled = true;
+      this.#pending.delete(pending);
+      this.#trimDeliveryHistory();
+    });
+
+    let started = false;
+    const schedulerTimeout = setTimeout(() => {
+      if (started) {
+        return;
+      }
+      started = true;
+      resolvePending?.(failedDelivery(payload, { code: "scheduler_error" }));
+    }, this.#timeoutMs);
 
     try {
       scheduler(() => {
-        void this.#send(payload).finally(() => resolvePending?.());
+        if (started) {
+          return;
+        }
+        started = true;
+        clearTimeout(schedulerTimeout);
+        void this.#send(payload).then((result) => resolvePending?.(result));
       });
     } catch {
       // A broken injected scheduler is treated like any other telemetry failure.
-      resolvePending?.();
+      if (!started) {
+        started = true;
+        clearTimeout(schedulerTimeout);
+        resolvePending?.(failedDelivery(payload, { code: "scheduler_error" }));
+      }
     }
   }
 
-  async #send(payload: TelemetryEvent): Promise<void> {
+  async #send(payload: TelemetryEvent): Promise<TelemetryDeliveryResult> {
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timeout = setTimeout(() => {
-        controller.abort();
         reject(new Error("telemetry_timeout"));
+        controller.abort();
       }, this.#timeoutMs);
     });
 
     try {
-      await Promise.race([
+      const transportResult = await Promise.race([
         this.#transport.send(
           this.#context.endpoint,
           payload,
@@ -215,10 +275,26 @@ export class TelemetryClient {
         ),
         timeoutPromise,
       ]);
+      const receipt = normalizeTransportReceipt(transportResult);
+      if (receipt) {
+        return {
+          event: payload.event,
+          eventId: payload.event_id,
+          outcome: "acknowledged",
+          receipt,
+        };
+      }
+      return {
+        event: payload.event,
+        eventId: payload.event_id,
+        outcome: "sent",
+        receipt: null,
+      };
     } catch (error) {
       this.#debug("telemetry_send_dropped", {
         error: error instanceof Error ? error.name : "unknown",
       });
+      return failedDelivery(payload, deliveryFailure(error));
     } finally {
       if (timeout !== undefined) {
         clearTimeout(timeout);
@@ -233,6 +309,95 @@ export class TelemetryClient {
       // Debug logging is optional and isolated from host application behavior.
     }
   }
+
+  #takeDeliveryRecords(): DeliveryRecord[] {
+    const records = this.#deliveries.filter((record) => !record.consumed);
+    for (const record of records) {
+      record.consumed = true;
+    }
+    return records;
+  }
+
+  #trimDeliveryHistory(): void {
+    for (let index = this.#deliveries.length - 1; index >= 0; index -= 1) {
+      const record = this.#deliveries[index];
+      if (record?.settled && record.consumed) {
+        this.#deliveries.splice(index, 1);
+      }
+    }
+
+    let retained = this.#deliveries.filter(
+      (record) => record.settled && !record.consumed,
+    ).length;
+    for (
+      let index = 0;
+      retained > MAX_RETAINED_DELIVERY_RESULTS &&
+      index < this.#deliveries.length;
+    ) {
+      const record = this.#deliveries[index];
+      if (record?.settled && !record.consumed) {
+        this.#deliveries.splice(index, 1);
+        retained -= 1;
+      } else {
+        index += 1;
+      }
+    }
+  }
+}
+
+function normalizeTransportReceipt(
+  value: void | TelemetryTransportReceipt,
+): TelemetryTransportReceipt | null {
+  if (value === undefined) {
+    return null;
+  }
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !Number.isInteger(value.httpStatus) ||
+    typeof value.ack !== "object" ||
+    value.ack === null ||
+    value.ack.ok !== true
+  ) {
+    throw new TelemetryTransportError("invalid_response");
+  }
+  if (value.httpStatus < 200 || value.httpStatus > 299) {
+    throw new TelemetryTransportError("http_error", {
+      httpStatus: value.httpStatus,
+    });
+  }
+  return { httpStatus: value.httpStatus, ack: { ok: true } };
+}
+
+function deliveryFailure(error: unknown): TelemetryDeliveryFailure {
+  if (error instanceof TelemetryTransportError) {
+    return {
+      code: error.code,
+      ...(error.httpStatus === undefined
+        ? {}
+        : { httpStatus: error.httpStatus }),
+      ...(error.serverError === undefined
+        ? {}
+        : { serverError: error.serverError }),
+    };
+  }
+  if (error instanceof Error && error.message === "telemetry_timeout") {
+    return { code: "timeout" };
+  }
+  return { code: "transport_error" };
+}
+
+function failedDelivery(
+  payload: Readonly<TelemetryEvent>,
+  failure: TelemetryDeliveryFailure,
+): TelemetryDeliveryResult {
+  return {
+    event: payload.event,
+    eventId: payload.event_id,
+    outcome: "failed",
+    receipt: null,
+    failure,
+  };
 }
 
 function isValidClientConfig(config: TelemetryClientConfig): boolean {

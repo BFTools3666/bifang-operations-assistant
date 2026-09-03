@@ -106,8 +106,66 @@ export interface TelemetryTransport {
     endpoint: string,
     event: Readonly<TelemetryEvent>,
     signal: AbortSignal,
-  ): Promise<void>;
+  ): Promise<void | TelemetryTransportReceipt>;
 }
+
+/** Sanitized acknowledgement returned by the default HTTP transport. */
+export interface TelemetryServerAck {
+  ok: true;
+}
+
+/**
+ * Proof that the HTTP request completed and the service explicitly returned
+ * `{ ok: true }`. Custom transports may keep returning `void` for backwards
+ * compatibility when they cannot provide this stronger acknowledgement.
+ */
+export interface TelemetryTransportReceipt {
+  httpStatus: number;
+  ack: TelemetryServerAck;
+}
+
+export type TelemetryTransportErrorCode =
+  | "fetch_unavailable"
+  | "network_error"
+  | "http_error"
+  | "invalid_response"
+  | "server_rejected";
+
+export type TelemetryDeliveryFailureCode =
+  | TelemetryTransportErrorCode
+  | "timeout"
+  | "scheduler_error"
+  | "transport_error";
+
+export interface TelemetryDeliveryFailure {
+  code: TelemetryDeliveryFailureCode;
+  httpStatus?: number;
+  /** A bounded machine-readable code such as `unknown_app`, never raw text. */
+  serverError?: string;
+}
+
+interface TelemetryDeliveryIdentity {
+  event: TelemetryEventName;
+  eventId: string;
+}
+
+export type TelemetryDeliveryResult = TelemetryDeliveryIdentity &
+  (
+    | {
+        outcome: "acknowledged";
+        receipt: TelemetryTransportReceipt;
+      }
+    | {
+        /** A backwards-compatible custom transport resolved without an ack. */
+        outcome: "sent";
+        receipt: null;
+      }
+    | {
+        outcome: "failed";
+        receipt: null;
+        failure: TelemetryDeliveryFailure;
+      }
+  );
 
 export type TaskScheduler = (task: () => void) => void;
 
@@ -181,6 +239,7 @@ export type UpdateFetch = (
     method: "GET";
     headers: Readonly<Record<string, string>>;
     signal: AbortSignal;
+    cache?: "no-store";
   },
 ) => Promise<UpdateFetchResponse>;
 

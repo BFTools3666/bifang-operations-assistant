@@ -17,7 +17,10 @@ export {
 } from "./identity.js";
 export { compareSemVer, isValidSemVer, parseSemVer } from "./semver.js";
 export { TelemetryClient } from "./telemetry-client.js";
-export { FetchTelemetryTransport } from "./transport.js";
+export {
+  FetchTelemetryTransport,
+  TelemetryTransportError,
+} from "./transport.js";
 export {
   UpdateChecker,
   buildUpdateUrl,
@@ -57,9 +60,15 @@ export type {
   SanitizedProperties,
   TaskScheduler,
   TelemetryClientConfig,
+  TelemetryDeliveryFailure,
+  TelemetryDeliveryFailureCode,
+  TelemetryDeliveryResult,
   TelemetryEvent,
   TelemetryEventName,
+  TelemetryServerAck,
   TelemetryTransport,
+  TelemetryTransportErrorCode,
+  TelemetryTransportReceipt,
   UpdateCheckerConfig,
   UpdateConfig,
   UpdateDecision,
