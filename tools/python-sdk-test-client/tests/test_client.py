@@ -1,3 +1,4 @@
+import contextlib
 import importlib.util
 import io
 import sys
@@ -38,6 +39,62 @@ class BridgeProcessTests(unittest.TestCase):
                     [event["event"] for event in initialized["events"]],
                     ["app_install", "app_start"],
                 )
+                tracked = bridge.request(
+                    "track_capture",
+                    timeout=10,
+                    event="task_succeeded",
+                    properties={"task_type": "batch_export", "duration_ms": 120},
+                )
+                self.assertTrue(tracked["accepted_by_sdk"])
+                self.assertFalse(tracked["network_performed"])
+                self.assertEqual(tracked["events"][0]["channel"], "official")
+                self.assertEqual(
+                    tracked["events"][0]["properties"],
+                    {"task_type": "batch_export", "duration_ms": 120},
+                )
+                preview = bridge.request(
+                    "preview_update",
+                    timeout=10,
+                    app_id="example-tool",
+                    app_version="0.1.0",
+                    platform="windows",
+                    manifest={
+                        "schema_version": 1,
+                        "app_id": "example-tool",
+                        "platform": "windows",
+                        "enabled": True,
+                        "latest_version": "0.1.0",
+                        "min_supported_version": "0.1.0",
+                        "force_update": False,
+                        "rollout": 100,
+                        "title": "Example Tool 0.1.0",
+                        "message": "Already current.",
+                        "download_url": "https://downloads.example.invalid/tool.exe",
+                        "release_notes_url": "https://releases.example.invalid/tool",
+                        "sha256": "",
+                        "published_at": "2026-09-03T04:43:55.000Z",
+                    },
+                )
+                self.assertEqual(
+                    preview["decision"],
+                    {"kind": "none", "reason": "up_to_date"},
+                )
+                self.assertFalse(preview["network_performed"])
+
+
+class MainTests(unittest.TestCase):
+    def test_short_missing_bridge_path_returns_error_without_traceback(self):
+        short_bridge = (
+            Path(Path.cwd().anchor) / f"bifang-missing-{time.time_ns()}.mjs"
+        )
+        output = io.StringIO()
+
+        with contextlib.redirect_stderr(output):
+            result = CLIENT.main(["--bridge", str(short_bridge)])
+
+        self.assertEqual(result, 2)
+        self.assertIn("找不到 Node 桥接", output.getvalue())
+        self.assertIsNone(CLIENT.repository_root_for_bridge(short_bridge))
 
 
 class BackgroundJobTests(unittest.TestCase):

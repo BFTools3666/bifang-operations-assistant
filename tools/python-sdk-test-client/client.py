@@ -46,7 +46,7 @@ class BridgeProcess:
         self.bridge_path = bridge_path.resolve()
         self._process = subprocess.Popen(
             [node_command, str(self.bridge_path)],
-            cwd=str(self.bridge_path.parents[2]),
+            cwd=str(self.bridge_path.parent),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -566,10 +566,27 @@ def parse_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def repository_root_for_bridge(bridge_path: Path) -> Optional[Path]:
+    """Return the expected repository root without assuming path depth."""
+    try:
+        return bridge_path.parents[2]
+    except IndexError:
+        return None
+
+
 def main(argv: Optional[Iterable[str]] = None) -> int:
     arguments = parse_arguments(argv)
     bridge_path = arguments.bridge.expanduser().resolve()
-    repository_root = bridge_path.parents[2]
+    if not bridge_path.is_file():
+        print(f"找不到 Node 桥接：{bridge_path}", file=sys.stderr)
+        return 2
+    repository_root = repository_root_for_bridge(bridge_path)
+    if repository_root is None:
+        print(
+            f"Node 桥接路径层级不足，无法定位仓库根目录：{bridge_path}",
+            file=sys.stderr,
+        )
+        return 2
     sdk_entry = (
         repository_root
         / "packages"
@@ -577,9 +594,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         / "dist"
         / "index.js"
     )
-    if not bridge_path.is_file():
-        print(f"找不到 Node 桥接：{bridge_path}", file=sys.stderr)
-        return 2
     if not sdk_entry.is_file():
         print(
             "SDK 尚未构建。请先运行：npm ci，然后运行："

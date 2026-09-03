@@ -73,10 +73,12 @@ test("capture initialization and all event previews use the real SDK without net
     };
     try {
       const dispatch = createBridgeDispatcher();
+      const requestWithoutChannel = { ...BASE_REQUEST };
+      delete requestWithoutChannel.channel;
       const initialized = await dispatch({
         action: "init_capture",
         state_dir: stateDirectory,
-        ...BASE_REQUEST,
+        ...requestWithoutChannel,
       });
       assert.equal(initialized.network_performed, false);
       assert.equal(initialized.client.enabled, true);
@@ -144,7 +146,7 @@ test("capture identity persists across bridge restarts", async () => {
   });
 });
 
-test("invalid properties are dropped whole by the SDK", async () => {
+test("missing, old, and extra properties are dropped whole by the SDK", async () => {
   await withTemporaryDirectory(async (stateDirectory) => {
     const dispatch = createBridgeDispatcher();
     await dispatch({
@@ -152,13 +154,23 @@ test("invalid properties are dropped whole by the SDK", async () => {
       state_dir: stateDirectory,
       ...BASE_REQUEST,
     });
-    const result = await dispatch({
-      action: "track_capture",
-      event: "feature_used",
-      properties: { feature_id: "export_csv", private_text: "do not send" },
-    });
-    assert.equal(result.accepted_by_sdk, false);
-    assert.deepEqual(result.events, []);
+    const cases = [
+      [
+        "feature_used",
+        { feature_id: "export_csv", private_text: "do not send" },
+      ],
+      ["task_succeeded", { task_type: "batch_export" }],
+      ["update_clicked", { latest_version: "1.2.3", action: "update_now" }],
+    ];
+    for (const [event, properties] of cases) {
+      const result = await dispatch({
+        action: "track_capture",
+        event,
+        properties,
+      });
+      assert.equal(result.accepted_by_sdk, false, event);
+      assert.deepEqual(result.events, [], event);
+    }
   });
 });
 

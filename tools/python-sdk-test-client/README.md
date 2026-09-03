@@ -15,6 +15,11 @@ SDK 的身份、事件清洗、URL 安全检查、更新清单解析或版本决
 - 更新检查只返回 SDK 决策，不下载、不打开链接、不校验安装包，也不安装更新。
 - 本工具不部署 CloudBase、不修改远端资源，也不接入任何真实业务客户端。
 
+Task8 已把修正后的 Phase 1 v1 协议部署并验收到现有 smoke 环境；当前 telemetry
+endpoint 和更新 base URL 记录在[部署回执](../../docs/cloudbase-deployment.md)。本工具
+不会读取或预填这些地址；确需 live 验证时，只能由操作者从回执人工复制、逐次完整
+输入，并继续键入精确的 `POST` 或 `GET` 确认词。
+
 SDK 会拒绝 HTTP、localhost、私网、带凭据及其他不安全 URL。因此本地预览
 走 capture transport 或注入的 update fetch，而不是伪装成本地 HTTP 服务。
 

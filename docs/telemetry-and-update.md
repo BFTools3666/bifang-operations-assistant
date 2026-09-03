@@ -16,6 +16,7 @@ Phase 1 的文件及职责如下：
 - 云函数：`cloudbase/functions/telemetry/index.js`、`cloudbase/functions/telemetry/package.json`、`cloudbase/functions/telemetry/src/burst-guard.js`、`cloudbase/functions/telemetry/src/handler.js`、`cloudbase/functions/telemetry/src/validation.js`、`cloudbase/functions/telemetry/src/writer.js`、`cloudbase/functions/telemetry/test/telemetry.test.js`。
 - 更新清单：`cloudbase/updates/update.schema.json`、`cloudbase/updates/example-tool/windows.json`。
 - 示例与仓库测试：`examples/host-integration.ts`、`examples/telemetry-event.json`、`examples/tsconfig.json`、`tests/repository-contract.test.mjs`。
+- Python SDK 手动测试客户端：`tools/python-sdk-test-client/client.py`、`tools/python-sdk-test-client/bridge.mjs`、`tools/python-sdk-test-client/README.md`、`tools/python-sdk-test-client/tests/test_client.py`；Node 跨语言集成测试为 `tests/python-sdk-test-client.test.mjs`。
 - 文档：`cloudbase/README.md`、`docs/telemetry-and-update.md`、`docs/cloudbase-deployment.md`。
 
 `example-tool` 和所有 `.example.invalid` URL 都是明确的 smoke/不可用占位值，不是现有业务产品或生产下载地址。Task4/Task8 部署 `example-tool` 仅用于验证基础设施。
@@ -210,7 +211,7 @@ https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.c
 
 ## 9. 本地测试
 
-需要 Node.js 20+。在仓库根目录运行：
+需要 Node.js 20+ 与 Python 3.9+；仓库脚本通过 `python` 命令运行客户端测试。在仓库根目录运行：
 
 ```powershell
 npm ci
@@ -226,7 +227,17 @@ npm run build
 npm run check
 ```
 
-工作区脚本会构建 SDK、运行 SDK 测试、运行 telemetry 函数测试和仓库契约测试。测试覆盖身份首次/再次初始化、事件清洗、网络失败与超时静默、SemVer 和灰度、更新决策、非法请求及未知 app 零写入、服务端 `received_at`、CORS、实例 burst guard 以及 `_id=event_id` 写入策略。
+工作区脚本会构建 SDK，运行 SDK 测试、telemetry 函数测试、仓库契约测试、Node bridge 集成测试和 Python unittest。测试覆盖身份首次/再次初始化、事件清洗、网络失败与超时静默、SemVer 和灰度、更新决策、非法请求及未知 app 零写入、服务端 `received_at`、CORS、实例 burst guard 以及 `_id=event_id` 写入策略。
+
+也可以只运行 Python 手动测试客户端的专项测试：
+
+```powershell
+npm run build --workspace @bifang/telemetry-update-sdk
+node --test .\tests\python-sdk-test-client.test.mjs
+python -m unittest discover -s .\tools\python-sdk-test-client\tests -p "test_*.py" -v
+```
+
+该工具通过薄 Node JSONL bridge 调用构建后的真实 TypeScript SDK；自动测试只使用捕获 transport、注入 fetch 或 mock，不会向公网 POST/GET。启动和人工操作说明见 [`tools/python-sdk-test-client/README.md`](../tools/python-sdk-test-client/README.md)。
 
 这些是依赖注入/mocked 的本地测试，不等于真实 CloudBase、真实公网、真实数据库或真实宿主 GUI 测试。
 
