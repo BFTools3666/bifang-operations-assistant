@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CHANNEL,
   DEFAULT_TELEMETRY_TIMEOUT_MS,
   SDK_VERSION,
   TELEMETRY_SCHEMA_VERSION,
@@ -16,7 +17,6 @@ import type {
   TelemetryEvent,
   TelemetryEventName,
   TelemetryTransport,
-  UpdateClickAction,
 } from "./types.js";
 import {
   isAppId,
@@ -54,12 +54,13 @@ export class TelemetryClient {
     identity: InstallIdentityState,
   ) {
     this.#config = config;
+    const channel = normalizeChannel(config.channel);
     this.#context = {
       appId: config.appId,
       appVersion: config.appVersion,
       platform: config.platform,
       arch: config.arch,
-      channel: config.channel,
+      channel,
       endpoint: config.endpoint ?? "",
       identity,
     };
@@ -140,24 +141,13 @@ export class TelemetryClient {
 
   trackUpdatePromptShown(decision: AvailableUpdateDecision): void {
     this.track("update_prompt_shown", {
-      latest_version: decision.config.latest_version,
-      required: decision.kind === "required",
+      target_version: decision.config.latest_version,
     });
   }
 
-  trackUpdateClicked(
-    decision: AvailableUpdateDecision,
-    action: UpdateClickAction,
-  ): void {
-    if (
-      (action === "remind_later" && decision.kind === "required") ||
-      (action === "exit" && decision.kind === "optional")
-    ) {
-      return;
-    }
+  trackUpdateClicked(decision: AvailableUpdateDecision): void {
     this.track("update_clicked", {
-      latest_version: decision.config.latest_version,
-      action,
+      target_version: decision.config.latest_version,
     });
   }
 
@@ -184,7 +174,7 @@ export class TelemetryClient {
       sdk_version: SDK_VERSION,
       occurred_at: safeNow(this.#config.now),
       properties,
-    };
+    } as TelemetryEvent;
   }
 
   #schedule(payload: TelemetryEvent): void {
@@ -251,9 +241,16 @@ function isValidClientConfig(config: TelemetryClientConfig): boolean {
     isValidSemVer(config.appVersion) &&
     isPlatform(config.platform) &&
     isArchitecture(config.arch) &&
-    isChannel(config.channel) &&
+    (config.channel === undefined || isChannel(config.channel)) &&
     isSafeExternalUrl(config.endpoint)
   );
+}
+
+function normalizeChannel(value: unknown): string {
+  if (value === undefined) {
+    return DEFAULT_CHANNEL;
+  }
+  return typeof value === "string" ? value : "";
 }
 
 function normalizeTimeout(value: number | undefined, fallback: number): number {

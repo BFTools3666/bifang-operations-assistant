@@ -23,10 +23,14 @@ function manifest(overrides = {}) {
     min_supported_version: "0.1.0",
     force_update: false,
     rollout: 100,
+    title: "Example Tool 0.2.0",
+    message: "A tested update is available.",
     download_url:
       "https://downloads.example.invalid/replace-me/example-tool-0.2.0.exe",
     release_notes_url:
       "https://releases.example.invalid/replace-me/example-tool/0.2.0",
+    sha256: "",
+    published_at: "2026-09-03T04:43:55.000Z",
     ...overrides,
   };
 }
@@ -49,6 +53,7 @@ function checker(manifestValue, overrides = {}) {
 test("latest greater than current is optional at rollout 100", async () => {
   const decision = await checker(manifest()).check();
   assert.equal(decision.kind, "optional");
+  assert.deepEqual(decision.config, manifest());
 });
 
 test("latest equal to current returns none", async () => {
@@ -112,9 +117,21 @@ test("rollout bucket is stable and stays in range", () => {
 });
 
 test("manifest parsing is strict and rejects unsafe URLs", () => {
-  assert.ok(parseUpdateConfig(manifest(), "example-tool", "windows"));
+  assert.deepEqual(
+    parseUpdateConfig(manifest(), "example-tool", "windows"),
+    manifest(),
+  );
+  const missingTitle = manifest();
+  delete missingTitle.title;
+  assert.equal(parseUpdateConfig(missingTitle), null);
   assert.equal(parseUpdateConfig({ ...manifest(), extra: true }), null);
   assert.equal(parseUpdateConfig(manifest({ rollout: 101 })), null);
+  assert.equal(
+    parseUpdateConfig(
+      manifest({ latest_version: "1.0.0", min_supported_version: "2.0.0" }),
+    ),
+    null,
+  );
   assert.equal(
     parseUpdateConfig(manifest({ download_url: "http://example.com/a.exe" })),
     null,
@@ -123,6 +140,57 @@ test("manifest parsing is strict and rejects unsafe URLs", () => {
     parseUpdateConfig(manifest({ release_notes_url: "https://127.0.0.1/a" })),
     null,
   );
+});
+
+test("manifest display text, checksum, and publication time are strict", () => {
+  assert.ok(
+    parseUpdateConfig(
+      manifest({
+        title: "T".repeat(120),
+        message: "M".repeat(1_000),
+        sha256: "aB".repeat(32),
+        published_at: "2024-02-29T23:59:59.123456789+14:00",
+      }),
+    ),
+  );
+  assert.ok(
+    parseUpdateConfig(
+      manifest({
+        title: "家庭相册 👨‍👩‍👧‍👦 2.0",
+        message: "安全、简短的更新说明。",
+        sha256: "",
+        published_at: "2026-09-03T09:00:00+08:00",
+      }),
+    ),
+  );
+
+  for (const overrides of [
+    { title: "" },
+    { title: "   " },
+    { title: "T".repeat(121) },
+    { title: "unsafe\ntext" },
+    { title: "\u200b" },
+    { title: "safe\u202etxt.exe" },
+    { title: "\u2061" },
+    { title: "\u200d\ufe0f" },
+    { message: "" },
+    { message: "\t" },
+    { message: "M".repeat(1_001) },
+    { message: "unsafe\u007ftext" },
+    { message: "unsafe\u0085text" },
+    { sha256: "a".repeat(63) },
+    { sha256: "g".repeat(64) },
+    { published_at: "2026-02-29T00:00:00Z" },
+    { published_at: "2026-09-03 09:00:00Z" },
+    { published_at: "2026-09-03T09:00:00" },
+    { published_at: "2026-09-03T09:00:00+14:01" },
+  ]) {
+    assert.equal(
+      parseUpdateConfig(manifest(overrides)),
+      null,
+      JSON.stringify(overrides),
+    );
+  }
 });
 
 test("safe URL validation rejects credentials and non-HTTPS protocols", () => {

@@ -18,7 +18,6 @@ const EVENTS = new Set([
 
 const PLATFORMS = new Set(["windows", "macos", "linux"]);
 const ARCHITECTURES = new Set(["x64", "arm64", "ia32"]);
-const UPDATE_ACTIONS = new Set(["update_now", "remind_later", "exit"]);
 
 const REQUIRED_INPUT_KEYS = [
   "schema_version",
@@ -137,78 +136,57 @@ function validateProperties(eventName, properties) {
       return keys.length === 0 ? valid({}) : invalid();
 
     case "feature_used":
-      if (!hasOnlyKeys(properties, ["feature"], ["feature"])) return invalid();
-      if (!isIdentifier(properties.feature)) return invalid();
-      return valid({ feature: properties.feature });
+      if (!hasOnlyKeys(properties, ["feature_id"], ["feature_id"]))
+        return invalid();
+      if (!isIdentifier(properties.feature_id)) return invalid();
+      return valid({ feature_id: properties.feature_id });
 
     case "task_started":
-    case "task_succeeded": {
+      if (!hasOnlyKeys(properties, ["task_type"], ["task_type"]))
+        return invalid();
+      if (!isIdentifier(properties.task_type)) return invalid();
+      return valid({ task_type: properties.task_type });
+
+    case "task_succeeded":
       if (
-        !hasOnlyKeys(properties, ["task_type", "duration_ms"], ["task_type"])
+        !hasOnlyKeys(
+          properties,
+          ["task_type", "duration_ms"],
+          ["task_type", "duration_ms"],
+        )
       ) {
         return invalid();
       }
       if (!isIdentifier(properties.task_type)) return invalid();
-      if (
-        Object.hasOwn(properties, "duration_ms") &&
-        !isDuration(properties.duration_ms)
-      ) {
-        return invalid();
-      }
-      const value = { task_type: properties.task_type };
-      if (Object.hasOwn(properties, "duration_ms")) {
-        value.duration_ms = properties.duration_ms;
-      }
-      return valid(value);
-    }
+      if (!isDuration(properties.duration_ms)) return invalid();
+      return valid({
+        task_type: properties.task_type,
+        duration_ms: properties.duration_ms,
+      });
 
     case "task_failed":
-      if (!hasOnlyKeys(properties, ["error_code"], ["error_code"]))
+      if (
+        !hasOnlyKeys(
+          properties,
+          ["task_type", "error_code"],
+          ["task_type", "error_code"],
+        )
+      ) {
         return invalid();
+      }
+      if (!isIdentifier(properties.task_type)) return invalid();
       if (!isIdentifier(properties.error_code)) return invalid();
-      return valid({ error_code: properties.error_code });
+      return valid({
+        task_type: properties.task_type,
+        error_code: properties.error_code,
+      });
 
     case "update_prompt_shown":
-      if (
-        !hasOnlyKeys(
-          properties,
-          ["latest_version", "required"],
-          ["latest_version", "required"],
-        )
-      ) {
-        return invalid();
-      }
-      if (
-        !isSemVer(properties.latest_version) ||
-        typeof properties.required !== "boolean"
-      ) {
-        return invalid();
-      }
-      return valid({
-        latest_version: properties.latest_version,
-        required: properties.required,
-      });
-
     case "update_clicked":
-      if (
-        !hasOnlyKeys(
-          properties,
-          ["latest_version", "action"],
-          ["latest_version", "action"],
-        )
-      ) {
+      if (!hasOnlyKeys(properties, ["target_version"], ["target_version"]))
         return invalid();
-      }
-      if (
-        !isSemVer(properties.latest_version) ||
-        !UPDATE_ACTIONS.has(properties.action)
-      ) {
-        return invalid();
-      }
-      return valid({
-        latest_version: properties.latest_version,
-        action: properties.action,
-      });
+      if (!isSemVer(properties.target_version)) return invalid();
+      return valid({ target_version: properties.target_version });
 
     default:
       return invalid();
@@ -360,7 +338,6 @@ module.exports = {
   MAX_PROPERTIES,
   MAX_PROPERTY_STRING_LENGTH,
   PLATFORMS,
-  UPDATE_ACTIONS,
   isAppId,
   isIso8601,
   isSemVer,

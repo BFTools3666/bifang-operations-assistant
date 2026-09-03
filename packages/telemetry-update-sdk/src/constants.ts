@@ -1,6 +1,7 @@
 export const SDK_VERSION = "1.0.0" as const;
 export const TELEMETRY_SCHEMA_VERSION = 1 as const;
 export const UPDATE_SCHEMA_VERSION = 1 as const;
+export const DEFAULT_CHANNEL = "official" as const;
 
 export const TELEMETRY_EVENT_NAMES = [
   "app_install",

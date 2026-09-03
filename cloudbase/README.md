@@ -1,6 +1,6 @@
 # CloudBase 资源说明
 
-本目录保存可重复部署的源码和静态配置。Task4 已将 `example-tool` smoke test 部署到 CloudBase 并完成公网与数据库验收；实际资源、HTTPS 地址和系统默认域名限制见 [`docs/cloudbase-deployment.md`](../docs/cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入或达到生产发布条件；完整协议、SDK 和维护说明见 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md)。
+本目录保存可重复部署的源码和静态配置。Task4 曾将 `example-tool` 旧协议快照部署到 CloudBase 并完成当时的公网与数据库验收；实际资源、HTTPS 地址和系统默认域名限制见 [`docs/cloudbase-deployment.md`](../docs/cloudbase-deployment.md)。Task7 校正后的本地函数与 14 字段静态清单尚未部署，Task8 必须部署两者并重新验收后才能恢复生产一致性。该 smoke 环境不代表真实业务客户端已经接入或达到生产发布条件；完整协议、SDK 和维护说明见 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md)。
 
 ## 目录
 
@@ -12,7 +12,7 @@
 
 ## 已部署的 smoke 拓扑与生产边界
 
-Task4 已按以下核心拓扑创建并验证第 1 至 5 项；第 6 项仍是正式业务接入前的生产要求：
+Task4 已按以下核心拓扑创建并验证第 1 至 5 项，但该证据仅对应 Task4 的历史快照；Task8 仍需重新部署并复验第 2、5 项。第 6 项仍是正式业务接入前的生产要求：
 
 1. CloudBase 环境。
 2. `telemetry` Event 云函数，Node.js 20，入口 `index.main`。
@@ -56,7 +56,7 @@ Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.jso
 - Telemetry: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/v1/track>
 - Updates: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/updates/example-tool/windows.json>
 
-这些是系统默认域名上的 smoke 地址，不应作为真实业务客户端的长期生产配置。
+这些是系统默认域名上的 Task4 历史 smoke 地址，不应作为真实业务客户端的长期生产配置。Task8 前，新 SDK 会拒绝旧静态清单，新事件 properties 也不应向旧云函数发送。
 
 ## 安全与容量边界
 
@@ -77,7 +77,7 @@ Task4 smoke test 已完成下列服务端验收；详细状态码、资源 ID �
 - 非法 payload 返回 400、未知 app 返回 403，并且两者都没有数据库写入。
 - 同一 `event_id` 重复提交后集合中仍只有一条。
 - `received_at` 来自服务端，记录中没有客户端 IP 或敏感正文。
-- 更新 URL 返回正确 JSON，内容与 ETag 匹配本地文件。系统默认域名实际强制 `no-store`，300 秒左右缓存需在以后绑定自定义域名后复验。
+- 更新 URL 在 Task4 验收时返回正确 JSON，内容与 ETag 匹配当时的本地快照；它目前不代表 Task7 的 14 字段清单。系统默认域名实际强制 `no-store`，300 秒左右缓存需在以后绑定自定义域名后复验。
 - optional/required 的宿主 UI、真实下载 URL、安装包签名与退出路径由业务客户端另行人工测试。
 
 Windows PowerShell 公网验证请显式使用 `curl.exe`，具体命令见完整文档。不要把本地 mock 测试称作真实 CloudBase 或真实宿主验收。

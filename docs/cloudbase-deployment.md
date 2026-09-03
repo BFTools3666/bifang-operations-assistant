@@ -6,6 +6,8 @@ CloudBase Phase 1 已于 2026-09-03 在腾讯云上海地域完成真实部署�
 
 本次部署用于 `example-tool` 基础设施 smoke test，不代表真实业务客户端已接入或可发布。客户端配置必须只使用下文列出的 `https://` 地址。
 
+> 当前状态：本回执记录的是 Task4 的历史旧协议快照。Task7 已在本地校正事件 properties、telemetry validator 和 14 字段更新清单，但没有部署或修改任何云资源。因此下列远端函数、字节数、MD5/ETag 与公网结果尚不代表当前仓库；Task8 必须重新部署函数与静态清单并复验后，才能恢复生产一致性。
+
 ## 2. 环境与资源
 
 | 项目           | 实际值                                                    |
@@ -67,10 +69,10 @@ bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com
 
 静态托管新增了两个仓库既有文件，未删除或覆盖环境内的 `__auth/`、`cloud-admin/` 等系统文件：
 
-| 云端路径                            | 字节数 | 本地 MD5 / 远端 ETag               |
-| ----------------------------------- | -----: | ---------------------------------- |
-| `updates/example-tool/windows.json` |    392 | `a7acb6b1ab3e3b0d1054e5f20e28a1ab` |
-| `updates/update.schema.json`        |   1589 | `0f01aff2e2bc753c860b1f65640308e6` |
+| 云端路径                            | 历史字节数 | Task4 本地 MD5 / 远端 ETag         |
+| ----------------------------------- | ---------: | ---------------------------------- |
+| `updates/example-tool/windows.json` |        392 | `a7acb6b1ab3e3b0d1054e5f20e28a1ab` |
+| `updates/update.schema.json`        |       1589 | `0f01aff2e2bc753c860b1f65640308e6` |
 
 ## 5. 部署过程证据
 
@@ -98,7 +100,7 @@ bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com
 | 4114 字节请求体                                    | `400 {"ok":false,"error":"invalid_payload"}`，函数内 4096 字节上限生效                                         |
 | `GET /v1/track`                                    | `405 {"ok":false,"error":"method_not_allowed"}`                                                                |
 | `POST /v1/track/extra`                             | `404 {"ok":false,"error":"not_found"}`                                                                         |
-| 更新清单                                           | 两个 HTTPS 地址均返回 `200`、`application/json`、392 字节，远端 ETag 与本地 MD5 一致                           |
+| 更新清单                                           | 两个 HTTPS 地址在 Task4 时均返回 `200`、`application/json`、392 字节，远端 ETag 与当时本地 MD5 一致            |
 
 真实 CloudBase 当前环境身份、文档数据库写入、重复键幂等行为、HTTP Event 形态、CORS、精确路径、方法限制和 4 KiB 请求体限制均已通过实测，不再只是本地 mock 结论。
 
@@ -123,9 +125,11 @@ CloudBase 官方同样将默认域名定位为开发测试用途；正式业务�
 接入真实业务前必须在独立实现或发布 Task 中：
 
 1. 确定真实、稳定的 `app_id`，同步更新 `ALLOWED_APP_IDS` 与清单目录。
-2. 填入真实版本、已签名安装包及发布说明的公网 HTTPS URL。
+2. 填写清单全部 14 个键：真实版本、安全 UI 文案、已签名安装包及发布说明的公网 HTTPS URL、64 位十六进制 `sha256` 与严格 RFC3339 `published_at`。
 3. 绑定已备案自定义域名、证书和 DNS，配置约 300 秒缓存并复验。
 4. 将业务客户端的 telemetry endpoint 与 update base URL 明确配置为 HTTPS。
 5. 在真实宿主中人工验收 optional/required 更新 UI、退出流程及关闭 telemetry 时零网络请求。
 
 本 Task 未创建业务客户端、安装器、发布包、自定义域名、EdgeOne 或任何 Phase 2 资源。
+
+Task7 也未部署云端。Task8 必须部署当前 telemetry 函数与静态清单，并重做本回执第 5、6 节的验证，才可声明生产一致。

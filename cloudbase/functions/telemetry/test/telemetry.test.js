@@ -38,7 +38,7 @@ function makePayload(overrides = {}) {
     session_id: SESSION_ID,
     platform: "windows",
     arch: "x64",
-    channel: "stable",
+    channel: "official",
     sdk_version: "1.0.0",
     occurred_at: "2026-09-03T00:59:58.123Z",
     properties: {},
@@ -94,6 +94,7 @@ describe("HTTP Event function handler", () => {
     assert.notEqual(writes[0].received_at, clientReceivedAt);
     assert.equal(writes[0]._id, EVENT_ID);
     assert.equal(writes[0].event_id, EVENT_ID);
+    assert.equal(writes[0].channel, "official");
     assert.equal("sourceIp" in writes[0], false);
     assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
   });
@@ -103,15 +104,15 @@ describe("HTTP Event function handler", () => {
     const cases = [
       ["app_install", {}],
       ["app_start", {}],
-      ["feature_used", { feature: "export.pdf" }],
+      ["feature_used", { feature_id: "export.pdf" }],
       ["task_started", { task_type: "batch_export" }],
-      ["task_succeeded", { task_type: "batch_export", duration_ms: 1250 }],
-      ["task_failed", { error_code: "E_NETWORK_TIMEOUT" }],
+      ["task_succeeded", { task_type: "batch_export", duration_ms: 0 }],
       [
-        "update_prompt_shown",
-        { latest_version: "1.10.0-beta.1", required: false },
+        "task_failed",
+        { task_type: "batch_export", error_code: "E_NETWORK_TIMEOUT" },
       ],
-      ["update_clicked", { latest_version: "1.10.0", action: "remind_later" }],
+      ["update_prompt_shown", { target_version: "1.10.0-beta.1" }],
+      ["update_clicked", { target_version: "1.10.0" }],
     ];
 
     for (const [index, [event, properties]] of cases.entries()) {
@@ -135,13 +136,13 @@ describe("HTTP Event function handler", () => {
       makeRequest(
         makePayload({
           event: "feature_used",
-          properties: { feature: "quick_capture" },
+          properties: { feature_id: "quick_capture" },
         }),
       ),
     );
 
     assert.equal(response.statusCode, 202);
-    assert.deepEqual(writes[0].properties, { feature: "quick_capture" });
+    assert.deepEqual(writes[0].properties, { feature_id: "quick_capture" });
   });
 
   test("returns 400 and never writes malformed, oversized, encoded, or non-JSON bodies", async () => {
@@ -173,34 +174,47 @@ describe("HTTP Event function handler", () => {
   test("returns 400 without writing for disallowed event properties", async () => {
     const { handler, writes } = makeHarness();
     const cases = [
+      ["app_install", { unexpected: true }],
       ["app_start", { unexpected: true }],
-      ["feature_used", { feature: "quick_capture", email: "x@example.com" }],
-      ["feature_used", { feature: { nested: true } }],
-      ["feature_used", { feature: ["nested"] }],
-      ["feature_used", { feature: "folder/name" }],
-      ["feature_used", { feature: "data:text/plain;base64,SGVsbG8=" }],
-      ["feature_used", { feature: "AA:BB:CC:DD:EE:FF" }],
-      ["feature_used", { feature: "AA-BB-CC-DD-EE-FF" }],
-      ["feature_used", { feature: "AABBCCDDEEFF" }],
-      ["feature_used", { feature: "aabb.ccdd.eeff" }],
-      ["feature_used", { feature: "13800138000" }],
-      ["feature_used", { feature: "138-0013-8000" }],
-      ["feature_used", { feature: "11010519491231002X" }],
-      ["feature_used", { feature: "550e8400-e29b-41d4-a716-446655440000" }],
-      ["feature_used", { feature: "0123456789abcdef" }],
-      ["feature_used", { feature: "U29tZVNlbnNpdGl2ZURhdGE" }],
+      ["feature_used", { feature: "quick_capture" }],
+      ["feature_used", { feature_id: "quick_capture", email: "x@example.com" }],
+      ["feature_used", { feature_id: { nested: true } }],
+      ["feature_used", { feature_id: ["nested"] }],
+      ["feature_used", { feature_id: "folder/name" }],
+      ["feature_used", { feature_id: "data:text/plain;base64,SGVsbG8=" }],
+      ["feature_used", { feature_id: "AA:BB:CC:DD:EE:FF" }],
+      ["feature_used", { feature_id: "AA-BB-CC-DD-EE-FF" }],
+      ["feature_used", { feature_id: "AABBCCDDEEFF" }],
+      ["feature_used", { feature_id: "aabb.ccdd.eeff" }],
+      ["feature_used", { feature_id: "13800138000" }],
+      ["feature_used", { feature_id: "138-0013-8000" }],
+      ["feature_used", { feature_id: "11010519491231002X" }],
+      ["feature_used", { feature_id: "550e8400-e29b-41d4-a716-446655440000" }],
+      ["feature_used", { feature_id: "0123456789abcdef" }],
+      ["feature_used", { feature_id: "U29tZVNlbnNpdGl2ZURhdGE" }],
       [
         "feature_used",
         {
-          feature:
+          feature_id:
             "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123",
         },
       ],
-      ["task_started", { task_type: "export", duration_ms: -1 }],
+      ["task_started", { task_type: "export", duration_ms: 1 }],
+      ["task_succeeded", { task_type: "export" }],
+      ["task_succeeded", { task_type: "export", duration_ms: 1, extra: true }],
+      ["task_succeeded", { task_type: "export", duration_ms: -1 }],
       ["task_succeeded", { task_type: "export", duration_ms: 1.25 }],
-      ["task_failed", { error_code: "E_TIMEOUT", task_type: "export" }],
-      ["update_prompt_shown", { latest_version: "1.0.0", required: "false" }],
-      ["update_clicked", { latest_version: "1.0.0", action: "download" }],
+      ["task_succeeded", { task_type: "export", duration_ms: 604_800_001 }],
+      ["task_failed", { error_code: "E_TIMEOUT" }],
+      [
+        "task_failed",
+        { task_type: "export", error_code: "E_TIMEOUT", extra: true },
+      ],
+      ["update_prompt_shown", { latest_version: "1.0.0", required: false }],
+      ["update_prompt_shown", { target_version: "v1.0.0" }],
+      ["update_prompt_shown", { target_version: "1.0.0", required: false }],
+      ["update_clicked", { latest_version: "1.0.0", action: "update_now" }],
+      ["update_clicked", { target_version: "1.0.0", action: "update_now" }],
     ];
 
     for (const [event, properties] of cases) {

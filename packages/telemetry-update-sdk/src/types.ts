@@ -9,46 +9,42 @@ export type Architecture = (typeof SUPPORTED_ARCHITECTURES)[number];
 export type TelemetryEventName = (typeof TELEMETRY_EVENT_NAMES)[number];
 
 export type PrimitiveProperty = string | number | boolean;
-export type SanitizedProperties = Record<string, PrimitiveProperty>;
 
 export interface EventPropertiesMap {
   app_install: Readonly<Record<string, never>>;
   app_start: Readonly<Record<string, never>>;
   feature_used: {
-    feature: string;
+    feature_id: string;
   };
   task_started: {
     task_type: string;
-    duration_ms?: number;
   };
   task_succeeded: {
     task_type: string;
-    duration_ms?: number;
+    duration_ms: number;
   };
   task_failed: {
+    task_type: string;
     error_code: string;
   };
   update_prompt_shown: {
-    latest_version: string;
-    required: boolean;
+    target_version: string;
   };
   update_clicked: {
-    latest_version: string;
-    action: UpdateClickAction;
+    target_version: string;
   };
 }
 
-export type UpdateClickAction = "update_now" | "remind_later" | "exit";
+export type SanitizedProperties = EventPropertiesMap[TelemetryEventName];
 export type EmptyTelemetryEventName = "app_install" | "app_start";
 export type PropertyTelemetryEventName = Exclude<
   TelemetryEventName,
   EmptyTelemetryEventName
 >;
 
-export interface TelemetryEvent {
+interface TelemetryEventEnvelope {
   schema_version: 1;
   event_id: string;
-  event: TelemetryEventName;
   app_id: string;
   app_version: string;
   install_id: string;
@@ -58,8 +54,17 @@ export interface TelemetryEvent {
   channel: string;
   sdk_version: "1.0.0";
   occurred_at: string;
-  properties: SanitizedProperties;
 }
+
+export type TelemetryEvent<
+  EventName extends TelemetryEventName = TelemetryEventName,
+> = TelemetryEventEnvelope &
+  {
+    [Name in EventName]: {
+      event: Name;
+      properties: EventPropertiesMap[Name];
+    };
+  }[EventName];
 
 export interface DebugLogger {
   debug(message: string, context?: Readonly<Record<string, unknown>>): void;
@@ -111,7 +116,7 @@ export interface TelemetryClientConfig {
   appVersion: string;
   platform: Platform;
   arch: Architecture;
-  channel: string;
+  channel?: string;
   endpoint?: string;
   enabled?: boolean;
   identityStorage: IdentityStorage;
@@ -132,8 +137,14 @@ export interface UpdateConfig {
   min_supported_version: string;
   force_update: boolean;
   rollout: number;
+  /** Untrusted remote plain text. Hosts must never interpret it as markup. */
+  title: string;
+  /** Untrusted remote plain text. Hosts must never interpret it as markup. */
+  message: string;
   download_url: string;
   release_notes_url: string;
+  sha256: string;
+  published_at: string;
 }
 
 export type NoUpdateReason =

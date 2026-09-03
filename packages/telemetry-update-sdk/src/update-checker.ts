@@ -16,7 +16,10 @@ import {
   isAppId,
   isPlatform,
   isRecord,
+  isRfc3339Date,
+  isSafeDisplayText,
   isSafeExternalUrl,
+  isSha256,
   isUuidV4,
 } from "./validation.js";
 
@@ -29,10 +32,16 @@ const UPDATE_CONFIG_KEYS = [
   "min_supported_version",
   "force_update",
   "rollout",
+  "title",
+  "message",
   "download_url",
   "release_notes_url",
+  "sha256",
+  "published_at",
 ] as const;
 const MAX_UPDATE_CONFIG_CHARACTERS = 16_384;
+const MAX_UPDATE_TITLE_CODE_POINTS = 120;
+const MAX_UPDATE_MESSAGE_CODE_POINTS = 1_000;
 
 export class UpdateChecker {
   readonly #config: UpdateCheckerConfig;
@@ -163,8 +172,12 @@ export function parseUpdateConfig(
     !Number.isInteger(value.rollout) ||
     value.rollout < 0 ||
     value.rollout > 100 ||
+    !isSafeDisplayText(value.title, MAX_UPDATE_TITLE_CODE_POINTS) ||
+    !isSafeDisplayText(value.message, MAX_UPDATE_MESSAGE_CODE_POINTS) ||
     !isSafeExternalUrl(value.download_url) ||
     !isSafeExternalUrl(value.release_notes_url) ||
+    !isSha256(value.sha256) ||
+    !isRfc3339Date(value.published_at) ||
     (expectedAppId !== undefined && value.app_id !== expectedAppId) ||
     (expectedPlatform !== undefined && value.platform !== expectedPlatform) ||
     compareSemVer(value.min_supported_version, value.latest_version) > 0
@@ -181,8 +194,12 @@ export function parseUpdateConfig(
     min_supported_version: value.min_supported_version,
     force_update: value.force_update,
     rollout: value.rollout,
+    title: value.title,
+    message: value.message,
     download_url: value.download_url,
     release_notes_url: value.release_notes_url,
+    sha256: value.sha256,
+    published_at: value.published_at,
   };
 }
 

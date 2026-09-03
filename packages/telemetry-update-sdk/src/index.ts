@@ -1,4 +1,5 @@
 export {
+  DEFAULT_CHANNEL,
   DEFAULT_TELEMETRY_TIMEOUT_MS,
   DEFAULT_UPDATE_TIMEOUT_MS,
   SDK_VERSION,
@@ -60,7 +61,6 @@ export type {
   TelemetryEventName,
   TelemetryTransport,
   UpdateCheckerConfig,
-  UpdateClickAction,
   UpdateConfig,
   UpdateDecision,
   UpdateFetch,

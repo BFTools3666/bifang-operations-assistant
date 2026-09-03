@@ -1,6 +1,10 @@
 /**
  * Framework-neutral integration fragment. The host supplies AppConfig storage,
  * UI callbacks, external-URL opening, and process exit behavior.
+ * Startup order:
+ *   const services = await initializePublicServices(options);
+ *   await host.completeStartupAndShowMainWindow();
+ *   services.checkForUpdatesInBackground();
  */
 import {
   TelemetryClient,
@@ -12,14 +16,13 @@ import {
   type OptionalUpdateDecision,
   type Platform,
   type RequiredUpdateDecision,
-  type UpdateDecision,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
 export interface ReleaseConfig {
   APP_ID: string;
   APP_VERSION: string;
-  CHANNEL: string;
+  CHANNEL?: string;
   UPDATE_BASE_URL: string;
   TELEMETRY_ENDPOINT: string;
   telemetry_enabled: boolean;
@@ -27,6 +30,7 @@ export interface ReleaseConfig {
 }
 
 export interface HostUpdateUi {
+  /** Render manifest title/message as untrusted plain text, never HTML. */
   showOptionalUpdate(
     decision: Readonly<OptionalUpdateDecision>,
     actions: {
@@ -34,6 +38,7 @@ export interface HostUpdateUi {
       remindLater: () => void;
     },
   ): void | Promise<void>;
+  /** Render manifest title/message as untrusted plain text, never HTML. */
   showRequiredUpdate(
     decision: Readonly<RequiredUpdateDecision>,
     actions: {
@@ -56,7 +61,8 @@ export interface InitializeOptions {
 
 export interface PublicServices {
   telemetry: TelemetryClient;
-  updateDecision: UpdateDecision;
+  /** Call only after the application has completed startup and shown its UI. */
+  checkForUpdatesInBackground(): void;
 }
 
 export async function initializePublicServices(
@@ -74,6 +80,21 @@ export async function initializePublicServices(
     identityStorage: new NodeFileIdentityStorage(options.appConfigDirectory),
   });
 
+  return {
+    telemetry,
+    checkForUpdatesInBackground() {
+      setTimeout(() => {
+        void checkForUpdates(options, telemetry).catch(() => undefined);
+      }, 0);
+    },
+  };
+}
+
+async function checkForUpdates(
+  options: InitializeOptions,
+  telemetry: TelemetryClient,
+): Promise<void> {
+  const { release } = options;
   const checker = new UpdateChecker({
     baseUrl: release.UPDATE_BASE_URL,
     appId: release.APP_ID,
@@ -86,26 +107,22 @@ export async function initializePublicServices(
 
   await runUpdateHostHooks(updateDecision, {
     onOptionalUpdate: async (decision) => {
-      telemetry.trackUpdatePromptShown(decision);
       await options.ui.showOptionalUpdate(decision, {
         updateNow: () => openDownload(telemetry, decision, options.ui),
-        remindLater: () =>
-          telemetry.trackUpdateClicked(decision, "remind_later"),
+        remindLater: () => undefined,
       });
+      telemetry.trackUpdatePromptShown(decision);
     },
     onRequiredUpdate: async (decision) => {
-      telemetry.trackUpdatePromptShown(decision);
       await options.ui.showRequiredUpdate(decision, {
         updateNow: () => openDownload(telemetry, decision, options.ui),
         exit: async () => {
-          telemetry.trackUpdateClicked(decision, "exit");
           await options.ui.exitApplication();
         },
       });
+      telemetry.trackUpdatePromptShown(decision);
     },
   });
-
-  return { telemetry, updateDecision };
 }
 
 async function openDownload(
@@ -116,6 +133,6 @@ async function openDownload(
   const url = decision.config.download_url;
   if (!isSafeExternalUrl(url)) return;
 
-  telemetry.trackUpdateClicked(decision, "update_now");
+  telemetry.trackUpdateClicked(decision);
   await ui.openExternal(url);
 }

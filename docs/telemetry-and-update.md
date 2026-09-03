@@ -4,6 +4,8 @@
 
 Task4 已将 `example-tool` smoke test 部署到腾讯云 CloudBase，并完成公网、数据库写入与幂等验收；实际资源、HTTPS 地址与默认域名限制见 [`cloudbase-deployment.md`](cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入，也未完成自定义域名、真实下载地址或生产运维配置。
 
+Task7 已在本地把事件 properties 与更新清单校正为本文所述的 v1.0 精确协议，但没有部署或修改任何 CloudBase 资源。当前云端仍运行 Task4 的旧协议快照；新 SDK 会把旧静态清单视为 `invalid_config`，旧云函数也不会接受新事件 properties。只有 Task8 同时重新部署 telemetry 函数与静态清单并完成公网复验后，云端才与本仓库恢复生产一致性。
+
 ## 1. 修改文件列表
 
 Phase 1 的文件及职责如下：
@@ -41,7 +43,7 @@ Phase 1 的文件及职责如下：
 - `UpdateChecker` 默认超时 3 秒，读取严格的 v1 JSON，进行 Semantic Version 比较和稳定灰度分桶，并返回 `none`、`optional` 或 `required`。网络、超时、非 2xx、非法 JSON 或非法配置都静默返回 `none`。
 - URL 校验仅接受无凭据的公网 HTTPS URL，拒绝 `localhost`、明显的私网/保留 IP、`file:`、`javascript:` 等地址；默认 fetch 还拒绝重定向。
 
-SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法时才发送。初始化仍会建立本地身份标记；因此用户先以 telemetry 关闭状态运行、日后再开启时，不会补发历史 `app_install`。
+SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法时才发送。`channel` 未传时规范化为 `official`；显式传入空值、空白或非法 channel 不会回退，而会安全禁用发送。初始化仍会建立本地身份标记；因此用户先以 telemetry 关闭状态运行、日后再开启时，不会补发历史 `app_install`。
 
 ### CloudBase telemetry Event 云函数
 
@@ -53,7 +55,11 @@ SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法�
 
 ### 更新静态文件
 
-`cloudbase/updates/update.schema.json` 是 JSON Schema 2020-12 的 v1 规范。`cloudbase/updates/example-tool/windows.json` 是 Windows 示例，初始 `latest_version` 与 `min_supported_version` 都是 `0.1.0`，所以版本同为 `0.1.0` 的客户端不会看到更新提示。
+`cloudbase/updates/update.schema.json` 是 JSON Schema 2020-12 的 v1 规范。清单必须精确包含以下 14 个键，缺少或增加任何键都会被 SDK 拒绝：`schema_version`、`app_id`、`platform`、`enabled`、`latest_version`、`min_supported_version`、`force_update`、`rollout`、`title`、`message`、`download_url`、`release_notes_url`、`sha256`、`published_at`。
+
+`title` 为 1–120 个 Unicode code point，`message` 为 1–1000 个；两者必须包含可见内容，并拒绝 C0/C1、DEL、零宽/BOM、双向文本控制等危险不可见字符。合法语言连接符和 emoji ZWJ 只有与可见内容一起出现时才可用。它们始终是远端不可信纯文本，宿主必须用 text/textContent 等文本通道渲染，不得解释成 HTML、Markdown 或脚本。`sha256` 只能是空字符串或 64 位十六进制；空字符串表示 smoke 占位或尚未提供校验值，不代表已验证安装包。`published_at` 必须是带 `Z` 或合法时区偏移、实际日期有效的严格 RFC3339 时间。SDK 会把这四个字段原样保留在更新决策的 `config` 中供宿主 UI 与下载校验流程使用，但不会下载或验证安装包。
+
+`cloudbase/updates/example-tool/windows.json` 是 Windows 示例，初始 `latest_version` 与 `min_supported_version` 都是 `0.1.0`，所以版本同为 `0.1.0` 的客户端不会看到更新提示。
 
 更新判定顺序是：
 
@@ -66,9 +72,9 @@ SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法�
 
 JSON Schema 约束字段拓扑、长度、基础 URI/SemVer 语法；SDK 解析器是运行时安全边界，还会拒绝带凭据、localhost、明显私网/保留地址等 Schema 不适合完整表达的 URL。清单只有同时通过两层检查才可发布。
 
-## 3. CloudBase 资源拓扑与当前部署
+## 3. CloudBase 资源拓扑与历史部署
 
-Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项，真实 ID 与配置见部署回执；第 6、7 项仍包含正式业务接入前的待办：
+Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项，真实 ID 与配置见部署回执；这些是 Task4 时点的历史结果，不包含 Task7 的协议修复。第 6、7 项仍包含正式业务接入前的待办，Task8 还必须重新部署第 2、5 项并复验：
 
 1. 一个 CloudBase 环境，公开回执记录环境 ID、地域和计费模式；负责人由内部运维记录，不写入公开文档。
 2. 一个名为 `telemetry` 的 Node.js 20 普通 Event 云函数，入口 `index.main`，安装函数目录中的生产依赖。
@@ -140,15 +146,15 @@ Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项，真实 I
 
 宿主应维护并显式映射以下值；这些名称是接入约定，不是 SDK 自动读取的环境变量：
 
-| 发布配置键             | SDK 参数                        | 示例占位                               |
-| ---------------------- | ------------------------------- | -------------------------------------- |
-| `APP_ID`               | `appId`                         | `<YOUR_REAL_APP_ID>`                   |
-| `APP_VERSION`          | `appVersion` / `currentVersion` | `0.1.0`                                |
-| `CHANNEL`              | `channel`                       | `stable`                               |
-| `UPDATE_BASE_URL`      | `UpdateChecker.baseUrl`         | `https://<YOUR_HTTPS_DOMAIN>/updates`  |
-| `TELEMETRY_ENDPOINT`   | `TelemetryClient.endpoint`      | `https://<YOUR_HTTPS_DOMAIN>/v1/track` |
-| `telemetry_enabled`    | `TelemetryClient.enabled`       | 开发默认 `false`；发布配置明确决定     |
-| `update_check_enabled` | `UpdateChecker.enabled`         | 发布配置明确决定                       |
+| 发布配置键             | SDK 参数                        | 必需 | 示例占位                               |
+| ---------------------- | ------------------------------- | ---- | -------------------------------------- |
+| `APP_ID`               | `appId`                         | 是   | `<YOUR_REAL_APP_ID>`                   |
+| `APP_VERSION`          | `appVersion` / `currentVersion` | 是   | `0.1.0`                                |
+| `CHANNEL`              | `channel`                       | 否   | 省略时为 `official`                    |
+| `UPDATE_BASE_URL`      | `UpdateChecker.baseUrl`         | 是   | `https://<YOUR_HTTPS_DOMAIN>/updates`  |
+| `TELEMETRY_ENDPOINT`   | `TelemetryClient.endpoint`      | 是   | `https://<YOUR_HTTPS_DOMAIN>/v1/track` |
+| `telemetry_enabled`    | `TelemetryClient.enabled`       | 是   | 开发默认 `false`；发布配置明确决定     |
+| `update_check_enabled` | `UpdateChecker.enabled`         | 是   | 发布配置明确决定                       |
 
 `platform` 和 `arch` 由宿主从受支持枚举中明确提供：平台为 `windows | macos | linux`，架构为 `x64 | arm64 | ia32`。
 
@@ -226,7 +232,7 @@ npm run check
 
 ## 10. Windows PowerShell 兼容的 curl.exe 命令
 
-Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。使用下列命令时应先替换其中的公网 URL；Task4 已使用实际默认域名完成等价实测，重新部署后还要再次运行。
+Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。下列命令只能在独立 Task8 已部署当前函数和静态清单后运行，并应先替换其中的公网 URL。Task4 使用旧协议快照完成过当时的等价实测，但当前新示例在 Task8 前不应对旧云函数发送，也不能预期得到 202。
 
 ```powershell
 $TelemetryUrl = "https://<YOUR_HTTPS_DOMAIN>/v1/track"
@@ -244,20 +250,20 @@ curl.exe -i -X POST $TelemetryUrl `
 curl.exe -i $UpdateUrl
 ```
 
-预期分别为 204、202 和 200。`examples/telemetry-event.json` 的 `app_id` 是 `example-tool`，所以函数的 `ALLOWED_APP_IDS` 必须暂时包含该值，或先把示例复制到临时文件并替换成真实 app ID。重复发送原样示例会复用同一个 `event_id`，应用层应看到幂等成功而不是新增第二条记录。
+Task8 部署完成后的预期分别为 204、202 和 200。`examples/telemetry-event.json` 的 `app_id` 是 `example-tool`，所以函数的 `ALLOWED_APP_IDS` 必须暂时包含该值，或先把示例复制到临时文件并替换成真实 app ID。重复发送原样示例会复用同一个 `event_id`，应用层应看到幂等成功而不是新增第二条记录。
 
 ## 11. 已实现事件
 
-| 事件                  | 唯一允许的 properties                                                        | 用途                                                             |
-| --------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `app_install`         | `{}`                                                                         | 首次建立有效本地安装标记时至多排队一次。                         |
-| `app_start`           | `{}`                                                                         | 每次 SDK 初始化。                                                |
-| `feature_used`        | `{ feature: string }`                                                        | 记录稳定、非用户输入的功能标识。                                 |
-| `task_started`        | `{ task_type: string, duration_ms?: number }`                                | 任务开始；通常不需要 duration。                                  |
-| `task_succeeded`      | `{ task_type: string, duration_ms?: number }`                                | 任务成功与可选耗时。                                             |
-| `task_failed`         | `{ error_code: string }`                                                     | 只记录稳定错误码，绝不记录异常原文。                             |
-| `update_prompt_shown` | `{ latest_version: string, required: boolean }`                              | 宿主实际展示提示后调用辅助方法。                                 |
-| `update_clicked`      | `{ latest_version: string, action: "update_now" / "remind_later" / "exit" }` | 宿主实际收到用户动作后调用；required 决策不接受 `remind_later`。 |
+| 事件                  | 唯一允许的 properties                          | 用途                                                    |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------- |
+| `app_install`         | `{}`                                           | 首次建立有效本地安装标记时至多排队一次。                |
+| `app_start`           | `{}`                                           | 每次 SDK 初始化。                                       |
+| `feature_used`        | `{ feature_id: string }`                       | 记录稳定、非用户输入的功能标识。                        |
+| `task_started`        | `{ task_type: string }`                        | 记录任务开始。                                          |
+| `task_succeeded`      | `{ task_type: string, duration_ms: 非负整数 }` | 记录任务成功与耗时。                                    |
+| `task_failed`         | `{ task_type: string, error_code: string }`    | 记录任务类型与稳定错误码，绝不记录异常原文。            |
+| `update_prompt_shown` | `{ target_version: SemVer }`                   | 宿主实际展示更新提示后调用辅助方法。                    |
+| `update_clicked`      | `{ target_version: SemVer }`                   | 用户实际点击“更新/立即更新”后调用，不记录其他 UI 动作。 |
 
 功能、任务类型和错误码应是长度不超过 64 的低熵稳定标识符，只含字母、数字、点、下划线、冒号或连字符。客户端和服务端还会拒绝高置信度的 MAC、手机号、UUID、JWT、长十六进制串和疑似 Base64URL；这些语法检查不是语义敏感信息检测器，调用方仍只能传受控枚举，绝不能把用户正文“编码”成标识符绕过隐私边界。
 
@@ -265,10 +271,10 @@ curl.exe -i $UpdateUrl
 
 1. 选定永久、低熵、合法的 `APP_ID`，例如 `invoice-helper`，不要使用显示名称或用户 ID。
 2. 在新工具的独立部署/配置 Task 中把该 ID 加入 `ALLOWED_APP_IDS`，重新部署函数配置并验证未知 app 仍被拒绝。
-3. 复制 `cloudbase/updates/example-tool/` 为 `cloudbase/updates/<APP_ID>/`；修改 JSON 中的 `app_id`、平台、版本和两个真实公网 HTTPS URL。
+3. 复制 `cloudbase/updates/example-tool/` 为 `cloudbase/updates/<APP_ID>/`；填写全部 14 个键，包括 UI 文案、真实公网 HTTPS URL、可用的安装包 `sha256` 和严格 RFC3339 `published_at`。
 4. 用 `update.schema.json` 和仓库测试校验清单；保证 `min_supported_version <= latest_version`。
 5. 在宿主中安装/引用 `@bifang/telemetry-update-sdk`。Node 宿主从 `@bifang/telemetry-update-sdk/node` 导入文件存储适配器，并传入该工具自己的绝对 AppConfig 目录；非 Node 宿主实现 `IdentityStorage`。
-6. 将七个发布配置键显式映射到 SDK；开发配置让 telemetry 关闭，发布配置由产品/隐私决策明确开启或关闭。
+6. 显式映射六个必需发布配置键；`CHANNEL` 可省略并默认 `official`。开发配置让 telemetry 关闭，发布配置由产品/隐私决策明确开启或关闭。
 7. 只从本表选择事件和属性；新增事件属于协议变更，应同时更新客户端类型、客户端清洗、服务端白名单、测试、文档和 schema 版本策略。
 8. 宿主实现可选更新、强制更新和退出 UI，完成真实手工验收后再发布。
 
@@ -280,6 +286,7 @@ import {
   UpdateChecker,
   isSafeExternalUrl,
   runUpdateHostHooks,
+  type AvailableUpdateDecision,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
@@ -298,47 +305,62 @@ const telemetry = await TelemetryClient.init({
   identityStorage,
 });
 
-telemetry.track("feature_used", { feature: "export_pdf" });
-telemetry.track("task_failed", { error_code: "EXPORT_TIMEOUT" });
-
-const decision = await new UpdateChecker({
-  baseUrl: releaseConfig.UPDATE_BASE_URL,
-  appId: releaseConfig.APP_ID,
-  platform: "windows",
-  currentVersion: releaseConfig.APP_VERSION,
-  installId: telemetry.installId,
-  enabled: releaseConfig.update_check_enabled === true,
-}).check();
-
-await runUpdateHostHooks(decision, {
-  async onOptionalUpdate(update) {
-    telemetry.trackUpdatePromptShown(update);
-    // 宿主展示“立即更新 / 稍后提醒”。
-  },
-  async onRequiredUpdate(update) {
-    telemetry.trackUpdatePromptShown(update);
-    // 宿主展示“立即更新 / 退出”，阻止继续进入业务流程。
-  },
+telemetry.track("feature_used", { feature_id: "export_pdf" });
+telemetry.track("task_failed", {
+  task_type: "export",
+  error_code: "EXPORT_TIMEOUT",
 });
 
-if (
-  decision.kind !== "none" &&
-  isSafeExternalUrl(decision.config.download_url)
-) {
-  // 仅在明确的用户动作后，由宿主用系统浏览器打开。
+async function checkAndPresentUpdate(): Promise<void> {
+  const decision = await new UpdateChecker({
+    baseUrl: releaseConfig.UPDATE_BASE_URL,
+    appId: releaseConfig.APP_ID,
+    platform: "windows",
+    currentVersion: releaseConfig.APP_VERSION,
+    installId: telemetry.installId,
+    enabled: releaseConfig.update_check_enabled === true,
+  }).check();
+
+  await runUpdateHostHooks(decision, {
+    async onOptionalUpdate(update) {
+      await host.showOptionalUpdate(update); // “立即更新 / 稍后提醒”
+      telemetry.trackUpdatePromptShown(update);
+    },
+    async onRequiredUpdate(update) {
+      await host.showRequiredUpdate(update); // “立即更新 / 退出”
+      telemetry.trackUpdatePromptShown(update);
+      host.blockIncompatibleActions();
+    },
+  });
+}
+
+function checkForUpdatesInBackground(): void {
+  setTimeout(() => {
+    void checkAndPresentUpdate().catch(() => undefined);
+  }, 0);
+}
+
+await host.completeStartupAndShowMainWindow();
+checkForUpdatesInBackground();
+
+async function openUpdateAfterUserClick(update: AvailableUpdateDecision) {
+  if (!isSafeExternalUrl(update.config.download_url)) return;
+  telemetry.trackUpdateClicked(update);
+  await host.openExternal(update.config.download_url);
 }
 ```
 
-`drain()` 只适合测试或宿主明确的短暂关闭阶段；正常业务不要等待埋点发送。SDK 不下载、不校验安装包签名、不执行安装，也不打开浏览器。
+更新检查必须像上例或 `examples/host-integration.ts` 一样，在应用启动完成并显示主界面后显式触发。触发函数同步返回，不等待最长 3 秒的网络，也不等待 UI hook；异常在后台静默。初始化路径不得直接 `await checker.check()`。`drain()` 只适合测试或宿主明确的短暂关闭阶段；正常业务不要等待埋点发送。SDK 不下载、不校验安装包签名或 `sha256`、不执行安装，也不打开浏览器。
 
 ## 宿主 UI 与安全责任
 
 SDK 只返回决策并提供 hooks。宿主必须负责：
 
 - `optional`：展示“立即更新 / 稍后提醒”，用户选择后才打开经过校验的 HTTPS 链接。
-- `required`：展示“立即更新 / 退出”，阻止继续进入不兼容的业务流程；不要提供“稍后提醒”。
-- 真正展示后再调用 `trackUpdatePromptShown()`；真正点击后再调用 `trackUpdateClicked()`。
+- `required`：后台检查返回该决策后展示“立即更新 / 退出”，并阻止后续不兼容操作；不要让启动路径等待更新网络，也不要提供“稍后提醒”。
+- 真正展示后再调用 `trackUpdatePromptShown()`；只有用户真正点击“更新/立即更新”后才调用 `trackUpdateClicked()`。稍后提醒和退出不是该事件。
 - 使用系统浏览器或平台认可的安全 API 打开 URL；不要在高权限内嵌 WebView 中直接执行远端内容。
+- 把清单的 `title` 与 `message` 当作不可信纯文本渲染，绝不作为 HTML 或 Markdown 注入 UI。
 - 业务发布流程自行负责安装包签名、哈希/签名校验、下载、安装、回滚和用户数据兼容性。这些均不属于 SDK。
 
 ## 隐私边界与输入限制
@@ -351,7 +373,7 @@ SDK 只返回决策并提供 hooks。宿主必须负责：
 - `properties` 最多 20 个键，只允许 string/number/boolean；拒绝嵌套对象和数组。
 - 单个字符串最多 200 个 Unicode code point，并拒绝控制字符及显式 base64/data URL 前缀。
 - 功能、任务类型和错误码还执行更窄的标识符校验，拒绝高置信度的 MAC、手机号、UUID、JWT、长十六进制串和疑似 Base64URL；这只能提供纵深防御，不能替代调用方的受控枚举白名单。
-- 每个事件还必须满足上表的专属字段白名单；客户端多余字段会被丢弃，服务端多余字段会让整个请求失败。
+- 每个事件还必须满足上表的专属精确字段集；SDK 遇到缺字段、旧别名或额外字段会丢弃整个事件，服务端则拒绝整个请求，二者不会静默裁剪成另一种形状。
 - `duration_ms` 必须是 0 到 604800000 的安全整数。
 - `app_id`、UUID v4、严格 SemVer、ISO 时间、平台、架构、channel、SDK 版本和事件名都经过校验。
 - `received_at` 始终由服务端覆盖生成；客户端 IP 不写业务数据库。
@@ -374,7 +396,7 @@ SDK 只返回决策并提供 hooks。宿主必须负责：
 1. 在独立发布流程中完成安装包构建、签名和安全扫描，把产物与 release notes 放到真实公网 HTTPS URL。
 2. 先用小范围 `rollout` 发布可选更新；确认指标和人工反馈后逐步提高。改变 `latest_version` 会重新计算稳定桶。
 3. 只有版本确实不兼容时才提高 `min_supported_version` 或启用 `force_update`。`force_update` 不会让已是最新版本的客户端重复提示。
-4. 修改对应平台 JSON，运行 `npm run check`，review 真实 URL 与版本，再部署静态文件。
+4. 修改对应平台 JSON，运行 `npm run check`，review 14 个精确键、真实 URL、版本、文案、哈希与发布时间，再部署静态文件。
 5. 将更新 JSON 的 CDN/浏览器缓存保持在约 5 分钟，并在发布后从真实公网 URL 检查内容与 `Cache-Control`。短缓存意味着配置收敛仍可能延迟约 5 分钟。
 6. 回滚时恢复上一份清单或设 `enabled=false`，重新部署并刷新该 JSON 的 CDN 缓存；必要时保留旧安装包 URL，避免仍在缓存窗口内的客户端拿到失效链接。
 
@@ -400,6 +422,7 @@ Task4 的 smoke 验收结果已记录在部署回执；下面保留为重新部�
 
 ## 部署回执与剩余生产风险
 
+- Task7 只校正了本地源码、示例、测试和文档，没有部署 CloudBase。Task8 必须同时部署 telemetry 函数与静态清单，并重新执行公网、数据库和内容一致性验收；在此之前不得把 Task4 的历史部署称为与当前 v1.0 契约一致。
 - CLI schema、Node.js 运行时名称和控制台选项可能随 CloudBase 版本或地域变化，必须以每次部署当日的 CLI `validate`、`--dry-run` 与控制台为准。
 - Task4 已公网验证当前环境的 HTTP event shape、路径透传、CORS、自定义 scheme Origin 和响应头；更换环境、域名、路由或运行时后必须重新实测。
 - Task4 已验证当前环境身份访问 NoSQL、集合权限和重复事件幂等；更换环境、地域或 SDK 后必须重新验证。

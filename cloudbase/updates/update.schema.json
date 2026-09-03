@@ -13,8 +13,12 @@
     "enabled",
     "force_update",
     "rollout",
+    "title",
+    "message",
     "download_url",
-    "release_notes_url"
+    "release_notes_url",
+    "sha256",
+    "published_at"
   ],
   "properties": {
     "schema_version": {
@@ -44,6 +48,20 @@
       "minimum": 0,
       "maximum": 100
     },
+    "title": {
+      "description": "Untrusted plain text; hosts must not interpret it as HTML or Markdown.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^(?=.*[^\\s\\u200C\\u200D\\uFE00-\\uFE0F])[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB]+$"
+    },
+    "message": {
+      "description": "Untrusted plain text; hosts must not interpret it as HTML or Markdown.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?=.*[^\\s\\u200C\\u200D\\uFE00-\\uFE0F])[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB]+$"
+    },
     "download_url": {
       "type": "string",
       "maxLength": 2048,
@@ -55,6 +73,16 @@
       "maxLength": 2048,
       "format": "uri",
       "pattern": "^https://"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^(?:|[0-9A-Fa-f]{64})$"
+    },
+    "published_at": {
+      "type": "string",
+      "maxLength": 35,
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-](?:(?:0\\d|1[0-3]):[0-5]\\d|14:00))$"
     }
   },
   "$defs": {

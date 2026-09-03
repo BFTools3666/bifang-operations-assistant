@@ -9,7 +9,6 @@ import type {
   Platform,
   SanitizedProperties,
   TelemetryEventName,
-  UpdateClickAction,
 } from "./types.js";
 
 const UUID_V4_PATTERN =
@@ -28,14 +27,22 @@ const JWT_LIKE_PATTERN =
   /^[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/;
 const BASE64URL_LIKE_PATTERN =
   /^(?=.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z0-9_-]+$/;
-const UPDATE_ACTIONS = new Set<UpdateClickAction>([
-  "update_now",
-  "remind_later",
-  "exit",
-]);
+const UNSAFE_DISPLAY_CHARACTER_PATTERN =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u;
+const VISIBLE_DISPLAY_CONTENT_PATTERN = /[^\s\u200c\u200d\ufe00-\ufe0f]/u;
+const RFC3339_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 }
 
 export function isUuidV4(value: unknown): value is string {
@@ -48,6 +55,79 @@ export function isIsoDate(value: unknown): value is string {
   }
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+}
+
+export function isRfc3339Date(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 35) {
+    return false;
+  }
+  const match = RFC3339_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return false;
+  }
+
+  if (match[7] !== "Z") {
+    const offsetHour = Number(match[9]);
+    const offsetMinute = Number(match[10]);
+    if (
+      offsetHour > 14 ||
+      offsetMinute > 59 ||
+      (offsetHour === 14 && offsetMinute !== 0)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function isSafeDisplayText(
+  value: unknown,
+  maxCodePoints: number,
+): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const codePointLength = Array.from(value).length;
+  return (
+    codePointLength >= 1 &&
+    codePointLength <= maxCodePoints &&
+    VISIBLE_DISPLAY_CONTENT_PATTERN.test(value) &&
+    !UNSAFE_DISPLAY_CHARACTER_PATTERN.test(value)
+  );
+}
+
+export function isSha256(value: unknown): value is string {
+  return typeof value === "string" && /^(?:|[0-9a-f]{64})$/i.test(value);
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return isLeapYear(year) ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 export function isAppId(value: unknown): value is string {
@@ -216,50 +296,60 @@ export function sanitizeEventProperties(
   switch (event) {
     case "app_install":
     case "app_start":
-      return {};
+      return hasExactKeys(properties, []) ? {} : null;
     case "feature_used": {
-      const feature = cleanIdentifier(properties.feature, 64);
-      return feature ? { feature } : null;
-    }
-    case "task_started":
-    case "task_succeeded": {
-      const taskType = cleanIdentifier(properties.task_type, 64);
-      if (!taskType) {
+      if (!hasExactKeys(properties, ["feature_id"])) {
         return null;
       }
+      const featureId = cleanIdentifier(properties.feature_id, 64);
+      return featureId ? { feature_id: featureId } : null;
+    }
+    case "task_started": {
+      if (!hasExactKeys(properties, ["task_type"])) {
+        return null;
+      }
+      const taskType = cleanIdentifier(properties.task_type, 64);
+      return taskType ? { task_type: taskType } : null;
+    }
+    case "task_succeeded": {
+      if (!hasExactKeys(properties, ["task_type", "duration_ms"])) {
+        return null;
+      }
+      const taskType = cleanIdentifier(properties.task_type, 64);
       const durationMs = cleanDuration(properties.duration_ms);
-      return durationMs === undefined
-        ? { task_type: taskType }
-        : { task_type: taskType, duration_ms: durationMs };
+      return taskType && durationMs !== undefined
+        ? { task_type: taskType, duration_ms: durationMs }
+        : null;
     }
     case "task_failed": {
+      if (!hasExactKeys(properties, ["task_type", "error_code"])) {
+        return null;
+      }
+      const taskType = cleanIdentifier(properties.task_type, 64);
       const errorCode = cleanIdentifier(properties.error_code, 64);
-      return errorCode ? { error_code: errorCode } : null;
+      return taskType && errorCode
+        ? { task_type: taskType, error_code: errorCode }
+        : null;
     }
-    case "update_prompt_shown": {
-      if (
-        !isValidSemVer(properties.latest_version) ||
-        typeof properties.required !== "boolean"
-      ) {
-        return null;
-      }
-      return {
-        latest_version: properties.latest_version,
-        required: properties.required,
-      };
-    }
+    case "update_prompt_shown":
     case "update_clicked": {
-      if (
-        !isValidSemVer(properties.latest_version) ||
-        typeof properties.action !== "string" ||
-        !UPDATE_ACTIONS.has(properties.action as UpdateClickAction)
-      ) {
+      if (!hasExactKeys(properties, ["target_version"])) {
         return null;
       }
-      return {
-        latest_version: properties.latest_version,
-        action: properties.action,
-      };
+      return isValidSemVer(properties.target_version)
+        ? { target_version: properties.target_version }
+        : null;
     }
   }
+}
+
+function hasExactKeys(
+  value: Readonly<Record<string, unknown>>,
+  expectedKeys: readonly string[],
+): boolean {
+  const actualKeys = Object.keys(value);
+  return (
+    actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => Object.hasOwn(value, key))
+  );
 }
