@@ -1,6 +1,6 @@
 # CloudBase 资源说明
 
-本目录保存可重复部署的源码和静态配置。Task4 曾将 `example-tool` 旧协议快照部署到 CloudBase 并完成当时的公网与数据库验收；实际资源、HTTPS 地址和系统默认域名限制见 [`docs/cloudbase-deployment.md`](../docs/cloudbase-deployment.md)。Task7 校正后的本地函数与 14 字段静态清单尚未部署，Task8 必须部署两者并重新验收后才能恢复生产一致性。该 smoke 环境不代表真实业务客户端已经接入或达到生产发布条件；完整协议、SDK 和维护说明见 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md)。
+本目录保存可重复部署的源码和静态配置。Task4 曾将 `example-tool` 旧协议快照部署到 CloudBase 并完成当时的公网与数据库验收；Task8 已把 Task7 校正后的函数与 14 字段静态清单覆盖部署到同一现有环境，并完成新契约的真实复验。实际资源、HTTPS 地址、事件 ID、内容哈希和系统默认域名限制见 [`docs/cloudbase-deployment.md`](../docs/cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入或达到生产发布条件；完整协议、SDK 和维护说明见 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md)。
 
 ## 目录
 
@@ -12,7 +12,7 @@
 
 ## 已部署的 smoke 拓扑与生产边界
 
-Task4 已按以下核心拓扑创建并验证第 1 至 5 项，但该证据仅对应 Task4 的历史快照；Task8 仍需重新部署并复验第 2、5 项。第 6 项仍是正式业务接入前的生产要求：
+Task4 已按以下核心拓扑创建并验证第 1 至 5 项；Task8 未新建或删除资源，只覆盖第 2、5 项并复验第 1 至 5 项。第 6 项仍是正式业务接入前的生产要求：
 
 1. CloudBase 环境。
 2. `telemetry` Event 云函数，Node.js 20，入口 `index.main`。
@@ -56,7 +56,7 @@ Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.jso
 - Telemetry: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/v1/track>
 - Updates: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/updates/example-tool/windows.json>
 
-这些是系统默认域名上的 Task4 历史 smoke 地址，不应作为真实业务客户端的长期生产配置。Task8 前，新 SDK 会拒绝旧静态清单，新事件 properties 也不应向旧云函数发送。
+这些是系统默认域名上的 Task4/Task8 smoke 地址，不应作为真实业务客户端的长期生产配置。它们当前与 Task7 校正后的 v1 协议一致，但仍只服务 `example-tool` 验收。
 
 ## 安全与容量边界
 
@@ -68,16 +68,16 @@ Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.jso
 - 函数内 burst guard 默认每个 warm instance、每个 app ID、10 秒 120 次；它不是全局限流。网关模板的总 QPS 100、单 IP 10 只是需按真实流量调整的起点。
 - 更新 JSON 建议 `Cache-Control: max-age=300`；紧急停更或回滚后刷新对应 CDN 路径。
 
-## Task4 验收结果与生产待办
+## Task4/Task8 验收结果与生产待办
 
-Task4 smoke test 已完成下列服务端验收；详细状态码、资源 ID 和数据库证据见部署回执：
+Task4 完成了旧协议首次部署；Task8 又针对当前 v1 精确契约完成下列服务端验收。详细状态码、资源 ID、事件 ID、数据库计数与静态文件 ETag 见部署回执：
 
 - 函数类型确为 Event、入口正确、依赖已安装、数据库插入权限正常。
 - `OPTIONS /v1/track` 返回 204，合法 POST 返回 202。
 - 非法 payload 返回 400、未知 app 返回 403，并且两者都没有数据库写入。
 - 同一 `event_id` 重复提交后集合中仍只有一条。
 - `received_at` 来自服务端，记录中没有客户端 IP 或敏感正文。
-- 更新 URL 在 Task4 验收时返回正确 JSON，内容与 ETag 匹配当时的本地快照；它目前不代表 Task7 的 14 字段清单。系统默认域名实际强制 `no-store`，300 秒左右缓存需在以后绑定自定义域名后复验。
+- 更新 URL 当前返回 Task7 的精确 14 字段 JSON，网关域名与静态托管域名的 560 原始字节均逐字段匹配本地文件，ETag 与本地 MD5 一致；同版本 SDK 实测返回 `none/up_to_date`。系统默认域名仍强制 `no-store`，300 秒左右缓存需在以后绑定自定义域名后复验。
 - optional/required 的宿主 UI、真实下载 URL、安装包签名与退出路径由业务客户端另行人工测试。
 
 Windows PowerShell 公网验证请显式使用 `curl.exe`，具体命令见完整文档。不要把本地 mock 测试称作真实 CloudBase 或真实宿主验收。

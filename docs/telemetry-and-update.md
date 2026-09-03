@@ -2,9 +2,9 @@
 
 本文是 `毕方运营精灵` 公共基础设施仓库的长期维护文档。仓库只提供埋点接收、更新清单和框架无关 SDK，不包含任何业务客户端、产品 UI、自动下载器或安装器。
 
-Task4 已将 `example-tool` smoke test 部署到腾讯云 CloudBase，并完成公网、数据库写入与幂等验收；实际资源、HTTPS 地址与默认域名限制见 [`cloudbase-deployment.md`](cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入，也未完成自定义域名、真实下载地址或生产运维配置。
+Task4 已将 `example-tool` smoke test 首次部署到腾讯云 CloudBase；Task8 又把 Task7 校正后的 v1 精确协议覆盖部署到同一现有环境，并完成公网、数据库写入、拒绝用例与幂等复验。实际资源、HTTPS 地址、事件 ID、内容哈希与默认域名限制见 [`cloudbase-deployment.md`](cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入，也未完成自定义域名、真实下载地址或生产运维配置。
 
-Task7 已在本地把事件 properties 与更新清单校正为本文所述的 v1.0 精确协议，但没有部署或修改任何 CloudBase 资源。当前云端仍运行 Task4 的旧协议快照；新 SDK 会把旧静态清单视为 `invalid_config`，旧云函数也不会接受新事件 properties。只有 Task8 同时重新部署 telemetry 函数与静态清单并完成公网复验后，云端才与本仓库恢复生产一致性。
+Task7 在本地把事件 properties 与更新清单校正为本文所述的 v1.0 精确协议；Task8 已于 2026-09-03 更新现有 `telemetry` 函数代码/依赖和两份现有静态文件，并完成真实公网与数据库复验。当前云端与本仓库的 Phase 1 v1 协议一致；环境、集合、路由、QPS、CORS、默认域名和 `ALLOWED_APP_IDS` 均保持原配置。
 
 ## 1. 修改文件列表
 
@@ -18,7 +18,7 @@ Phase 1 的文件及职责如下：
 - 示例与仓库测试：`examples/host-integration.ts`、`examples/telemetry-event.json`、`examples/tsconfig.json`、`tests/repository-contract.test.mjs`。
 - 文档：`cloudbase/README.md`、`docs/telemetry-and-update.md`、`docs/cloudbase-deployment.md`。
 
-`example-tool` 和所有 `.example.invalid` URL 都是明确的 smoke/不可用占位值，不是现有业务产品或生产下载地址。Task4 部署 `example-tool` 仅用于验证基础设施。
+`example-tool` 和所有 `.example.invalid` URL 都是明确的 smoke/不可用占位值，不是现有业务产品或生产下载地址。Task4/Task8 部署 `example-tool` 仅用于验证基础设施。
 
 ## 2. 架构与模块说明
 
@@ -74,7 +74,7 @@ JSON Schema 约束字段拓扑、长度、基础 URI/SemVer 语法；SDK 解析�
 
 ## 3. CloudBase 资源拓扑与历史部署
 
-Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项，真实 ID 与配置见部署回执；这些是 Task4 时点的历史结果，不包含 Task7 的协议修复。第 6、7 项仍包含正式业务接入前的待办，Task8 还必须重新部署第 2、5 项并复验：
+Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项；Task8 没有新建、删除或重建资源，只覆盖第 2、5 项并复验第 1 至 5 项。真实 ID、配置、当前 ETag 与验收事件 ID 见部署回执。第 6、7 项仍包含正式业务接入前的待办：
 
 1. 一个 CloudBase 环境，公开回执记录环境 ID、地域和计费模式；负责人由内部运维记录，不写入公开文档。
 2. 一个名为 `telemetry` 的 Node.js 20 普通 Event 云函数，入口 `index.main`，安装函数目录中的生产依赖。
@@ -232,7 +232,7 @@ npm run check
 
 ## 10. Windows PowerShell 兼容的 curl.exe 命令
 
-Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。下列命令只能在独立 Task8 已部署当前函数和静态清单后运行，并应先替换其中的公网 URL。Task4 使用旧协议快照完成过当时的等价实测，但当前新示例在 Task8 前不应对旧云函数发送，也不能预期得到 202。
+Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。下列命令应在独立部署 Task 完成后运行，并先替换其中的公网 URL。Task4 使用旧协议快照完成过等价实测；Task8 已使用当前示例契约完成真实复验。
 
 ```powershell
 $TelemetryUrl = "https://<YOUR_HTTPS_DOMAIN>/v1/track"
@@ -250,7 +250,7 @@ curl.exe -i -X POST $TelemetryUrl `
 curl.exe -i $UpdateUrl
 ```
 
-Task8 部署完成后的预期分别为 204、202 和 200。`examples/telemetry-event.json` 的 `app_id` 是 `example-tool`，所以函数的 `ALLOWED_APP_IDS` 必须暂时包含该值，或先把示例复制到临时文件并替换成真实 app ID。重复发送原样示例会复用同一个 `event_id`，应用层应看到幂等成功而不是新增第二条记录。
+Task8 实测结果分别为 204、202 和 200。`examples/telemetry-event.json` 的 `app_id` 是 `example-tool`，所以函数的 `ALLOWED_APP_IDS` 必须暂时包含该值，或先把示例复制到临时文件并替换成真实 app ID。重复发送原样示例会复用同一个 `event_id`，应用层应看到幂等成功而不是新增第二条记录。
 
 ## 11. 已实现事件
 
@@ -408,7 +408,7 @@ Telemetry 发送失败、超时、服务端拒绝、身份文件错误及 debug 
 
 ## CloudBase 控制台验收清单
 
-Task4 的 smoke 验收结果已记录在部署回执；下面保留为重新部署及正式生产接入时的持续验收清单：
+Task4 的首次部署和 Task8 的当前契约复验均已记录在部署回执；下面保留为后续重新部署及正式生产接入时的持续验收清单：
 
 - 环境：ID、地域、计费状态与部署账号正确。
 - 函数：名称 `telemetry`，类型为普通 Event，Node.js 20 运行时，入口 `index.main`，依赖安装成功；没有端口 9000 健康检查要求。
@@ -422,10 +422,10 @@ Task4 的 smoke 验收结果已记录在部署回执；下面保留为重新部�
 
 ## 部署回执与剩余生产风险
 
-- Task7 只校正了本地源码、示例、测试和文档，没有部署 CloudBase。Task8 必须同时部署 telemetry 函数与静态清单，并重新执行公网、数据库和内容一致性验收；在此之前不得把 Task4 的历史部署称为与当前 v1.0 契约一致。
+- Task7 校正了本地源码、示例、测试和文档；Task8 已将该版本的 telemetry 函数与静态清单部署到 Task4 的现有环境，并完成公网、数据库和内容一致性验收。以后任何协议或依赖变更仍必须在独立部署 Task 中重做这些验收。
 - CLI schema、Node.js 运行时名称和控制台选项可能随 CloudBase 版本或地域变化，必须以每次部署当日的 CLI `validate`、`--dry-run` 与控制台为准。
-- Task4 已公网验证当前环境的 HTTP event shape、路径透传、CORS、自定义 scheme Origin 和响应头；更换环境、域名、路由或运行时后必须重新实测。
-- Task4 已验证当前环境身份访问 NoSQL、集合权限和重复事件幂等；更换环境、地域或 SDK 后必须重新验证。
+- Task4/Task8 已公网验证当前环境的 HTTP event shape、路径透传、CORS、自定义 scheme Origin 和响应头；更换环境、域名、路由或运行时后必须重新实测。
+- Task4/Task8 已验证当前环境身份访问 NoSQL、集合权限和重复事件幂等；更换环境、地域或 SDK 后必须重新验证。
 - 当前系统默认域名不能设置 HTTP 强制跳转，且强制 `Cache-Control: no-store`。自定义域名备案/证书/DNS、生效时间、CDN 缓存与刷新仍取决于真实账号和地域。
 - 模板限频值只是起点，无法替代容量评估、防滥用策略、预算告警和数据保留/删除政策。
 - SDK 的 URL 校验是降低误用风险，不是安装包供应链验证；签名、哈希、发布账号安全和回滚仍由业务发布流程负责。
