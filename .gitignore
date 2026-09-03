@@ -9,3 +9,5 @@ coverage/
 cloudbaserc.json
 .cloudbase/
 .tcb/
+__pycache__/
+*.py[cod]
