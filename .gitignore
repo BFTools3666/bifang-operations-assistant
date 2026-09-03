@@ -6,3 +6,5 @@ coverage/
 !.env.example
 *.log
 cloudbaserc.json
+.cloudbase/
+.tcb/

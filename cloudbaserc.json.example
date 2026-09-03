@@ -25,9 +25,7 @@
       "installCommand": "",
       "buildCommand": "",
       "outputDir": ".",
-      "deployPath": "/updates",
-      "verify": true,
-      "safe": true
+      "deployPath": "/updates"
     }
   ],
   "gateway": {

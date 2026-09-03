@@ -16,4 +16,4 @@ npm install
 npm run check
 ```
 
-模板中的 `example-tool`、`.example.invalid`、CloudBase 环境 ID 和域名都必须在真实接入或部署时替换。完整架构、API、部署和维护流程见 [docs/telemetry-and-update.md](docs/telemetry-and-update.md)。
+`example-tool` 和 `.example.invalid` 是 smoke test 占位值，不是业务产品配置。Task4 已把该示例部署到 CloudBase 并完成公网/数据库验收；实际资源、HTTPS 地址和系统默认域名限制见 [部署回执](docs/cloudbase-deployment.md)。真实小工具接入前仍须替换 app ID、下载地址与发布说明地址；完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。

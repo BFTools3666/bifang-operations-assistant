@@ -2,7 +2,7 @@
 
 本文是 `毕方运营精灵` 公共基础设施仓库的长期维护文档。仓库只提供埋点接收、更新清单和框架无关 SDK，不包含任何业务客户端、产品 UI、自动下载器或安装器。
 
-当前交付物是可部署源码与本地测试，不代表已经开通、部署或验证腾讯云 CloudBase 资源。环境创建、权限配置、域名绑定、真实部署和公网验收全部留给独立 Task4。
+Task4 已将 `example-tool` smoke test 部署到腾讯云 CloudBase，并完成公网、数据库写入与幂等验收；实际资源、HTTPS 地址与默认域名限制见 [`cloudbase-deployment.md`](cloudbase-deployment.md)。该 smoke 环境不代表真实业务客户端已经接入，也未完成自定义域名、真实下载地址或生产运维配置。
 
 ## 1. 修改文件列表
 
@@ -14,9 +14,9 @@ Phase 1 的文件及职责如下：
 - 云函数：`cloudbase/functions/telemetry/index.js`、`cloudbase/functions/telemetry/package.json`、`cloudbase/functions/telemetry/src/burst-guard.js`、`cloudbase/functions/telemetry/src/handler.js`、`cloudbase/functions/telemetry/src/validation.js`、`cloudbase/functions/telemetry/src/writer.js`、`cloudbase/functions/telemetry/test/telemetry.test.js`。
 - 更新清单：`cloudbase/updates/update.schema.json`、`cloudbase/updates/example-tool/windows.json`。
 - 示例与仓库测试：`examples/host-integration.ts`、`examples/telemetry-event.json`、`examples/tsconfig.json`、`tests/repository-contract.test.mjs`。
-- 文档：`cloudbase/README.md`、`docs/telemetry-and-update.md`。
+- 文档：`cloudbase/README.md`、`docs/telemetry-and-update.md`、`docs/cloudbase-deployment.md`。
 
-`example-tool` 和所有 `.example.invalid` URL 都是明确的不可用占位符，不是现有产品或生产地址。
+`example-tool` 和所有 `.example.invalid` URL 都是明确的 smoke/不可用占位值，不是现有业务产品或生产下载地址。Task4 部署 `example-tool` 仅用于验证基础设施。
 
 ## 2. 架构与模块说明
 
@@ -49,7 +49,7 @@ SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法�
 
 函数只做四件事：提取 HTTP 请求、严格验证并重建白名单字段、检查 `ALLOWED_APP_IDS`、写入 `telemetry_events`。它不保存原始 body、请求头或客户端 IP。数据库适配器固定使用官方 `@cloudbase/js-sdk@3.8.2`；CloudBase v3.1 起已在该包中内置 Node.js 适配器。普通 Event 云函数运行时使用当前环境身份，不向公共客户端发放 secret。
 
-本仓库有意不使用旧的 `@cloudbase/node-sdk`。实现阶段对候选版本 `3.18.3` 的 `npm audit` 显示其旧依赖链带来 4 个 high severity 漏洞；继续采用它会给这个小型公共服务增加不必要的维护和审计风险。依赖切换不改变 Event 函数、HTTP 网关或数据库协议。Task4 仍须在真实函数环境验证 `@cloudbase/js-sdk` 当前环境识别、鉴权和数据库写入，并在升级 SDK 前重新运行测试与 `npm audit`。
+本仓库有意不使用旧的 `@cloudbase/node-sdk`。实现阶段对候选版本 `3.18.3` 的 `npm audit` 显示其旧依赖链带来 4 个 high severity 漏洞；继续采用它会给这个小型公共服务增加不必要的维护和审计风险。依赖切换不改变 Event 函数、HTTP 网关或数据库协议。Task4 已在真实函数环境验证 `@cloudbase/js-sdk` 当前环境识别、鉴权和数据库写入；升级 SDK 前仍须重新运行测试与 `npm audit`。
 
 ### 更新静态文件
 
@@ -66,23 +66,23 @@ SDK 自身默认关闭 telemetry：只有 `enabled: true` 且配置全部合法�
 
 JSON Schema 约束字段拓扑、长度、基础 URI/SemVer 语法；SDK 解析器是运行时安全边界，还会拒绝带凭据、localhost、明显私网/保留地址等 Schema 不适合完整表达的 URL。清单只有同时通过两层检查才可发布。
 
-## 3. Task4 需要创建的 CloudBase 资源
+## 3. CloudBase 资源拓扑与当前部署
 
-Phase 1 未创建以下任何资源。Task4 应在目标腾讯云账号中逐项创建并记录真实 ID：
+Task4 已为 `example-tool` smoke test 创建并验证第 1 至 5 项，真实 ID 与配置见部署回执；第 6、7 项仍包含正式业务接入前的待办：
 
-1. 一个 CloudBase 环境，记录环境 ID、地域、计费模式和负责人。
+1. 一个 CloudBase 环境，公开回执记录环境 ID、地域和计费模式；负责人由内部运维记录，不写入公开文档。
 2. 一个名为 `telemetry` 的 Node.js 20 普通 Event 云函数，入口 `index.main`，安装函数目录中的生产依赖。
 3. 一个 NoSQL 集合 `telemetry_events`。禁止公共客户端直接读写；仅让云函数的服务端身份执行插入及必要的运维查询。
-4. 一条 HTTP 网关路由：`/v1/track` 指向 `telemetry` Event 云函数，路径透传开启，`protocol=HTTP_TO_HTTPS`，允许匿名调用。匿名是因为协议不携带客户端 secret，并不等于取消参数白名单、全局限频或监控。
+4. 一条 HTTP 网关路由：`/v1/track` 指向 `telemetry` Event 云函数，路径透传开启并允许匿名调用。目标模板使用 `protocol=HTTP_TO_HTTPS`；当前系统默认域名实际只能使用 `HTTP_AND_HTTPS`，客户端必须只配置 HTTPS。匿名是因为协议不携带客户端 secret，并不等于取消参数白名单、全局限频或监控。
 5. 一个静态托管站点/资源，把 `cloudbase/updates` 发布到 `/updates`。
-6. 可访问上述路由的 HTTPS 域名、证书和 DNS；生产环境不应依赖未确认配额的临时默认域名。
-7. 网关级 QPS/IP 限频、可用的请求体大小限制，以及日志、告警、预算和保留策略。
+6. 当前 smoke 使用系统默认 HTTPS 域名；正式业务仍需已备案自定义域名、证书和 DNS，并复验 HTTP 到 HTTPS 跳转及约 300 秒缓存。
+7. Task4 已配置网关总 QPS `100`、单客户端 IP QPS `10`。网关外层请求体限制以及日志、告警、预算和保留策略仍需在生产接入前补齐并留证。
 
-仓库的 `cloudbaserc.json.example` 是声明式配置起点，不是已经成功部署的证据。它给出 Event 函数、静态托管和网关路由的预期拓扑；Task4 必须用当时安装的 CloudBase CLI 做 `--dry-run` 并在控制台复核字段兼容性。
+仓库的 `cloudbaserc.json.example` 是声明式配置起点，不是生产就绪证明。Task4 使用 CloudBase CLI 3.8.1 验证了核心拓扑，并发现 `hosting.verify`、`hosting.safe` 不被该版本 Schema 接受；集成分支已移除这两个字段。每次重新部署仍须用当时安装的 CLI 做 `validate`、`--dry-run` 并在控制台复核字段兼容性。
 
-## 4. Task4 部署步骤
+## 4. 部署与重新部署步骤
 
-以下命令只供独立部署 Task 使用；不要在 Phase 1 编码 Task 中执行。
+以下命令只供独立部署或重新部署 Task 使用；不要在 SDK 编码 Task 中执行，也不要把本节当成已完成操作的替代证据。
 
 1. 在腾讯云控制台完成账号、实名、计费与 CloudBase 环境创建，记下真实环境 ID。
 2. 在数据库页创建 `telemetry_events`，配置为不允许公共端直接读写。
@@ -118,11 +118,11 @@ Phase 1 未创建以下任何资源。Task4 应在目标腾讯云账号中逐项
    tcb deploy
    ```
 
-7. 在 CloudBase HTTP 网关/API 网关或相邻安全层确认 `HTTP_TO_HTTPS` 生效，并设置全局和按客户端 IP 限频。模板中的 `qpsTotal=100`、单 IP `limitValue=10` 只是保守起点，需要按真实流量调整。若控制台提供请求体大小规则，将 body 上限设为 4 KiB；若平台最小可选值更大，仍保留函数内 4096 字节硬限制并记录外层实际值。若 Task4 把路由拆到不同域名，需为每个域名分组显式核对协议策略。
+7. 在 CloudBase HTTP 网关/API 网关或相邻安全层确认 `HTTP_TO_HTTPS` 生效，并设置全局和按客户端 IP 限频。模板中的 `qpsTotal=100`、单 IP `limitValue=10` 只是保守起点，需要按真实流量调整。若控制台提供请求体大小规则，将 body 上限设为 4 KiB；若平台最小可选值更大，仍保留函数内 4096 字节硬限制并记录外层实际值。若后续把路由拆到不同域名，需为每个域名分组显式核对协议策略。
 8. 为更新 JSON 配置约 5 分钟缓存，即 `Cache-Control: max-age=300` 或控制台等价策略。部署新清单后确认 CDN 刷新；回滚或紧急停更时主动刷新/清除对应路径缓存。
 9. 绑定真实 HTTPS 域名后执行本文后面的公网验收。只有全部核验通过，才能把真实 URL 写进业务宿主的发布配置。
 
-如 CLI 模板与当前控制台能力不一致，停止部署并根据同版本官方文档调整 Task4 中的部署配置；不要为了“跑通”而把 Event 函数改成端口型 Web 服务。
+如 CLI 模板与当前控制台能力不一致，停止部署并根据同版本官方文档调整该独立部署 Task 中的配置；不要为了“跑通”而把 Event 函数改成端口型 Web 服务。
 
 ## 5. 人工环境变量与宿主配置
 
@@ -162,9 +162,9 @@ Phase 1 未创建以下任何资源。Task4 应在目标腾讯云账号中逐项
 
 其他 telemetry 路径返回安全的 404；`/v1/track` 的其他方法返回 405；非法请求返回 `400 {"ok":false,"error":"invalid_payload"}`；未知 app 返回 403；实例突发保护返回 429；内部写入错误只返回通用 500，不返回栈、数据库或环境细节。
 
-CORS 当前允许任意 Origin，但只允许 `POST, OPTIONS` 和 `Content-Type` 请求头。Task4 应根据真实宿主 Origin 和 CloudBase 能力判断是否收紧；桌面自定义 scheme/WebView 的 Origin 必须先实际验证。
+CORS 当前允许任意 Origin，但只允许 `POST, OPTIONS` 和 `Content-Type` 请求头。真实业务接入或重新部署时应根据宿主 Origin 和 CloudBase 能力判断是否收紧；桌面自定义 scheme/WebView 的 Origin 必须实际验证。
 
-公网入口必须使用 HTTPS。模板在 `/v1/track` 路由上显式配置 `HTTP_TO_HTTPS`；CloudBase 对同一域名分组采用首条路由的协议设置，因此 Task4 调整域名或路由顺序时必须重新核对，并实测 HTTP 请求确实跳转到 HTTPS。
+公网入口必须使用 HTTPS。模板在 `/v1/track` 路由上显式配置 `HTTP_TO_HTTPS`；CloudBase 对同一域名分组采用首条路由的协议设置，因此以后调整域名或路由顺序时必须重新核对，并实测 HTTP 请求确实跳转到 HTTPS。
 
 ## 7. update.json 地址模板
 
@@ -180,13 +180,13 @@ SDK 拼接规则固定为：
 https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/windows.json
 ```
 
-当前示例在部署后的预期路径为：
+当前 `example-tool` smoke test 的实际路径为：
 
 ```text
-https://<YOUR_HTTPS_DOMAIN>/updates/example-tool/windows.json
+https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/updates/example-tool/windows.json
 ```
 
-`<YOUR_HTTPS_DOMAIN>`、`example-tool` 以及示例中的两个 `.example.invalid` 链接都必须替换。Task4 需实测最终路由，确认没有出现重复的 `/updates/updates/` 或缺少 `/updates/`。
+真实业务接入时，`<YOUR_HTTPS_DOMAIN>`、`example-tool` 以及示例中的两个 `.example.invalid` 链接都必须替换。Task4 已实测 smoke 路由没有重复的 `/updates/updates/` 或缺少 `/updates/`。
 
 ## 8. telemetry API 地址模板
 
@@ -194,7 +194,13 @@ https://<YOUR_HTTPS_DOMAIN>/updates/example-tool/windows.json
 https://<YOUR_HTTPS_DOMAIN>/v1/track
 ```
 
-这只是模板。仓库没有已绑定环境、默认域名或自定义域名，因此不存在可声明为“实际地址”的 URL。
+当前 `example-tool` smoke test 的实际 API 是：
+
+```text
+https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/v1/track
+```
+
+该地址是系统默认域名，只能作为本阶段验证与接入准备依据；真实业务仍应使用稳定的自定义 HTTPS 域名。
 
 ## 9. 本地测试
 
@@ -220,7 +226,7 @@ npm run check
 
 ## 10. Windows PowerShell 兼容的 curl.exe 命令
 
-Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。以下命令仅在 Task4 替换占位符并完成部署后运行。
+Windows PowerShell 中 `curl` 可能是 `Invoke-WebRequest` 的别名，因此必须显式调用 `curl.exe`。使用下列命令时应先替换其中的公网 URL；Task4 已使用实际默认域名完成等价实测，重新部署后还要再次运行。
 
 ```powershell
 $TelemetryUrl = "https://<YOUR_HTTPS_DOMAIN>/v1/track"
@@ -258,7 +264,7 @@ curl.exe -i $UpdateUrl
 ## 12. 新工具复用方法
 
 1. 选定永久、低熵、合法的 `APP_ID`，例如 `invoice-helper`，不要使用显示名称或用户 ID。
-2. 把该 ID 加入 Task4 中 `ALLOWED_APP_IDS`，重新部署函数配置并验证未知 app 仍被拒绝。
+2. 在新工具的独立部署/配置 Task 中把该 ID 加入 `ALLOWED_APP_IDS`，重新部署函数配置并验证未知 app 仍被拒绝。
 3. 复制 `cloudbase/updates/example-tool/` 为 `cloudbase/updates/<APP_ID>/`；修改 JSON 中的 `app_id`、平台、版本和两个真实公网 HTTPS URL。
 4. 用 `update.schema.json` 和仓库测试校验清单；保证 `min_supported_version <= latest_version`。
 5. 在宿主中安装/引用 `@bifang/telemetry-update-sdk`。Node 宿主从 `@bifang/telemetry-update-sdk/node` 导入文件存储适配器，并传入该工具自己的绝对 AppConfig 目录；非 Node 宿主实现 `IdentityStorage`。
@@ -359,7 +365,7 @@ SDK 只返回决策并提供 hooks。宿主必须负责：
 这是尽力而为的幂等策略：
 
 - 当前 SDK 本身不重试，所以幂等主要防重复调用或基础设施重放。
-- 本地 mock 只验证 `_id=event_id` 和重复错误识别；Task4 必须用真实 CloudBase SDK/集合验证目标环境的重复错误形态。
+- 本地 mock 验证 `_id=event_id` 和重复错误识别；Task4 又用真实 CloudBase SDK/集合验证了同一事件重复提交时数据库精确计数仍为 1。
 - 若平台返回了当前识别逻辑之外的错误码，重复请求可能返回通用 500，但仍不应覆盖已有文档。
 - 不能用同一 `event_id` 发送不同内容；后来的内容不会替换先前记录。
 
@@ -376,28 +382,28 @@ SDK 只返回决策并提供 hooks。宿主必须负责：
 
 Telemetry 发送失败、超时、服务端拒绝、身份文件错误及 debug logger 错误都不会打断宿主。失败事件直接丢弃且不重试。更新检查失败、超时、内容超限、JSON 非法、配置不匹配或 URL 不安全时返回 `none`，宿主应继续正常运行。
 
-“静默”只适用于最终用户控制流，不表示运维可以忽略故障。Task4 应为函数 5xx、429、调用量、数据库写入失败、成本和更新 URL 4xx/5xx 建立不含事件正文的聚合监控与告警。
+“静默”只适用于最终用户控制流，不表示运维可以忽略故障。正式生产接入应为函数 5xx、429、调用量、数据库写入失败、成本和更新 URL 4xx/5xx 建立不含事件正文的聚合监控与告警。
 
 ## CloudBase 控制台验收清单
 
-Task4 完成部署后逐项截图或记录真实值：
+Task4 的 smoke 验收结果已记录在部署回执；下面保留为重新部署及正式生产接入时的持续验收清单：
 
 - 环境：ID、地域、计费状态与部署账号正确。
 - 函数：名称 `telemetry`，类型为普通 Event，Node.js 20 运行时，入口 `index.main`，依赖安装成功；没有端口 9000 健康检查要求。
 - 环境变量：`ALLOWED_APP_IDS` 只含批准的 app；确认是否使用默认当前环境或显式 `CLOUDBASE_ENV_ID`。
 - 数据库：`telemetry_events` 已存在，公共端权限关闭，函数可插入；文档 `_id` 等于 `event_id`，`received_at` 是服务端时间，记录中无 IP、原始 body 或未知字段。
 - 网关：真实 HTTPS 域名的 `/v1/track` 指向 Event 函数，路径透传正确，匿名调用、OPTIONS/CORS、QPS/单 IP 限制和 body 限制符合预期。
-- 静态托管：真实 URL 能读取对应 JSON，路径没有重复，响应是预期内容，缓存约 300 秒。
+- 静态托管：真实 URL 能读取对应 JSON，路径没有重复，响应是预期内容。当前默认域名强制 `no-store`；正式自定义域名需把缓存设为约 300 秒并重新留证。
 - 协议：合法 POST 为 202；非法 JSON 为 400 且集合无写入；未知 app 为 403 且集合无写入；OPTIONS 为 204；服务端错误不泄露栈或资源信息。
 - 幂等：连续两次发送相同 `event_id`，HTTP 行为符合文档，集合只保留一条。
 - 宿主：在真实测试版本中分别人工走通 optional 的“立即更新/稍后提醒”和 required 的“立即更新/退出”，并验证 telemetry 关闭时没有网络发送。
 
-## Task4 才能消除的遗留风险
+## 部署回执与剩余生产风险
 
-- `cloudbaserc.json.example`、CLI schema、Node.js 运行时名称和控制台选项可能随 CloudBase 版本或地域变化，必须以 Task4 当日的 CLI `--dry-run` 与控制台为准。
-- Event 函数的真实 HTTP event shape、路径透传、CORS、自定义 scheme Origin 和响应头必须公网实测。
-- 当前环境身份访问 NoSQL、集合权限和 duplicate-key 错误形态尚未经过真实 CloudBase 验证。
-- 默认域名配额、自定义域名备案/证书/DNS、生效时间、CDN 缓存与刷新均取决于真实账号和地域。
+- CLI schema、Node.js 运行时名称和控制台选项可能随 CloudBase 版本或地域变化，必须以每次部署当日的 CLI `validate`、`--dry-run` 与控制台为准。
+- Task4 已公网验证当前环境的 HTTP event shape、路径透传、CORS、自定义 scheme Origin 和响应头；更换环境、域名、路由或运行时后必须重新实测。
+- Task4 已验证当前环境身份访问 NoSQL、集合权限和重复事件幂等；更换环境、地域或 SDK 后必须重新验证。
+- 当前系统默认域名不能设置 HTTP 强制跳转，且强制 `Cache-Control: no-store`。自定义域名备案/证书/DNS、生效时间、CDN 缓存与刷新仍取决于真实账号和地域。
 - 模板限频值只是起点，无法替代容量评估、防滥用策略、预算告警和数据保留/删除政策。
 - SDK 的 URL 校验是降低误用风险，不是安装包供应链验证；签名、哈希、发布账号安全和回滚仍由业务发布流程负责。
 
