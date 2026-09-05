@@ -5,6 +5,8 @@
 1. 软件今天是否被启动使用过，以及大致是什么系统、架构和来源 IP。
 2. 客户端启动后检查静态 `windows.json`，判断是否有可选或必须更新。
 
+当前基础设施根版本为 `2.1.0`。新增的跨项目接入向导 `$bifang-public-services-onboarding` 版本为 `1.0.0`；本次没有改变 SDK 公共 API 或线上协议，因此 `@bifang/telemetry-update-sdk` 继续保持 `2.0.0`。
+
 统计事件固定为 `daily_active`，表示“软件在北京时间当天第一次启动使用”，**不是安装事件**。安装后从未启动不计数；同一个匿名 `install_id` 按 `Asia/Shanghai` 每天最多上报一次。第一期不统计渠道、功能点击、任务开始/成功/失败、更新提示或更新点击，也不接收任意 `properties`。
 
 Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证据保留在 [历史 v1 部署回执](cloudbase-deployment.md)，但它不证明当前 `daily_active` 版本已部署。发布新版客户端前必须先部署新版云函数并重新验收。
@@ -12,6 +14,8 @@ Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证�
 当前方案支持多个小工具。它们可以共用一个免费 CloudBase 环境和默认 HTTPS 域名，但每个工具必须拥有独立的应用编号、函数、路由、数据库集合、本地状态目录和更新清单。这样统计数据和版本发布完全分开，只共享平台免费额度。命名和新增流程见[多工具隔离指南](multi-tool-isolation.md)。
 
 全部工具登记在 `cloudbase/apps.json`。新增工具使用 `npm run cloudbase:app:add -- <app_id>`；该命令会安全创建默认关闭的更新清单，并重生成同时包含所有已登记函数和路由的 `cloudbaserc.json.example`。部署前用 `npm run cloudbase:config:check` 防止登记表、更新文件和生成模板漂移。
+
+跨项目向导的权威源码位于 [`skills/bifang-public-services-onboarding`](../skills/bifang-public-services-onboarding)。每次修改公共协议、资源命名、SDK 接入顺序或上线门禁时，都必须同步检查该 Skill 的版本元数据、三份按阶段加载的参考资料、Profile Schema、确定性脚本和行为测试。Skill 只引用本仓库权威路径并记录对应基础设施版本与源提交，不复制整份长期文档。
 
 ## 1. 统计口径
 

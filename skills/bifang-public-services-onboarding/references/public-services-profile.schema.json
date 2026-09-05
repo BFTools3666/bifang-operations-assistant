@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bifang.local/schemas/public-services-profile.schema.json",
+  "title": "Bifang public-services onboarding profile",
+  "description": "A resumable, non-sensitive onboarding profile. Missing optional properties mean not yet confirmed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_schema_version"],
+  "properties": {
+    "profile_schema_version": {
+      "const": 1
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "product_purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "product_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?$",
+      "maxLength": 43
+    },
+    "app_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$",
+      "maxLength": 50
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["windows", "macos", "linux"]
+      }
+    },
+    "architectures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["x64", "arm64", "ia32"]
+      }
+    },
+    "framework": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "current_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "version_source": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "app_config_strategy": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "startup_entry": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "main_window_ready_hook": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "external_link_handler": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "exit_handler": {
+      "$ref": "#/$defs/projectFact"
+    },
+    "cloudbase_env_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "maxLength": 128
+    },
+    "cloudbase_origin": {
+      "$ref": "#/$defs/cloudbaseGatewayUrl"
+    },
+    "telemetry_endpoint": {
+      "$ref": "#/$defs/httpsUrl"
+    },
+    "update_base_url": {
+      "$ref": "#/$defs/httpsUrl"
+    },
+    "infrastructure_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "infrastructure_source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sdk_distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "version"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "versioned_tarball",
+            "private_package",
+            "repository_copy",
+            "workspace"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "verification_evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "immutable_reference": {
+          "type": "string",
+          "pattern": "^(?:sha256:[0-9a-f]{64}|git:[0-9a-f]{40})$"
+        }
+      }
+    },
+    "sdk_artifact_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "registration_status": {
+      "enum": ["unknown", "not_registered", "registered", "verified"]
+    },
+    "legacy_track_status": {
+      "enum": [
+        "unknown",
+        "not_found",
+        "found",
+        "migration_required",
+        "retained"
+      ]
+    },
+    "deployment_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile_complete": {
+          "type": "boolean"
+        },
+        "app_id_confirmed": {
+          "type": "boolean"
+        },
+        "uses_existing_free_environment": {
+          "type": "boolean"
+        },
+        "free_environment_confirmed": {
+          "type": "boolean"
+        },
+        "app_registered": {
+          "type": "boolean"
+        },
+        "cloudbase_config_reviewed": {
+          "type": "boolean"
+        },
+        "function_deployed": {
+          "type": "boolean"
+        },
+        "collection_created": {
+          "type": "boolean"
+        },
+        "collection_admin_only": {
+          "type": "boolean"
+        },
+        "route_deployed": {
+          "type": "boolean"
+        },
+        "update_manifests_deployed": {
+          "type": "boolean"
+        },
+        "privacy_notice_ready": {
+          "type": "boolean"
+        },
+        "online_e2e_passed": {
+          "type": "boolean"
+        },
+        "client_integration_complete": {
+          "type": "boolean"
+        },
+        "sdk_distribution_ready": {
+          "type": "boolean"
+        },
+        "client_e2e_passed": {
+          "type": "boolean"
+        },
+        "migration_observation_complete": {
+          "type": "boolean"
+        },
+        "legacy_usage_assessed": {
+          "type": "boolean"
+        },
+        "owner_approved": {
+          "type": "boolean"
+        }
+      }
+    },
+    "privacy_notice": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "current_stage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$",
+      "maxLength": 64
+    },
+    "projectFact": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "httpsUrl": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "cloudbaseGatewayUrl": {
+      "type": "string",
+      "pattern": "^https://[^/?#]+\\.app\\.tcloudbase\\.com(?::443)?/?$",
+      "maxLength": 2048
+    }
+  }
+}

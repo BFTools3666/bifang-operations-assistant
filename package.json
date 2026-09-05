@@ -1,6 +1,6 @@
 {
   "name": "bifang-telemetry-update-infrastructure",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "Low-volume daily-active telemetry and update-checking infrastructure for small desktop tools.",

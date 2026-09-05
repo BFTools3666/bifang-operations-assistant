@@ -38,3 +38,9 @@ npm run check
 本仓库自带的第一个示例工具编号为 `bifang-tools`。`.example.invalid` 下载地址和发布说明地址仍是 smoke test 占位值，禁止上线。新版客户端必须在其独立云函数、路由、集合和更新文件部署完成后再发布；否则请求会被拒绝或返回 404。现有 [部署回执](docs/cloudbase-deployment.md) 记录的是 `example-tool` 的历史 v1 验收结果，不代表新的 `daily_active`、多工具隔离资源或 `bifang-tools` 已经部署。正式发布前仍须替换下载地址、发布说明、文案、哈希与发布时间；14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
 
 这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
+
+## 跨项目接入向导 Skill
+
+基础设施根版本 `2.1.0` 新增显式调用的 `$bifang-public-services-onboarding`，权威源码位于 [`skills/bifang-public-services-onboarding`](skills/bifang-public-services-onboarding)。它会先检查目标项目和已有 `.bifang/public-services-profile.json`，只分批询问无法从代码确认的信息，再给出独立资源映射、未满足门禁和八阶段接入任务；没有用户明确选择的阶段不会修改对应范围。
+
+SDK 公共 API 没有因新增向导而变化，因此 `@bifang/telemetry-update-sdk` 继续保持 `2.0.0`。安装或更新 Skill 时使用其 [`install_skill.py`](skills/bifang-public-services-onboarding/scripts/install_skill.py)；脚本会拒绝覆盖来源不明的同名 Skill。完整新手流程及“毕方录屏助手”示例见[毕方小工具公共服务分步接入指南](docs/毕方小工具公共服务分步接入指南.md)。
