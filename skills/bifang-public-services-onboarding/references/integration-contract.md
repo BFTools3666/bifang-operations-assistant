@@ -6,12 +6,13 @@
 
 - 基础设施版本：`2.1.0`
 - Skill 版本：`1.0.0`
+- `2.1.0` 功能源码提交：`704da8d702c9991c80ba079910936c275349fabb`
 - `2.0.0` 多工具协议审查基线/升级起点：`01f42449bf0f80a2660e7ee0899eef1176aca934`
 - 协议权威：运营精灵的 `docs/telemetry-and-update.md`
 - 隔离与命名权威：`docs/multi-tool-isolation.md`、`cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`
 - 客户端 API 权威：`packages/telemetry-update-sdk`、`examples/host-integration.ts`
 
-该基线提交不是 `2.1.0` 的来源提交。每次使用都读取当前权威文件及其实际提交；若它们与本参考冲突，以当前权威文件为准，报告漂移并阻止未经复核的实施。
+`704da8d702c9991c80ba079910936c275349fabb` 是 `2.1.0` 向导功能源码提交；上述基线提交不是 `2.1.0` 的来源提交。每次使用都读取当前权威文件及其实际提交；若它们与本参考冲突，以当前权威文件为准，报告漂移并阻止未经复核的实施。
 
 ## 运行时契约摘要
 

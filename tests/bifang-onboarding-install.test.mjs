@@ -103,6 +103,23 @@ async function createOtherSkill(codexHome) {
   return sentinel;
 }
 
+test("checked-in source installs with its recorded real provenance", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+
+  const result = runInstaller(codexHome, sourceSkill);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const installed = await readFile(
+    join(codexHome, "skills", skillName, "SKILL.md"),
+    "utf8",
+  );
+  assert.match(
+    installed,
+    /^  infrastructure-source-commit: "704da8d702c9991c80ba079910936c275349fabb"\r?$/m,
+  );
+});
+
 test("first install targets an isolated temporary CODEX_HOME", async (t) => {
   const root = await temporaryDirectory(t);
   const codexHome = join(root, "codex-home");

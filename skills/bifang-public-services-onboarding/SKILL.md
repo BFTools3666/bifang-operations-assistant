@@ -4,6 +4,7 @@ description: Inspect a small-tool project and resume its staged onboarding to Bi
 metadata:
   version: "1.0.0"
   infrastructure-version: "2.1.0"
+  infrastructure-source-commit: "704da8d702c9991c80ba079910936c275349fabb"
   protocol-baseline-commit: "01f42449bf0f80a2660e7ee0899eef1176aca934"
   source-repository: "bifang-operations-assistant"
 ---
