@@ -98,6 +98,7 @@ describe("HTTP Event function handler", () => {
       _id: createDailyActiveId("bifang-tools", "2026-09-04", INSTALL_ID),
       active_date: "2026-09-04",
       received_at: SERVER_TIME.toISOString(),
+      expires_at: new Date("2026-10-03T16:02:03.456Z"),
       source_ip: "203.0.113.9",
     });
     assert.equal(response.body.includes("203.0.113.9"), false);

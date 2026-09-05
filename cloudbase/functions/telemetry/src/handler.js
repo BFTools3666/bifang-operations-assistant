@@ -8,6 +8,9 @@ const { isAppId, validateAndSanitizePayload } = require("./validation");
 const { createCloudBaseWriter } = require("./writer");
 
 const MAX_RAW_BODY_BYTES = 4096;
+const TELEMETRY_RETENTION_DAYS = 30;
+const TELEMETRY_RETENTION_MILLISECONDS =
+  TELEMETRY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 const CORS_HEADERS = Object.freeze({
   "Access-Control-Allow-Headers": "Content-Type",
@@ -102,6 +105,12 @@ function createHandler(options = {}) {
         ),
         active_date: activeDate,
         received_at: receivedAtIso,
+        // CloudBase stores Date values as BSON dates. The per-app collection
+        // owns a TTL index on this field so source IP and install identifiers
+        // are deleted together after the approved retention window.
+        expires_at: new Date(
+          receivedAt.getTime() + TELEMETRY_RETENTION_MILLISECONDS,
+        ),
         source_ip: extractTrustedSourceIp(event, context),
       };
 
@@ -325,6 +334,7 @@ function invalidPayloadResponse() {
 module.exports = {
   CORS_HEADERS,
   MAX_RAW_BODY_BYTES,
+  TELEMETRY_RETENTION_DAYS,
   createDailyActiveId,
   createHandler,
   extractRequest,

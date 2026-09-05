@@ -18,6 +18,21 @@
         "TELEMETRY_COLLECTION": "telemetry_bifang_screen_recorder",
         "TRACK_PATH": "/apps/bifang-screen-recorder/v1/track"
       }
+    },
+    {
+      "name": "telemetry-bifang-mouse-clicker",
+      "dir": "./cloudbase/functions/telemetry",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 3,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ALLOWED_APP_IDS": "bifang-mouse-clicker",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_mouse_clicker",
+        "TRACK_PATH": "/apps/bifang-mouse-clicker/v1/track"
+      }
     }
   ],
   "hosting": [
@@ -36,6 +51,20 @@
       {
         "path": "/apps/bifang-screen-recorder/v1/track",
         "target": "function:telemetry-bifang-screen-recorder",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/apps/bifang-mouse-clicker/v1/track",
+        "target": "function:telemetry-bifang-mouse-clicker",
         "protocol": "HTTP_TO_HTTPS",
         "enablePathTransmission": true,
         "enableAuth": false,

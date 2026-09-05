@@ -4,6 +4,10 @@
     {
       "app_id": "bifang-screen-recorder",
       "platforms": ["windows", "macos"]
+    },
+    {
+      "app_id": "bifang-mouse-clicker",
+      "platforms": ["windows"]
     }
   ]
 }
