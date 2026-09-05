@@ -40,8 +40,9 @@ function positiveIntegerOr(value, fallback) {
 }
 
 function pruneExpiredWindows(windows, currentTime, windowMs) {
-  // ALLOWED_APP_IDS normally keeps this map tiny. Pruning is still done on a
-  // new window to prevent stale entries surviving indefinitely in warm workers.
+  // Each function accepts one ALLOWED_APP_IDS value, so this map stays tiny.
+  // Pruning on a new window still prevents stale entries surviving indefinitely
+  // in warm workers.
   for (const [key, value] of windows) {
     if (currentTime - value.startedAt >= windowMs) {
       windows.delete(key);

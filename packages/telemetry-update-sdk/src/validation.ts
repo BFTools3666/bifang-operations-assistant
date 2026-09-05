@@ -3,30 +3,11 @@ import {
   SUPPORTED_PLATFORMS,
   TELEMETRY_EVENT_NAMES,
 } from "./constants.js";
-import { isValidSemVer } from "./semver.js";
-import type {
-  Architecture,
-  Platform,
-  SanitizedProperties,
-  TelemetryEventName,
-} from "./types.js";
+import type { Architecture, Platform, TelemetryEventName } from "./types.js";
 
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const APP_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-const CHANNEL_PATTERN = /^[a-z0-9][a-z0-9._-]{0,31}$/;
-const PROPERTY_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const MAC_ADDRESS_PATTERN =
-  /^(?:(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{12}|[0-9a-f]{4}(?:\.[0-9a-f]{4}){2})$/i;
-const PHONE_LIKE_PATTERN = /^(?=(?:\D*\d){7,15}\D*$)\d[\d._:-]*\d$/;
-const CHINESE_ID_PATTERN = /^\d{17}[\dXx]$/;
-const UUID_LIKE_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HEX_BLOB_PATTERN = /^[0-9a-f]{16,}$/i;
-const JWT_LIKE_PATTERN =
-  /^[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/;
-const BASE64URL_LIKE_PATTERN =
-  /^(?=.{20,64}$)(?=.*[A-Z])(?=.*[a-z])(?=.*\d)[A-Za-z0-9_-]+$/;
 const UNSAFE_DISPLAY_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u;
 const VISIBLE_DISPLAY_CONTENT_PATTERN = /[^\s\u200c\u200d\ufe00-\ufe0f]/u;
@@ -132,10 +113,6 @@ function isLeapYear(year: number): boolean {
 
 export function isAppId(value: unknown): value is string {
   return typeof value === "string" && APP_ID_PATTERN.test(value);
-}
-
-export function isChannel(value: unknown): value is string {
-  return typeof value === "string" && CHANNEL_PATTERN.test(value);
 }
 
 export function isPlatform(value: unknown): value is Platform {
@@ -245,111 +222,5 @@ function isNonPublicIpv6(hostname: string): boolean {
     normalized.startsWith("fef") ||
     normalized.startsWith("ff") ||
     normalized.startsWith("2001:db8:")
-  );
-}
-
-function cleanIdentifier(value: unknown, maxLength: number): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const cleaned = value.trim();
-  if (
-    cleaned.length === 0 ||
-    cleaned.length > maxLength ||
-    !PROPERTY_IDENTIFIER_PATTERN.test(cleaned) ||
-    looksSensitiveIdentifier(cleaned)
-  ) {
-    return null;
-  }
-  return cleaned;
-}
-
-function looksSensitiveIdentifier(value: string): boolean {
-  return (
-    MAC_ADDRESS_PATTERN.test(value) ||
-    PHONE_LIKE_PATTERN.test(value) ||
-    CHINESE_ID_PATTERN.test(value) ||
-    UUID_LIKE_PATTERN.test(value) ||
-    HEX_BLOB_PATTERN.test(value) ||
-    JWT_LIKE_PATTERN.test(value) ||
-    BASE64URL_LIKE_PATTERN.test(value)
-  );
-}
-
-function cleanDuration(value: unknown): number | undefined {
-  return typeof value === "number" &&
-    Number.isInteger(value) &&
-    value >= 0 &&
-    value <= 604_800_000
-    ? value
-    : undefined;
-}
-
-export function sanitizeEventProperties(
-  event: TelemetryEventName,
-  properties: unknown,
-): SanitizedProperties | null {
-  if (!isRecord(properties)) {
-    return null;
-  }
-
-  switch (event) {
-    case "app_install":
-    case "app_start":
-      return hasExactKeys(properties, []) ? {} : null;
-    case "feature_used": {
-      if (!hasExactKeys(properties, ["feature_id"])) {
-        return null;
-      }
-      const featureId = cleanIdentifier(properties.feature_id, 64);
-      return featureId ? { feature_id: featureId } : null;
-    }
-    case "task_started": {
-      if (!hasExactKeys(properties, ["task_type"])) {
-        return null;
-      }
-      const taskType = cleanIdentifier(properties.task_type, 64);
-      return taskType ? { task_type: taskType } : null;
-    }
-    case "task_succeeded": {
-      if (!hasExactKeys(properties, ["task_type", "duration_ms"])) {
-        return null;
-      }
-      const taskType = cleanIdentifier(properties.task_type, 64);
-      const durationMs = cleanDuration(properties.duration_ms);
-      return taskType && durationMs !== undefined
-        ? { task_type: taskType, duration_ms: durationMs }
-        : null;
-    }
-    case "task_failed": {
-      if (!hasExactKeys(properties, ["task_type", "error_code"])) {
-        return null;
-      }
-      const taskType = cleanIdentifier(properties.task_type, 64);
-      const errorCode = cleanIdentifier(properties.error_code, 64);
-      return taskType && errorCode
-        ? { task_type: taskType, error_code: errorCode }
-        : null;
-    }
-    case "update_prompt_shown":
-    case "update_clicked": {
-      if (!hasExactKeys(properties, ["target_version"])) {
-        return null;
-      }
-      return isValidSemVer(properties.target_version)
-        ? { target_version: properties.target_version }
-        : null;
-    }
-  }
-}
-
-function hasExactKeys(
-  value: Readonly<Record<string, unknown>>,
-  expectedKeys: readonly string[],
-): boolean {
-  const actualKeys = Object.keys(value);
-  return (
-    actualKeys.length === expectedKeys.length &&
-    expectedKeys.every((key) => Object.hasOwn(value, key))
   );
 }

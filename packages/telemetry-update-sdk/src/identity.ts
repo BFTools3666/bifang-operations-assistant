@@ -169,6 +169,7 @@ async function runSerializedForStorage<T>(
 
 export class MemoryIdentityStorage implements IdentityStorage {
   #record: unknown | null;
+  readonly #claimedActivityDays = new Set<string>();
 
   constructor(initialRecord: unknown | null = null) {
     this.#record = initialRecord;
@@ -180,6 +181,14 @@ export class MemoryIdentityStorage implements IdentityStorage {
 
   async write(record: PersistedInstallIdentity): Promise<void> {
     this.#record = { ...record };
+  }
+
+  async claimActivityDay(day: string): Promise<boolean> {
+    if (this.#claimedActivityDays.has(day)) {
+      return false;
+    }
+    this.#claimedActivityDays.add(day);
+    return true;
   }
 }
 

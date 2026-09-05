@@ -41,10 +41,10 @@ finally:
 
 
 VALID_SETTINGS = GUI.ConnectionSettings(
-    application_id="example-tool",
+    application_id="bifang-tools",
     current_version="0.1.0",
-    telemetry_url="https://cloud.example.com/v1/track",
-    update_url="https://cloud.example.com/updates/example-tool/windows.json",
+    telemetry_url="https://cloud.example.com/apps/bifang-tools/v1/track",
+    update_url="https://cloud.example.com/updates/bifang-tools/windows.json",
     platform="windows",
     architecture="x64",
 )
@@ -86,8 +86,9 @@ def batch_result(*, failures=None, reverse=False):
     if reverse:
         deliveries.reverse()
     return {
-        "session_id": "20000000-0000-4000-8000-000000000001",
         "install_id": "30000000-0000-4000-8000-000000000001",
+        "platform": "windows",
+        "arch": "x64",
         "deliveries": deliveries,
     }
 
@@ -95,17 +96,17 @@ def batch_result(*, failures=None, reverse=False):
 def update_config(**overrides):
     value = {
         "schema_version": 1,
-        "app_id": "example-tool",
+        "app_id": "bifang-tools",
         "platform": "windows",
         "enabled": True,
         "latest_version": "0.2.0",
         "min_supported_version": "0.1.0",
         "force_update": False,
         "rollout": 100,
-        "title": "Example Tool 0.2.0",
+        "title": "Bifang Tools 0.2.0",
         "message": "A tested update is available.",
-        "download_url": "https://downloads.example.com/example-tool-0.2.0.exe",
-        "release_notes_url": "https://releases.example.com/example-tool/0.2.0",
+        "download_url": "https://downloads.example.com/bifang-tools-0.2.0.exe",
+        "release_notes_url": "https://releases.example.com/bifang-tools/0.2.0",
         "sha256": "",
         "published_at": "2026-09-03T00:00:00Z",
     }
@@ -127,31 +128,30 @@ def update_result(kind="optional", *, reason=None, config=None, diagnostic=None)
 
 
 def simulation_devices():
-    """Ten bridge-shaped anonymous devices with 50 acknowledged records."""
+    """Ten bridge-shaped anonymous devices with one daily-active record each."""
     devices = []
-    next_event_id = 100
-    channels = ("official", "wechat", "bilibili")
+    plans = (
+        ("windows", "x64"),
+        ("windows", "x64"),
+        ("windows", "arm64"),
+        ("windows", "ia32"),
+        ("macos", "x64"),
+        ("macos", "arm64"),
+        ("linux", "x64"),
+        ("linux", "arm64"),
+        ("linux", "x64"),
+        ("windows", "x64"),
+    )
     for index in range(10):
-        task_event = "task_succeeded" if index < 7 else "task_failed"
-        events = (
-            "app_install",
-            "app_start",
-            "feature_used",
-            "task_started",
-            task_event,
-        )
-        deliveries = []
-        for event_name in events:
-            deliveries.append(delivery(event_name, next_event_id))
-            next_event_id += 1
+        system, architecture = plans[index]
         devices.append(
             {
+                "device_number": index + 1,
                 "install_id": identity_id(index + 1),
-                "session_id": identity_id(index + 101),
-                "app_version": "0.1.0" if index < 5 else "0.2.0",
-                "channel": channels[index % len(channels)],
-                "arch": "x64" if index < 8 else "arm64",
-                "deliveries": deliveries,
+                "app_version": "0.1.0",
+                "platform": system,
+                "arch": architecture,
+                "deliveries": [delivery("daily_active", 100 + index)],
             }
         )
     return devices
@@ -185,8 +185,8 @@ class FakeBridge:
         self.block_started = threading.Event()
         self.block_release = threading.Event()
         self.responses = {
-            "ping": {"sdk_version": "1.0.0", "network_performed": False},
-            "send_test_batch": batch_result(),
+            "ping": {"sdk_version": "2.0.0", "network_performed": False},
+            "send_daily_active": batch_result(),
             "simulate_devices": simulation_result(),
             "check_update_url": update_result(),
         }
@@ -217,7 +217,7 @@ def controller_harness(
 ):
     callbacks = SimpleNamespace(
         progress=[],
-        batches=[],
+        daily_actives=[],
         simulations=[],
         updates=[],
         messages=[],
@@ -235,7 +235,7 @@ def controller_harness(
         state_root=GUI.DEFAULT_STATE_ROOT,
         confirm_send=confirm,
         on_progress=lambda text, percent: callbacks.progress.append((text, percent)),
-        on_batch=callbacks.batches.append,
+        on_daily_active=callbacks.daily_actives.append,
         on_simulation=callbacks.simulations.append,
         on_update=callbacks.updates.append,
         on_message=lambda tone, title, detail: callbacks.messages.append(
@@ -252,7 +252,7 @@ def controller_harness(
         assert controller.helper_status == "ready"
         bridge.calls.clear()
         callbacks.progress.clear()
-        callbacks.batches.clear()
+        callbacks.daily_actives.clear()
         callbacks.simulations.clear()
         callbacks.updates.clear()
         callbacks.messages.clear()
@@ -297,6 +297,34 @@ class ImportAndCopyTests(unittest.TestCase):
         self.assertEqual(opened_urls, [])
         self.assertEqual(exits, [])
 
+    def test_quickstart_button_opens_the_current_feishu_document_directly(self):
+        opened_urls = []
+        messages = []
+        application = object.__new__(GUI.CloudBaseWizardApplication)
+        application.resource_opener = lambda url: opened_urls.append(url) or True
+        application._show_message = lambda *parts: messages.append(parts)
+
+        application._open_quickstart()
+
+        self.assertEqual(
+            GUI.QUICKSTART_DOCUMENT_URL,
+            "https://my.feishu.cn/docx/CQEsdn73moXxM1xKvT9cDnZKnRg",
+        )
+        self.assertEqual(opened_urls, [GUI.QUICKSTART_DOCUMENT_URL])
+        self.assertEqual(messages, [])
+
+    def test_quickstart_open_failure_shows_a_copyable_feishu_link(self):
+        messages = []
+        application = object.__new__(GUI.CloudBaseWizardApplication)
+        application.resource_opener = lambda _url: False
+        application._show_message = lambda *parts: messages.append(parts)
+
+        application._open_quickstart()
+
+        self.assertEqual(len(messages), 1)
+        self.assertIn("飞书", messages[0][1])
+        self.assertIn(GUI.QUICKSTART_DOCUMENT_URL, messages[0][2])
+
     def test_wizard_has_four_steps_and_every_resource_name_has_an_explanation(self):
         self.assertEqual(len(GUI.STEP_TITLES), 4)
         self.assertEqual(
@@ -311,10 +339,10 @@ class ImportAndCopyTests(unittest.TestCase):
         self.assertEqual(
             [name for name, _explanation in GUI.RESOURCE_GUIDE],
             [
-                "telemetry 云函数",
-                "POST /v1/track",
-                "telemetry_events",
-                "ALLOWED_APP_IDS",
+                "telemetry-<应用编号> 云函数",
+                "POST /apps/<应用编号>/v1/track",
+                "telemetry_<规范化应用编号>",
+                "三个独立函数参数",
                 "更新 JSON",
             ],
         )
@@ -331,6 +359,7 @@ class ImportAndCopyTests(unittest.TestCase):
             "bridge",
             "properties",
             "session_id",
+            "channel",
             "schema",
             "semver",
             "endpoint",
@@ -341,11 +370,12 @@ class ImportAndCopyTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, primary)
         for expected in (
+            "打开飞书新手部署文档",
             "应用编号",
             "当前版本",
             "数据接收地址",
             "更新文件地址",
-            "发送一组测试数据到 cloudbase",
+            "发送 1 条启动使用测试到 cloudbase",
             "复制数据库查询条件",
         ):
             self.assertIn(expected, primary)
@@ -353,6 +383,8 @@ class ImportAndCopyTests(unittest.TestCase):
     def test_visible_settings_are_credential_free_and_examples_are_explicit(self):
         self.assertNotEqual(GUI.EXAMPLE_TELEMETRY_URL, "")
         self.assertNotEqual(GUI.EXAMPLE_UPDATE_URL, "")
+        self.assertIn("/apps/bifang-tools/v1/track", GUI.EXAMPLE_TELEMETRY_URL)
+        self.assertIn("/updates/bifang-tools/windows.json", GUI.EXAMPLE_UPDATE_URL)
         self.assertEqual(GUI.LIVE_TELEMETRY_ENDPOINT_DEFAULT, "")
         self.assertEqual(GUI.LIVE_UPDATE_URL_DEFAULT, "")
         primary = GUI.PRIMARY_UI_TEXT.lower()
@@ -361,33 +393,49 @@ class ImportAndCopyTests(unittest.TestCase):
 
 
 class SettingsAndErrorTests(unittest.TestCase):
+    def test_collection_and_database_path_are_derived_per_app(self):
+        self.assertEqual(
+            GUI.telemetry_collection_name("bifang-tools-pdf"),
+            "telemetry_bifang_tools_pdf",
+        )
+        self.assertIn(
+            "telemetry_bifang_tools_pdf",
+            GUI.database_path_for_app("bifang-tools-pdf"),
+        )
+        with self.assertRaises(ValueError):
+            GUI.telemetry_collection_name("bifang_tools_pdf")
+
     def test_settings_are_trimmed_and_bridge_fields_do_not_contain_urls_or_credentials(self):
         settings = GUI.ConnectionSettings(
-            " example-tool ",
+            " bifang-tools ",
             " 0.1.0 ",
-            " https://cloud.example.com/v1/track ",
-            " https://cloud.example.com/updates/example-tool/windows.json ",
+            " https://cloud.example.com/apps/bifang-tools/v1/track ",
+            " https://cloud.example.com/updates/bifang-tools/windows.json ",
         ).normalized()
         self.assertEqual(settings, VALID_SETTINGS)
         self.assertEqual(
             settings.bridge_fields(),
             {
-                "app_id": "example-tool",
+                "app_id": "bifang-tools",
                 "app_version": "0.1.0",
                 "platform": "windows",
                 "arch": "x64",
-                "channel": "official",
             },
         )
 
     def test_validation_requires_complete_https_addresses(self):
         cases = (
             (GUI.ConnectionSettings("Bad App", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
-            (GUI.ConnectionSettings("example-tool", "v1", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "当前版本"),
-            (GUI.ConnectionSettings("example-tool", "0.1.0", "http://cloud.example.com/v1/track", VALID_SETTINGS.update_url), "https://"),
-            (GUI.ConnectionSettings("example-tool", "0.1.0", "https://cloud.example.com/track", VALID_SETTINGS.update_url), "/v1/track"),
-            (GUI.ConnectionSettings("example-tool", "0.1.0", VALID_SETTINGS.telemetry_url, "updates/windows.json"), "https://"),
-            (GUI.ConnectionSettings("example-tool", "0.1.0", VALID_SETTINGS.telemetry_url, "https://cloud.example.com/updates/folder"), "windows.json"),
+            (GUI.ConnectionSettings("bad_app", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
+            (GUI.ConnectionSettings("bad.app", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
+            (GUI.ConnectionSettings("bad-", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
+            (GUI.ConnectionSettings("bifang-tools", "v1", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "当前版本"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "http://cloud.example.com/apps/bifang-tools/v1/track", VALID_SETTINGS.update_url), "https://"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "https://cloud.example.com/v1/track", VALID_SETTINGS.update_url), "/apps/bifang-tools/v1/track"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "https://cloud.example.com/apps/other-tool/v1/track", VALID_SETTINGS.update_url), "/apps/bifang-tools/v1/track"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "updates/windows.json"), "https://"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "https://cloud.example.com/updates/folder"), "windows.json"),
+            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "https://cloud.example.com/updates/other-tool/windows.json"), "/updates/bifang-tools/windows.json"),
         )
         for settings, expected in cases:
             with self.subTest(expected=expected):
@@ -401,7 +449,7 @@ class SettingsAndErrorTests(unittest.TestCase):
         cases = (
             ({"http_status": 400, "code": "server_rejected"}, "格式不完整"),
             ({"http_status": 403, "server_error": "unknown_app"}, "ALLOWED_APP_IDS"),
-            ({"http_status": 404, "server_error": "not_found"}, "/v1/track"),
+            ({"http_status": 404, "server_error": "not_found"}, "/apps/<应用编号>/v1/track"),
             ({"http_status": 429, "server_error": "rate_limited"}, "发送太频繁"),
             ({"http_status": 500, "server_error": "internal_error"}, "暂时出错"),
             ({"code": "unsafe_endpoint"}, "https://"),
@@ -413,119 +461,78 @@ class SettingsAndErrorTests(unittest.TestCase):
                 self.assertIn(expected, GUI.friendly_error(error))
 
 
-class BatchFeedbackTests(unittest.TestCase):
-    def test_eight_acknowledged_receipts_make_eight_human_cards_and_queries(self):
-        raw = batch_result(reverse=True)
-        feedback = GUI.build_batch_feedback(raw)
+class DailyActiveFeedbackTests(unittest.TestCase):
+    def test_one_acknowledged_receipt_makes_one_human_card_and_query(self):
+        raw = batch_result()
+        feedback = GUI.build_daily_active_feedback(raw)
 
-        self.assertEqual(feedback.confirmed_count, 8)
-        self.assertEqual(feedback.expected_count, 8)
+        self.assertEqual(feedback.confirmed_count, 1)
+        self.assertEqual(feedback.expected_count, 1)
         self.assertEqual(feedback.tone, "success")
-        self.assertIn("8 条", feedback.summary)
+        self.assertIn("1 条启动使用", feedback.summary)
+        self.assertEqual(len(feedback.cards), 1)
+        card = feedback.cards[0]
+        self.assertEqual(card.event_name, "daily_active")
+        self.assertEqual(card.title, "启动使用记录")
+        self.assertTrue(card.acknowledged)
+        self.assertEqual(json.loads(card.query_text), {"event_id": event_id(1)})
         self.assertEqual(
-            [card.event_name for card in feedback.cards],
-            list(GUI.EXPECTED_EVENT_ORDER),
+            json.loads(feedback.record_query_text), {"event_id": event_id(1)}
         )
-        self.assertEqual(
-            [card.title for card in feedback.cards],
-            [GUI.EVENT_NAMES[name] for name in GUI.EXPECTED_EVENT_ORDER],
-        )
-        for index, card in enumerate(feedback.cards, start=1):
-            self.assertTrue(card.acknowledged)
-            self.assertNotIn(card.event_name, card.title)
-            self.assertEqual(card.event_id, event_id(index))
-            self.assertEqual(
-                json.loads(card.query_text), {"event_id": event_id(index)}
-            )
-        self.assertEqual(
-            json.loads(feedback.batch_query_text),
-            {"session_id": raw["session_id"]},
-        )
+        self.assertIn("来源 IP", feedback.detail)
         self.assertIs(feedback.advanced, raw)
 
-    def test_partial_failures_keep_successes_and_translate_each_failed_card(self):
-        raw = batch_result(
-            failures={
-                "task_failed": {
-                    "code": "server_rejected",
-                    "http_status": 403,
-                    "server_error": "unknown_app",
-                },
-                "update_clicked": {
-                    "code": "server_rejected",
-                    "http_status": 404,
-                    "server_error": "not_found",
-                },
-            }
-        )
-        feedback = GUI.build_batch_feedback(raw)
-
-        self.assertEqual(feedback.confirmed_count, 6)
-        self.assertEqual(feedback.expected_count, 8)
-        self.assertEqual(feedback.tone, "warning")
-        self.assertIn("6 条", feedback.summary)
-        cards = {card.event_name: card for card in feedback.cards}
-        self.assertIn("ALLOWED_APP_IDS", cards["task_failed"].detail)
-        self.assertIn("/v1/track", cards["update_clicked"].detail)
-        self.assertFalse(cards["task_failed"].acknowledged)
-        self.assertTrue(cards["feature_used"].acknowledged)
-        self.assertEqual(
-            json.loads(cards["task_failed"].query_text),
-            {"event_id": cards["task_failed"].event_id},
-        )
-
-    def test_old_http_or_sdk_acceptance_signals_never_count_as_database_success(self):
+    def test_old_http_signal_does_not_count_as_database_success(self):
         raw = batch_result()
-        for item in raw["deliveries"]:
-            item.pop("acknowledged")
-            item["accepted_by_sdk"] = True
-            item["transport_result"] = "http_ok"
-        feedback = GUI.build_batch_feedback(raw)
+        raw["deliveries"][0].pop("acknowledged")
+        raw["deliveries"][0]["transport_result"] = "http_ok"
+        feedback = GUI.build_daily_active_feedback(raw)
         self.assertEqual(feedback.confirmed_count, 0)
         self.assertEqual(feedback.tone, "error")
-        self.assertTrue(all(not card.acknowledged for card in feedback.cards))
 
-    def test_bridge_level_failure_returns_all_eight_failed_cards(self):
-        feedback = GUI.failed_batch_feedback(
+    def test_bridge_level_failure_returns_one_failed_card(self):
+        feedback = GUI.failed_daily_active_feedback(
             GUI.BridgeError("bridge_unavailable", "helper closed")
         )
         self.assertEqual(feedback.confirmed_count, 0)
-        self.assertEqual(len(feedback.cards), 8)
-        self.assertTrue(all(card.query_text is None for card in feedback.cards))
-        self.assertTrue(all("重新打开" in card.detail for card in feedback.cards))
+        self.assertEqual(feedback.expected_count, 1)
+        self.assertEqual(len(feedback.cards), 1)
+        self.assertIsNone(feedback.cards[0].query_text)
+        self.assertIn("重新打开", feedback.cards[0].detail)
 
 
-class ControllerBatchTests(unittest.TestCase):
+class ControllerDailyActiveTests(unittest.TestCase):
     def test_invalid_or_cancelled_send_never_reaches_network_action(self):
         confirmations = []
         harness = controller_harness(
             confirm=lambda value: confirmations.append(value) or False
         )
         invalid = GUI.ConnectionSettings(
-            "example-tool", "0.1.0", "", VALID_SETTINGS.update_url
+            "bifang-tools", "0.1.0", "", VALID_SETTINGS.update_url
         )
-        self.assertFalse(harness.controller.send_test_batch(invalid))
+        self.assertFalse(harness.controller.send_daily_active(invalid))
         self.assertEqual(confirmations, [])
         self.assertEqual(harness.bridge.calls, [])
 
-        self.assertFalse(harness.controller.send_test_batch(VALID_SETTINGS))
+        self.assertFalse(harness.controller.send_daily_active(VALID_SETTINGS))
         self.assertEqual(len(confirmations), 1)
         self.assertEqual(confirmations[0].host, "cloud.example.com")
-        self.assertEqual(len(confirmations[0].record_names), 8)
-        self.assertIn("8 条匿名样例", confirmations[0].explanation)
+        self.assertEqual(confirmations[0].record_names, ("1 条启动使用记录",))
+        self.assertIn("只发送 1 个 POST", confirmations[0].explanation)
+        self.assertIn("来源 IP", confirmations[0].explanation)
         self.assertEqual(harness.bridge.calls, [])
         self.assertIn("没有向 CloudBase 发送", harness.callbacks.messages[-1][2])
 
-    def test_one_approval_submits_one_batch_with_a_fresh_state_directory(self):
+    def test_one_approval_submits_one_post_with_a_fresh_state_directory(self):
         confirmations = []
         harness = controller_harness(
             confirm=lambda value: confirmations.append(value) or True
         )
 
-        self.assertTrue(harness.controller.send_test_batch(VALID_SETTINGS))
+        self.assertTrue(harness.controller.send_daily_active(VALID_SETTINGS))
         harness.runner.poll()
         self.assertEqual(len(confirmations), 1)
-        self.assertEqual([call[0] for call in harness.bridge.calls], ["send_test_batch"])
+        self.assertEqual([call[0] for call in harness.bridge.calls], ["send_daily_active"])
         _action, timeout, payload, _thread = harness.bridge.calls[0]
         self.assertEqual(timeout, 45)
         self.assertEqual(payload["endpoint"], VALID_SETTINGS.telemetry_url)
@@ -535,20 +542,20 @@ class ControllerBatchTests(unittest.TestCase):
         self.assertNotIn("token", payload)
         first_state = Path(payload["state_dir"])
         self.assertEqual(first_state.parent, GUI.DEFAULT_STATE_ROOT.resolve())
-        self.assertTrue(first_state.name.startswith("batch-"))
+        self.assertTrue(first_state.name.startswith("daily-active-"))
         self.assertEqual(
             harness.callbacks.progress,
             list(zip(GUI.PROGRESS_STAGES, (25, 50, 75, 100))),
         )
-        self.assertEqual(harness.callbacks.batches[-1].confirmed_count, 8)
+        self.assertEqual(harness.callbacks.daily_actives[-1].confirmed_count, 1)
 
-        harness.controller.send_test_batch(VALID_SETTINGS)
+        harness.controller.send_daily_active(VALID_SETTINGS)
         harness.runner.poll()
         second_state = Path(harness.bridge.calls[1][2]["state_dir"])
         self.assertNotEqual(first_state, second_state)
         self.assertEqual(len(confirmations), 2)
 
-    def test_slow_batch_returns_without_freezing_and_delivers_on_owner_poll(self):
+    def test_slow_daily_active_returns_without_freezing_and_delivers_on_owner_poll(self):
         owner_thread = threading.get_ident()
         callback_threads = []
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -559,14 +566,14 @@ class ControllerBatchTests(unittest.TestCase):
         )
         harness.controller._bridge = harness.bridge
         harness.controller.helper_status = "ready"
-        harness.bridge.block_action = "send_test_batch"
-        harness.controller.on_batch = lambda feedback: (
+        harness.bridge.block_action = "send_daily_active"
+        harness.controller.on_daily_active = lambda feedback: (
             callback_threads.append(threading.get_ident()),
-            harness.callbacks.batches.append(feedback),
+            harness.callbacks.daily_actives.append(feedback),
         )
         try:
             before = time.monotonic()
-            submitted = harness.controller.send_test_batch(VALID_SETTINGS)
+            submitted = harness.controller.send_daily_active(VALID_SETTINGS)
             elapsed = time.monotonic() - before
             self.assertTrue(submitted)
             self.assertLess(elapsed, 0.5)
@@ -581,7 +588,7 @@ class ControllerBatchTests(unittest.TestCase):
                 time.sleep(0.01)
             self.assertFalse(harness.runner.busy)
             self.assertEqual(callback_threads, [owner_thread])
-            self.assertEqual(harness.callbacks.batches[-1].confirmed_count, 8)
+            self.assertEqual(harness.callbacks.daily_actives[-1].confirmed_count, 1)
         finally:
             harness.runner.stop_accepting()
             executor.shutdown(wait=True, cancel_futures=True)
@@ -590,31 +597,26 @@ class ControllerBatchTests(unittest.TestCase):
 class SimulationFeedbackTests(unittest.TestCase):
     def test_ten_unique_bridge_identities_drive_acknowledged_statistics(self):
         raw = simulation_result()
-        installs = [device["install_id"] for device in raw["devices"]]
-        sessions = [device["session_id"] for device in raw["devices"]]
-        self.assertEqual(len(set(installs)), 10)
-        self.assertEqual(len(set(sessions)), 10)
-        self.assertTrue(set(installs).isdisjoint(sessions))
+        device_ids = [device["install_id"] for device in raw["devices"]]
+        self.assertEqual(len(set(device_ids)), 10)
 
         feedback = GUI.build_simulation_feedback(raw)
         self.assertEqual(feedback.device_count, 10)
         self.assertEqual(feedback.planned_device_count, 10)
-        self.assertEqual(feedback.acknowledged_record_count, 50)
-        self.assertEqual(feedback.planned_record_count, 50)
+        self.assertEqual(feedback.acknowledged_record_count, 10)
+        self.assertEqual(feedback.planned_record_count, 10)
         self.assertEqual(feedback.failed_record_count, 0)
-        self.assertEqual(feedback.install_count, 10)
-        self.assertEqual(feedback.start_count, 10)
-        self.assertEqual(feedback.feature_count, 10)
-        self.assertEqual(feedback.task_success_count, 7)
-        self.assertEqual(feedback.task_failure_count, 3)
-        self.assertEqual(feedback.task_success_rate, 70)
+        self.assertEqual(feedback.daily_active_count, 10)
         self.assertEqual(
-            feedback.version_distribution, (("0.1.0", 5), ("0.2.0", 5))
+            feedback.system_distribution,
+            (("linux", 3), ("macos", 2), ("windows", 5)),
         )
         self.assertEqual(
-            feedback.channel_distribution,
-            (("哔哩哔哩渠道", 3), ("官方渠道", 4), ("微信渠道", 3)),
+            feedback.architecture_distribution,
+            (("arm64", 3), ("ia32", 1), ("x64", 6)),
         )
+        self.assertEqual(len(feedback.device_details), 10)
+        self.assertEqual(feedback.device_details[0][2:], ("windows", "x64", True))
         expected_ids = [
             receipt["event_id"]
             for device in raw["devices"]
@@ -636,7 +638,7 @@ class SimulationFeedbackTests(unittest.TestCase):
         feedback = GUI.build_simulation_feedback(simulation_result(devices))
         self.assertEqual(feedback.device_count, 0)
         self.assertEqual(feedback.acknowledged_record_count, 0)
-        self.assertEqual(feedback.failed_record_count, 50)
+        self.assertEqual(feedback.failed_record_count, 10)
         self.assertIsNone(feedback.filter_text)
         self.assertEqual(feedback.tone, "error")
 
@@ -671,7 +673,7 @@ class SimulationFeedbackTests(unittest.TestCase):
                 )
                 self.assertEqual(feedback.device_count, 0)
                 self.assertEqual(feedback.acknowledged_record_count, 0)
-                self.assertEqual(feedback.failed_record_count, 50)
+                self.assertEqual(feedback.failed_record_count, 10)
                 self.assertEqual(feedback.tone, "error")
                 self.assertIsNone(feedback.filter_text)
                 for fragment in expected_fragments:
@@ -679,48 +681,39 @@ class SimulationFeedbackTests(unittest.TestCase):
 
     def test_partial_simulation_excludes_every_unacknowledged_record(self):
         devices = simulation_devices()
-        for receipt in devices[9]["deliveries"]:
-            receipt["acknowledged"] = False
-            receipt["error"] = {"http_status": 500, "code": "server_rejected"}
-        failed_task = next(
-            receipt
-            for receipt in devices[0]["deliveries"]
-            if receipt["event"] == "task_succeeded"
-        )
-        failed_task["acknowledged"] = False
-        failed_task["error"] = {"http_status": 403, "server_error": "unknown_app"}
+        first_failure = devices[0]["deliveries"][0]
+        first_failure["acknowledged"] = False
+        first_failure["error"] = {
+            "http_status": 403,
+            "server_error": "unknown_app",
+        }
+        last_failure = devices[9]["deliveries"][0]
+        last_failure["acknowledged"] = False
+        last_failure["error"] = {"http_status": 500, "code": "server_rejected"}
 
         feedback = GUI.build_simulation_feedback(simulation_result(devices))
-        self.assertEqual(feedback.device_count, 9)
-        self.assertEqual(feedback.acknowledged_record_count, 44)
-        self.assertEqual(feedback.planned_record_count, 50)
-        self.assertEqual(feedback.failed_record_count, 6)
-        self.assertEqual(feedback.install_count, 9)
-        self.assertEqual(feedback.start_count, 9)
-        self.assertEqual(feedback.task_success_count, 6)
-        self.assertEqual(feedback.task_failure_count, 2)
-        self.assertEqual(feedback.task_success_rate, 75)
-        self.assertEqual(
-            feedback.version_distribution, (("0.1.0", 5), ("0.2.0", 4))
-        )
+        self.assertEqual(feedback.device_count, 8)
+        self.assertEqual(feedback.acknowledged_record_count, 8)
+        self.assertEqual(feedback.planned_record_count, 10)
+        self.assertEqual(feedback.failed_record_count, 2)
+        self.assertEqual(feedback.daily_active_count, 8)
         filtered_ids = json.loads(feedback.filter_text)["event_id"]["$in"]
-        self.assertNotIn(failed_task["event_id"], filtered_ids)
-        for receipt in devices[9]["deliveries"]:
-            self.assertNotIn(receipt["event_id"], filtered_ids)
-        self.assertEqual(len(filtered_ids), 44)
+        self.assertNotIn(first_failure["event_id"], filtered_ids)
+        self.assertNotIn(last_failure["event_id"], filtered_ids)
+        self.assertEqual(len(filtered_ids), 8)
         self.assertEqual(feedback.tone, "warning")
-        self.assertIn("44/50", feedback.summary)
-        self.assertIn("失败 6 条", feedback.detail)
+        self.assertIn("8/10", feedback.summary)
+        self.assertIn("失败 2 条", feedback.detail)
         self.assertIn("处理建议", feedback.detail)
         self.assertIn("ALLOWED_APP_IDS", feedback.detail)
 
     def test_simulation_model_contains_no_account_or_real_device_fields(self):
         raw = simulation_result()
         allowed_device_keys = {
+            "device_number",
             "install_id",
-            "session_id",
             "app_version",
-            "channel",
+            "platform",
             "arch",
             "deliveries",
         }
@@ -753,8 +746,8 @@ class SimulationFeedbackTests(unittest.TestCase):
         self.assertEqual(len(confirmations), 1)
         confirmation = confirmations[0]
         self.assertEqual(confirmation.host, "cloud.example.com")
-        self.assertIn("10 台设备", confirmation.explanation)
-        self.assertIn("不是真实账号", confirmation.explanation)
+        self.assertIn("最多 10 个 POST", confirmation.explanation)
+        self.assertIn("来源 IP 通常相同", confirmation.explanation)
         self.assertEqual([call[0] for call in harness.bridge.calls], ["simulate_devices"])
         _action, timeout, payload, _thread = harness.bridge.calls[0]
         self.assertEqual(timeout, 60)
@@ -1013,9 +1006,9 @@ class CloseTests(unittest.TestCase):
         )
         harness.controller._bridge = harness.bridge
         harness.controller.helper_status = "ready"
-        harness.bridge.block_action = "send_test_batch"
+        harness.bridge.block_action = "send_daily_active"
         try:
-            harness.controller.send_test_batch(VALID_SETTINGS)
+            harness.controller.send_daily_active(VALID_SETTINGS)
             self.assertTrue(harness.bridge.block_started.wait(timeout=1))
             closer = harness.controller.begin_close()
             self.assertIsNotNone(closer)
@@ -1027,7 +1020,7 @@ class CloseTests(unittest.TestCase):
                 time.sleep(0.01)
             self.assertFalse(harness.runner.busy)
             self.assertTrue(harness.bridge.closed)
-            self.assertEqual(harness.callbacks.batches, [])
+            self.assertEqual(harness.callbacks.daily_actives, [])
         finally:
             executor.shutdown(wait=True, cancel_futures=True)
 

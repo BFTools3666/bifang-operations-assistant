@@ -19,18 +19,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, TextIO
 
 
-EVENT_EXAMPLES = (
-    ("feature_used", {"feature_id": "export_csv"}),
-    ("task_started", {"task_type": "batch_export"}),
-    ("task_succeeded", {"task_type": "batch_export", "duration_ms": 120}),
-    ("task_failed", {"task_type": "batch_export", "error_code": "E_TIMEOUT"}),
-    ("update_prompt_shown", {"target_version": "1.2.3"}),
-    ("update_clicked", {"target_version": "1.2.3"}),
-    ("app_start", {}),
-    ("app_install", {}),
-)
-
-
 class BridgeError(RuntimeError):
     """A structured bridge failure safe to show in the manual client."""
 
@@ -247,11 +235,10 @@ class BridgeProcess:
 
 @dataclass
 class ClientConfig:
-    app_id: str = "example-tool"
+    app_id: str = "bifang-tools"
     app_version: str = "0.1.0"
     platform: str = "windows"
     arch: str = "x64"
-    channel: str = "official"
 
     def bridge_fields(self) -> Dict[str, Any]:
         return {
@@ -259,7 +246,6 @@ class ClientConfig:
             "app_version": self.app_version,
             "platform": self.platform,
             "arch": self.arch,
-            "channel": self.channel,
         }
 
 
@@ -325,6 +311,8 @@ class InteractiveClient:
         self._write(
             "毕方 SDK Python 手动测试客户端\n"
             "安全默认：启动不初始化 SDK、不发 POST、不发 GET。\n"
+            "多工具隔离：每个工具使用唯一 app_id、独立 /apps/<app_id>/v1/track、"
+            "独立数据库集合和独立更新文件。\n"
             "只有你手填 URL 并键入 POST/GET 后才允许真实网络动作。\n"
         )
         try:
@@ -337,13 +325,11 @@ class InteractiveClient:
                 actions = {
                     "1": self.configure,
                     "2": self.init_capture,
-                    "3": self.track_capture,
-                    "4": self.init_live,
-                    "5": self.track_live,
-                    "6": self.preview_update,
-                    "7": self.start_live_update_check,
-                    "8": self.show_jobs,
-                    "9": self.show_status,
+                    "3": self.init_live,
+                    "4": self.preview_update,
+                    "5": self.start_live_update_check,
+                    "6": self.show_jobs,
+                    "7": self.show_status,
                 }
                 action = actions.get(choice)
                 if action is None:
@@ -363,13 +349,15 @@ class InteractiveClient:
 
     def configure(self) -> None:
         self._write("留空保持当前值；修改后请重新初始化对应会话。")
-        self.config.app_id = self._prompt_default("app_id", self.config.app_id)
+        self.config.app_id = self._prompt_default(
+            "app_id（每个工具唯一，仅小写字母/数字/短横线）",
+            self.config.app_id,
+        )
         self.config.app_version = self._prompt_default(
             "app_version", self.config.app_version
         )
         self.config.platform = self._prompt_default("platform", self.config.platform)
         self.config.arch = self._prompt_default("arch", self.config.arch)
-        self.config.channel = self._prompt_default("channel", self.config.channel)
         self.capture_initialized = False
         self.live_endpoint = None
         self.bridge.request("reset_sessions")
@@ -383,26 +371,20 @@ class InteractiveClient:
             **self.config.bridge_fields(),
         )
         self.capture_initialized = True
-        self._write("本地捕获会话已初始化；以下事件由真实 SDK 生成，未联网：")
-        self._write_json(result)
-
-    def track_capture(self) -> None:
-        if not self.capture_initialized:
-            self._write("请先初始化本地捕获会话。")
-            return
-        event, properties = self._prompt_event()
-        result = self.bridge.request(
-            "track_capture", event=event, properties=properties
+        self._write(
+            "本地启动使用检查已完成；同一设备同一天最多生成一条 daily_active，未联网："
         )
-        self._write("SDK 本地处理结果（accepted=false 表示 SDK 丢弃了事件）：")
         self._write_json(result)
 
     def init_live(self) -> None:
-        endpoint = self.input("填写 telemetry 公网 HTTPS endpoint: ").strip()
+        endpoint = self.input(
+            "填写当前工具的 https://.../apps/<app_id>/v1/track: "
+        ).strip()
         if not self._confirm_network("POST", endpoint):
             return
         self._write(
-            "正在显式初始化 live 会话；SDK 可能 POST app_install 与 app_start。"
+            "正在发送本次启动使用记录；同一设备当天最多 1 个 POST。"
+            "来源 IP 由 CloudBase 从请求连接中记录，客户端不会填写 IP。"
         )
         result = self.bridge.request(
             "init_live",
@@ -414,27 +396,6 @@ class InteractiveClient:
             **self.config.bridge_fields(),
         )
         self.live_endpoint = endpoint
-        self._write_json(result)
-
-    def track_live(self) -> None:
-        if self.live_endpoint is None:
-            self._write("请先显式初始化 live telemetry 会话。")
-            return
-        event, properties = self._prompt_event()
-        endpoint = self.input(
-            "再次完整填写与 live 会话相同的 telemetry endpoint: "
-        ).strip()
-        if not self._confirm_network("POST", endpoint):
-            return
-        result = self.bridge.request(
-            "track_live",
-            timeout=35,
-            endpoint=endpoint,
-            event=event,
-            properties=properties,
-            allow_network=True,
-            confirmation="POST",
-        )
         self._write_json(result)
 
     def preview_update(self) -> None:
@@ -513,24 +474,6 @@ class InteractiveClient:
             return False
         return True
 
-    def _prompt_event(self) -> Any:
-        self._write("可选事件（也可直接输入自定义名称测试 SDK 拒绝行为）：")
-        for index, (event, properties) in enumerate(EVENT_EXAMPLES, start=1):
-            self._write(
-                f"  {index}. {event}  {json.dumps(properties, ensure_ascii=False)}"
-            )
-        raw_event = self.input("事件编号或名称: ").strip()
-        if raw_event.isdigit() and 1 <= int(raw_event) <= len(EVENT_EXAMPLES):
-            event, example = EVENT_EXAMPLES[int(raw_event) - 1]
-        else:
-            event, example = raw_event, {}
-        default_json = json.dumps(example, ensure_ascii=False)
-        raw_properties = self.input(
-            f"properties JSON（留空使用 {default_json}）: "
-        ).strip()
-        properties = json.loads(raw_properties) if raw_properties else example
-        return event, properties
-
     def _prompt_default(self, label: str, current: str) -> str:
         value = self.input(f"{label} [{current}]: ").strip()
         return value or current
@@ -548,14 +491,12 @@ class InteractiveClient:
     def _menu() -> str:
         return (
             "\n1. 修改测试配置\n"
-            "2. 初始化 SDK（本地捕获，零网络）\n"
-            "3. 生成精确 telemetry 事件（本地捕获，零网络）\n"
-            "4. 初始化 live telemetry（显式 POST）\n"
-            "5. 发送 live telemetry 事件（显式 POST）\n"
-            "6. 用本地 JSON 预览更新决策（零网络）\n"
-            "7. 后台检查公网更新（显式 GET）\n"
-            "8. 查看后台检查\n"
-            "9. 查看桥接状态\n"
+            "2. 检查本次启动使用记录（本地捕获，零网络）\n"
+            "3. 上报本次启动使用记录（当天最多 1 个 POST）\n"
+            "4. 用本地 JSON 预览更新决策（零网络）\n"
+            "5. 后台检查公网更新（显式 GET）\n"
+            "6. 查看后台检查\n"
+            "7. 查看桥接状态\n"
             "q. 退出\n"
         )
 

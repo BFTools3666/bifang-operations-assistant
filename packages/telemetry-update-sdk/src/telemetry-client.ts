@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CHANNEL,
   DEFAULT_TELEMETRY_TIMEOUT_MS,
   SDK_VERSION,
   TELEMETRY_SCHEMA_VERSION,
@@ -10,12 +9,7 @@ import {
   TelemetryTransportError,
 } from "./transport.js";
 import type {
-  AvailableUpdateDecision,
-  EmptyTelemetryEventName,
-  EventPropertiesMap,
   InstallIdentityState,
-  PropertyTelemetryEventName,
-  SanitizedProperties,
   TelemetryClientConfig,
   TelemetryDeliveryFailure,
   TelemetryDeliveryResult,
@@ -27,13 +21,10 @@ import type {
 import {
   isAppId,
   isArchitecture,
-  isChannel,
   isIsoDate,
   isPlatform,
   isSafeExternalUrl,
-  isTelemetryEventName,
   isUuidV4,
-  sanitizeEventProperties,
 } from "./validation.js";
 import { isValidSemVer } from "./semver.js";
 
@@ -42,7 +33,6 @@ interface ClientContext {
   appVersion: string;
   platform: TelemetryClientConfig["platform"];
   arch: TelemetryClientConfig["arch"];
-  channel: string;
   endpoint: string;
   identity: InstallIdentityState;
 }
@@ -69,13 +59,11 @@ export class TelemetryClient {
     identity: InstallIdentityState,
   ) {
     this.#config = config;
-    const channel = normalizeChannel(config.channel);
     this.#context = {
       appId: config.appId,
       appVersion: config.appVersion,
       platform: config.platform,
       arch: config.arch,
-      channel,
       endpoint: config.endpoint ?? "",
       identity,
     };
@@ -109,10 +97,7 @@ export class TelemetryClient {
     }
 
     const client = new TelemetryClient(config, identity);
-    if (identity.isFirstInstall) {
-      client.track("app_install");
-    }
-    client.track("app_start");
+    await client.#queueDailyActive();
     return client;
   }
 
@@ -128,42 +113,28 @@ export class TelemetryClient {
     return this.#context.identity.sessionId;
   }
 
-  track(
-    event: EmptyTelemetryEventName,
-    properties?: Readonly<Record<string, never>>,
-  ): void;
-  track<EventName extends PropertyTelemetryEventName>(
-    event: EventName,
-    properties: EventPropertiesMap[EventName],
-  ): void;
-  track(event: TelemetryEventName, properties: unknown = {}): void {
-    try {
-      if (!this.#enabled || !isTelemetryEventName(event)) {
-        return;
-      }
-      const sanitized = sanitizeEventProperties(event, properties);
-      if (!sanitized) {
-        this.#debug("telemetry_event_dropped_invalid_properties", { event });
-        return;
-      }
-
-      const payload = this.#buildEvent(event, sanitized);
-      this.#schedule(payload);
-    } catch {
-      // Telemetry must never escape into the host application's control flow.
+  async #queueDailyActive(): Promise<void> {
+    if (!this.#enabled) {
+      return;
     }
-  }
 
-  trackUpdatePromptShown(decision: AvailableUpdateDecision): void {
-    this.track("update_prompt_shown", {
-      target_version: decision.config.latest_version,
-    });
-  }
+    const occurredAt = safeNow(this.#config.now);
+    const activityDay = asiaShanghaiDay(occurredAt);
+    try {
+      const claimed =
+        await this.#config.identityStorage.claimActivityDay(activityDay);
+      if (!claimed) {
+        this.#debug("daily_active_already_claimed", { activityDay });
+        return;
+      }
+    } catch (error) {
+      this.#debug("daily_active_claim_failed", {
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      return;
+    }
 
-  trackUpdateClicked(decision: AvailableUpdateDecision): void {
-    this.track("update_clicked", {
-      target_version: decision.config.latest_version,
-    });
+    this.#schedule(this.#buildEvent(occurredAt));
   }
 
   /** Waits only for currently queued sends. It never retries failed events. */
@@ -188,25 +159,19 @@ export class TelemetryClient {
     return results;
   }
 
-  #buildEvent(
-    event: TelemetryEventName,
-    properties: SanitizedProperties,
-  ): TelemetryEvent {
+  #buildEvent(occurredAt: string): TelemetryEvent {
     return {
       schema_version: TELEMETRY_SCHEMA_VERSION,
       event_id: safeUuid(this.#config.uuid),
-      event,
+      event: "daily_active",
       app_id: this.#context.appId,
       app_version: this.#context.appVersion,
       install_id: this.#context.identity.installId,
-      session_id: this.#context.identity.sessionId,
       platform: this.#context.platform,
       arch: this.#context.arch,
-      channel: this.#context.channel,
       sdk_version: SDK_VERSION,
-      occurred_at: safeNow(this.#config.now),
-      properties,
-    } as TelemetryEvent;
+      occurred_at: occurredAt,
+    };
   }
 
   #schedule(payload: TelemetryEvent): void {
@@ -406,16 +371,9 @@ function isValidClientConfig(config: TelemetryClientConfig): boolean {
     isValidSemVer(config.appVersion) &&
     isPlatform(config.platform) &&
     isArchitecture(config.arch) &&
-    (config.channel === undefined || isChannel(config.channel)) &&
+    typeof config.identityStorage?.claimActivityDay === "function" &&
     isSafeExternalUrl(config.endpoint)
   );
-}
-
-function normalizeChannel(value: unknown): string {
-  if (value === undefined) {
-    return DEFAULT_CHANNEL;
-  }
-  return typeof value === "string" ? value : "";
 }
 
 function normalizeTimeout(value: number | undefined, fallback: number): number {
@@ -443,6 +401,13 @@ function safeNow(factory: (() => Date) | undefined): string {
   } catch {
     return new Date().toISOString();
   }
+}
+
+function asiaShanghaiDay(occurredAt: string): string {
+  const instant = new Date(occurredAt);
+  return new Date(instant.getTime() + 8 * 60 * 60 * 1_000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function defaultScheduler(task: () => void): void {

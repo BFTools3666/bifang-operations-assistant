@@ -1,5 +1,4 @@
 export {
-  DEFAULT_CHANNEL,
   DEFAULT_TELEMETRY_TIMEOUT_MS,
   DEFAULT_UPDATE_TIMEOUT_MS,
   SDK_VERSION,
@@ -32,20 +31,16 @@ export {
 export {
   isAppId,
   isArchitecture,
-  isChannel,
   isIsoDate,
   isPlatform,
   isSafeExternalUrl,
   isTelemetryEventName,
   isUuidV4,
-  sanitizeEventProperties,
 } from "./validation.js";
 export type {
   Architecture,
-  AvailableUpdateDecision,
   DebugLogger,
-  EmptyTelemetryEventName,
-  EventPropertiesMap,
+  AvailableUpdateDecision,
   IdentityReadOrCreateResult,
   IdentityStorage,
   InstallIdentityState,
@@ -54,10 +49,7 @@ export type {
   OptionalUpdateDecision,
   PersistedInstallIdentity,
   Platform,
-  PrimitiveProperty,
-  PropertyTelemetryEventName,
   RequiredUpdateDecision,
-  SanitizedProperties,
   TaskScheduler,
   TelemetryClientConfig,
   TelemetryDeliveryFailure,

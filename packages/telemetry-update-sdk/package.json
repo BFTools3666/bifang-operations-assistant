@@ -1,7 +1,7 @@
 {
   "name": "@bifang/telemetry-update-sdk",
-  "version": "1.0.0",
-  "description": "Framework-agnostic telemetry and update-checking SDK for Bifang tools.",
+  "version": "2.0.0",
+  "description": "Framework-agnostic daily-active and update-checking SDK for Bifang tools.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

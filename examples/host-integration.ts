@@ -20,10 +20,12 @@ import {
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
 export interface ReleaseConfig {
+  /** A stable identifier unique to this tool, for example bifang-tools-pdf. */
   APP_ID: string;
   APP_VERSION: string;
-  CHANNEL?: string;
+  /** This tool's update base; UpdateChecker appends APP_ID/platform.json. */
   UPDATE_BASE_URL: string;
+  /** This tool's dedicated telemetry function route. */
   TELEMETRY_ENDPOINT: string;
   telemetry_enabled: boolean;
   update_check_enabled: boolean;
@@ -54,7 +56,10 @@ export interface InitializeOptions {
   release: ReleaseConfig;
   platform: Platform;
   arch: Architecture;
-  /** An absolute directory chosen by the host for this app's configuration. */
+  /**
+   * An absolute, application-specific configuration directory. Never reuse
+   * another tool's directory; the appId namespace is a second safety boundary.
+   */
   appConfigDirectory: string;
   ui: HostUpdateUi;
 }
@@ -74,10 +79,11 @@ export async function initializePublicServices(
     appVersion: release.APP_VERSION,
     platform: options.platform,
     arch: options.arch,
-    channel: release.CHANNEL,
     endpoint: release.TELEMETRY_ENDPOINT,
     enabled: release.telemetry_enabled,
-    identityStorage: new NodeFileIdentityStorage(options.appConfigDirectory),
+    identityStorage: new NodeFileIdentityStorage(options.appConfigDirectory, {
+      appId: release.APP_ID,
+    }),
   });
 
   return {
@@ -108,31 +114,27 @@ async function checkForUpdates(
   await runUpdateHostHooks(updateDecision, {
     onOptionalUpdate: async (decision) => {
       await options.ui.showOptionalUpdate(decision, {
-        updateNow: () => openDownload(telemetry, decision, options.ui),
+        updateNow: () => openDownload(decision, options.ui),
         remindLater: () => undefined,
       });
-      telemetry.trackUpdatePromptShown(decision);
     },
     onRequiredUpdate: async (decision) => {
       await options.ui.showRequiredUpdate(decision, {
-        updateNow: () => openDownload(telemetry, decision, options.ui),
+        updateNow: () => openDownload(decision, options.ui),
         exit: async () => {
           await options.ui.exitApplication();
         },
       });
-      telemetry.trackUpdatePromptShown(decision);
     },
   });
 }
 
 async function openDownload(
-  telemetry: TelemetryClient,
   decision: AvailableUpdateDecision,
   ui: HostUpdateUi,
 ): Promise<void> {
   const url = decision.config.download_url;
   if (!isSafeExternalUrl(url)) return;
 
-  telemetry.trackUpdateClicked(decision);
   await ui.openExternal(url);
 }

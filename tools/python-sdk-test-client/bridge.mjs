@@ -10,8 +10,6 @@ import {
   UpdateChecker,
   buildUpdateUrl,
   isSafeExternalUrl,
-  isValidSemVer,
-  parseSemVer,
   parseUpdateConfig,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
@@ -20,96 +18,26 @@ const CAPTURE_ENDPOINT =
   "https://telemetry.example.invalid/python-sdk-test-client/capture";
 const PREVIEW_UPDATE_BASE_URL =
   "https://updates.example.invalid/python-sdk-test-client/preview";
-const SIMULATION_POST_INTERVAL_MS = 175;
-const TEST_BATCH_EVENTS = Object.freeze([
-  ["feature_used", { feature_id: "cloudbase_validation" }],
-  ["task_started", { task_type: "cloudbase_validation" }],
-  ["task_succeeded", { task_type: "cloudbase_validation", duration_ms: 120 }],
-  [
-    "task_failed",
-    { task_type: "cloudbase_validation", error_code: "EXPECTED_TEST_FAILURE" },
-  ],
-  ["update_prompt_shown", { target_version: "1.1.0" }],
-  ["update_clicked", { target_version: "1.1.0" }],
-]);
+// The ten-device diagnostic is deliberately slow. It is an optional acceptance
+// test, not production telemetry, and must not create a burst against a free
+// CloudBase gateway.
+const SIMULATION_POST_INTERVAL_MS = 500;
 const SIMULATED_DEVICE_PLANS = Object.freeze([
-  {
-    versionSlot: 0,
-    channel: "official",
-    arch: "x64",
-    featureId: "quick_start",
-    succeeds: true,
-  },
-  {
-    versionSlot: 0,
-    channel: "official",
-    arch: "x64",
-    featureId: "batch_export",
-    succeeds: true,
-  },
-  {
-    versionSlot: 1,
-    channel: "official",
-    arch: "x64",
-    featureId: "cloud_sync",
-    succeeds: false,
-  },
-  {
-    versionSlot: 1,
-    channel: "official",
-    arch: "arm64",
-    featureId: "quick_start",
-    succeeds: true,
-  },
-  {
-    versionSlot: 2,
-    channel: "official",
-    arch: "x64",
-    featureId: "batch_export",
-    succeeds: true,
-  },
-  {
-    versionSlot: 0,
-    channel: "wechat",
-    arch: "x64",
-    featureId: "cloud_sync",
-    succeeds: false,
-  },
-  {
-    versionSlot: 1,
-    channel: "wechat",
-    arch: "arm64",
-    featureId: "quick_start",
-    succeeds: true,
-  },
-  {
-    versionSlot: 2,
-    channel: "wechat",
-    arch: "x64",
-    featureId: "batch_export",
-    succeeds: true,
-  },
-  {
-    versionSlot: 1,
-    channel: "bilibili",
-    arch: "x64",
-    featureId: "cloud_sync",
-    succeeds: false,
-  },
-  {
-    versionSlot: 2,
-    channel: "bilibili",
-    arch: "arm64",
-    featureId: "quick_start",
-    succeeds: true,
-  },
+  { platform: "windows", arch: "x64" },
+  { platform: "windows", arch: "x64" },
+  { platform: "windows", arch: "arm64" },
+  { platform: "windows", arch: "ia32" },
+  { platform: "macos", arch: "x64" },
+  { platform: "macos", arch: "arm64" },
+  { platform: "linux", arch: "x64" },
+  { platform: "linux", arch: "arm64" },
+  { platform: "linux", arch: "x64" },
+  { platform: "windows", arch: "x64" },
 ]);
 const SERIAL_TELEMETRY_ACTIONS = new Set([
   "init_capture",
-  "track_capture",
   "init_live",
-  "track_live",
-  "send_test_batch",
+  "send_daily_active",
   "simulate_devices",
   "check_update_url",
   "reset_sessions",
@@ -279,77 +207,6 @@ function deriveExactUpdateBaseUrl(updateUrl, appId, platform) {
   return baseUrl;
 }
 
-export function deriveSimulationVersions(currentVersion) {
-  const parsed =
-    typeof currentVersion === "string" ? parseSemVer(currentVersion) : null;
-  if (!parsed) {
-    throw new BridgeRequestError(
-      "invalid_request",
-      "app_version must be a strict Semantic Version",
-    );
-  }
-
-  const previous = previousCoreVersion(parsed);
-  const next = nextCoreVersion(parsed);
-  if (previous && next) {
-    return [previous, currentVersion, next];
-  }
-  if (!previous && next) {
-    const secondNext = nextCoreVersion(parseSemVer(next));
-    if (secondNext) {
-      return [currentVersion, next, secondNext];
-    }
-  }
-  if (previous && !next) {
-    const secondPrevious = previousCoreVersion(parseSemVer(previous));
-    if (secondPrevious) {
-      return [secondPrevious, previous, currentVersion];
-    }
-  }
-  throw new BridgeRequestError(
-    "invalid_request",
-    "app_version cannot produce three safe simulation versions",
-  );
-}
-
-function previousCoreVersion(parsed) {
-  if (!parsed) {
-    return null;
-  }
-  const major = BigInt(parsed.major);
-  const minor = BigInt(parsed.minor);
-  const patch = BigInt(parsed.patch);
-  if (patch > 0n) {
-    return validCoreVersion(major, minor, patch - 1n);
-  }
-  if (minor > 0n) {
-    return validCoreVersion(major, minor - 1n, 0n);
-  }
-  if (major > 0n) {
-    return validCoreVersion(major - 1n, 0n, 0n);
-  }
-  return null;
-}
-
-function nextCoreVersion(parsed) {
-  if (!parsed) {
-    return null;
-  }
-  const major = BigInt(parsed.major);
-  const minor = BigInt(parsed.minor);
-  const patch = BigInt(parsed.patch);
-  return (
-    validCoreVersion(major, minor, patch + 1n) ??
-    validCoreVersion(major, minor + 1n, 0n) ??
-    validCoreVersion(major + 1n, 0n, 0n)
-  );
-}
-
-function validCoreVersion(major, minor, patch) {
-  const candidate = `${major}.${minor}.${patch}`;
-  return isValidSemVer(candidate) ? candidate : null;
-}
-
 function abortableDelay(delayMs, signal) {
   if (signal.aborted) {
     return Promise.reject(new Error("telemetry_aborted"));
@@ -433,7 +290,7 @@ function parseCheckedUpdateConfig(responseText, appId, platform) {
 }
 
 function telemetryConfig(request, identityStorage, extras) {
-  const config = {
+  return {
     appId: request.app_id,
     appVersion: request.app_version,
     platform: request.platform,
@@ -442,17 +299,18 @@ function telemetryConfig(request, identityStorage, extras) {
     scheduler: (task) => task(),
     ...extras,
   };
-  if (Object.hasOwn(request, "channel")) {
-    config.channel = request.channel;
-  }
-  return config;
+}
+
+function appIdentityStorage(request, stateDirectory) {
+  return new NodeFileIdentityStorage(stateDirectory, {
+    appId: requireString(request.app_id, "app_id"),
+  });
 }
 
 function publicClientState(client) {
   return {
     enabled: client.enabled,
     install_id: client.installId,
-    session_id: client.sessionId,
   };
 }
 
@@ -478,6 +336,12 @@ export function createBridgeDispatcher(options = {}) {
     options.simulationTimeoutMs <= 30_000
       ? options.simulationTimeoutMs
       : 30_000;
+  const simulationPostIntervalMs =
+    Number.isInteger(options.simulationPostIntervalMs) &&
+    options.simulationPostIntervalMs >= 1 &&
+    options.simulationPostIntervalMs <= 5_000
+      ? options.simulationPostIntervalMs
+      : SIMULATION_POST_INTERVAL_MS;
   let telemetryQueue = Promise.resolve();
 
   const dispatch = async function dispatch(rawRequest) {
@@ -511,16 +375,19 @@ export function createBridgeDispatcher(options = {}) {
       return { reset: true, network_performed: false };
     }
 
-    if (action === "send_test_batch") {
+    if (action === "send_daily_active") {
       requireNetworkConsent(request, "POST");
       const endpoint = requireCanonicalExternalUrl(
         request.endpoint,
         "endpoint",
       );
-      const stateDirectory = uniqueStateDirectory(request.state_dir, "batch");
+      const stateDirectory = uniqueStateDirectory(
+        request.state_dir,
+        "daily-active",
+      );
       const logger = new BufferLogger();
       const client = await TelemetryClient.init(
-        telemetryConfig(request, new NodeFileIdentityStorage(stateDirectory), {
+        telemetryConfig(request, appIdentityStorage(request, stateDirectory), {
           enabled: true,
           endpoint,
           transport: new FetchTelemetryTransport(),
@@ -528,14 +395,12 @@ export function createBridgeDispatcher(options = {}) {
           timeoutMs: 10_000,
         }),
       );
-      for (const [event, properties] of TEST_BATCH_EVENTS) {
-        client.track(event, properties);
-      }
       const results = await client.drainResults();
       const deliveries = results.map((result) => publicDelivery(result));
       return {
-        session_id: client.sessionId,
         install_id: client.installId,
+        platform: request.platform,
+        arch: request.arch,
         deliveries,
         acknowledged_count: deliveries.filter(
           (delivery) => delivery.acknowledged,
@@ -553,12 +418,12 @@ export function createBridgeDispatcher(options = {}) {
       );
       const stateRoot = resolve(requireString(request.state_dir, "state_dir"));
       const deviceSetups = [];
-      const transport = new ThrottledFetchTelemetryTransport();
-      const simulationVersions = deriveSimulationVersions(request.app_version);
+      const transport = new ThrottledFetchTelemetryTransport(
+        simulationPostIntervalMs,
+      );
 
       for (const [index, plan] of SIMULATED_DEVICE_PLANS.entries()) {
         const deviceNumber = index + 1;
-        const appVersion = simulationVersions[plan.versionSlot];
         const stateDirectory = join(
           stateRoot,
           `device-${deviceNumber}-${randomUUID()}`,
@@ -566,11 +431,10 @@ export function createBridgeDispatcher(options = {}) {
         const logger = new BufferLogger();
         const client = await TelemetryClient.init({
           appId: request.app_id,
-          appVersion,
-          platform: request.platform,
+          appVersion: request.app_version,
+          platform: plan.platform,
           arch: plan.arch,
-          channel: plan.channel,
-          identityStorage: new NodeFileIdentityStorage(stateDirectory),
+          identityStorage: appIdentityStorage(request, stateDirectory),
           scheduler: (task) => task(),
           enabled: true,
           endpoint,
@@ -578,28 +442,12 @@ export function createBridgeDispatcher(options = {}) {
           logger,
           timeoutMs: simulationTimeoutMs,
         });
-        client.track("feature_used", { feature_id: plan.featureId });
-        client.track("task_started", { task_type: "sample_workflow" });
-        if (plan.succeeds) {
-          client.track("task_succeeded", {
-            task_type: "sample_workflow",
-            duration_ms: 100 + deviceNumber * 10,
-          });
-        } else {
-          client.track("task_failed", {
-            task_type: "sample_workflow",
-            error_code: "EXPECTED_SAMPLE_FAILURE",
-          });
-        }
         const metadata = {
           device_number: deviceNumber,
-          app_version: appVersion,
-          platform: request.platform,
+          app_version: request.app_version,
+          platform: plan.platform,
           arch: plan.arch,
-          channel: plan.channel,
           install_id: client.installId,
-          session_id: client.sessionId,
-          planned_task_result: plan.succeeds ? "succeeded" : "failed",
         };
         deviceSetups.push({ client, logger, metadata });
       }
@@ -624,7 +472,6 @@ export function createBridgeDispatcher(options = {}) {
       const deliveries = devices.flatMap((device) => device.deliveries);
       return {
         device_count: devices.length,
-        simulation_versions: simulationVersions,
         devices,
         deliveries,
         acknowledged_count: deliveries.filter(
@@ -650,7 +497,7 @@ export function createBridgeDispatcher(options = {}) {
       );
       const logger = new BufferLogger();
       const identity = await new InstallIdentity(
-        new NodeFileIdentityStorage(stateDirectory),
+        appIdentityStorage(request, stateDirectory),
         { logger },
       ).initialize();
       const fetchDiagnostic = {
@@ -753,7 +600,7 @@ export function createBridgeDispatcher(options = {}) {
       const transport = new CaptureTransport();
       const logger = new BufferLogger();
       const client = await TelemetryClient.init(
-        telemetryConfig(request, new NodeFileIdentityStorage(stateDirectory), {
+        telemetryConfig(request, appIdentityStorage(request, stateDirectory), {
           enabled: true,
           endpoint: CAPTURE_ENDPOINT,
           transport,
@@ -766,24 +613,6 @@ export function createBridgeDispatcher(options = {}) {
         client: publicClientState(client),
         events: structuredClone(transport.events),
         debug: structuredClone(logger.records),
-        network_performed: false,
-      };
-    }
-
-    if (action === "track_capture") {
-      if (!state.capture) {
-        throw new BridgeRequestError(
-          "sdk_not_initialized",
-          "initialize the capture SDK session first",
-        );
-      }
-      const startIndex = state.capture.transport.events.length;
-      state.capture.client.track(request.event, request.properties);
-      await state.capture.client.drain();
-      const events = state.capture.transport.events.slice(startIndex);
-      return {
-        accepted_by_sdk: events.length > 0,
-        events: structuredClone(events),
         network_performed: false,
       };
     }
@@ -801,7 +630,7 @@ export function createBridgeDispatcher(options = {}) {
       const transport = new ObservedFetchTelemetryTransport();
       const logger = new BufferLogger();
       const client = await TelemetryClient.init(
-        telemetryConfig(request, new NodeFileIdentityStorage(stateDirectory), {
+        telemetryConfig(request, appIdentityStorage(request, stateDirectory), {
           enabled: true,
           endpoint,
           transport,
@@ -815,34 +644,6 @@ export function createBridgeDispatcher(options = {}) {
         transport_records: structuredClone(transport.records),
         debug: structuredClone(logger.records),
         network_performed: transport.records.length > 0,
-        receipt_scope:
-          "HTTP success plus an explicit server {ok:true} acknowledgement",
-      };
-    }
-
-    if (action === "track_live") {
-      requireNetworkConsent(request, "POST");
-      if (!state.live) {
-        throw new BridgeRequestError(
-          "sdk_not_initialized",
-          "initialize the live SDK session first",
-        );
-      }
-      const endpoint = requireString(request.endpoint, "endpoint");
-      if (endpoint !== state.live.endpoint) {
-        throw new BridgeRequestError(
-          "endpoint_mismatch",
-          "the entered endpoint must exactly match the live session endpoint",
-        );
-      }
-      const startIndex = state.live.transport.records.length;
-      state.live.client.track(request.event, request.properties);
-      await state.live.client.drain();
-      const records = state.live.transport.records.slice(startIndex);
-      return {
-        accepted_by_sdk: records.length > 0,
-        transport_records: structuredClone(records),
-        network_performed: records.length > 0,
         receipt_scope:
           "HTTP success plus an explicit server {ok:true} acknowledgement",
       };

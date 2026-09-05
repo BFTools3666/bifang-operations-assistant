@@ -16,19 +16,19 @@ const INSTALL_ID = "5e74d84a-1972-4c1f-b27c-85b3b441f152";
 function manifest(overrides = {}) {
   return {
     schema_version: 1,
-    app_id: "example-tool",
+    app_id: "bifang-tools",
     platform: "windows",
     enabled: true,
     latest_version: "0.2.0",
     min_supported_version: "0.1.0",
     force_update: false,
     rollout: 100,
-    title: "Example Tool 0.2.0",
+    title: "Bifang Tools 0.2.0",
     message: "A tested update is available.",
     download_url:
-      "https://downloads.example.invalid/replace-me/example-tool-0.2.0.exe",
+      "https://downloads.example.invalid/replace-me/bifang-tools-0.2.0.exe",
     release_notes_url:
-      "https://releases.example.invalid/replace-me/example-tool/0.2.0",
+      "https://releases.example.invalid/replace-me/bifang-tools/0.2.0",
     sha256: "",
     published_at: "2026-09-03T04:43:55.000Z",
     ...overrides,
@@ -38,7 +38,7 @@ function manifest(overrides = {}) {
 function checker(manifestValue, overrides = {}) {
   return new UpdateChecker({
     baseUrl: "https://updates.example.invalid/replace-me/updates",
-    appId: "example-tool",
+    appId: "bifang-tools",
     platform: "windows",
     currentVersion: "0.1.0",
     installId: INSTALL_ID,
@@ -118,7 +118,7 @@ test("rollout bucket is stable and stays in range", () => {
 
 test("manifest parsing is strict and rejects unsafe URLs", () => {
   assert.deepEqual(
-    parseUpdateConfig(manifest(), "example-tool", "windows"),
+    parseUpdateConfig(manifest(), "bifang-tools", "windows"),
     manifest(),
   );
   const missingTitle = manifest();
@@ -217,12 +217,12 @@ test("checker requests the canonical path and returns none on network failure", 
   assert.equal((await successful.check()).kind, "optional");
   assert.equal(
     requestedUrl,
-    "https://updates.example.invalid/replace-me/updates/example-tool/windows.json",
+    "https://updates.example.invalid/replace-me/updates/bifang-tools/windows.json",
   );
   assert.equal(
     buildUpdateUrl(
       "https://updates.example.invalid/replace-me/updates",
-      "example-tool",
+      "bifang-tools",
       "windows",
     ),
     requestedUrl,
@@ -238,6 +238,65 @@ test("checker requests the canonical path and returns none on network failure", 
   assert.deepEqual(await unavailable.check(), {
     kind: "none",
     reason: "unavailable",
+  });
+});
+
+test("multiple tools keep update bases and manifests isolated", async () => {
+  const requestedUrls = [];
+  const configurations = [
+    {
+      appId: "bifang-tools-pdf",
+      baseUrl: "https://updates.example.invalid/apps/pdf/releases",
+    },
+    {
+      appId: "bifang-tools-image",
+      baseUrl: "https://updates.example.invalid/apps/image/releases",
+    },
+  ];
+
+  const decisions = await Promise.all(
+    configurations.map(({ appId, baseUrl }) =>
+      new UpdateChecker({
+        baseUrl,
+        appId,
+        platform: "windows",
+        currentVersion: "0.1.0",
+        installId: INSTALL_ID,
+        fetch: async (url) => {
+          requestedUrls.push(url);
+          return {
+            ok: true,
+            text: async () => JSON.stringify(manifest({ app_id: appId })),
+          };
+        },
+      }).check(),
+    ),
+  );
+
+  assert.deepEqual(
+    new Set(requestedUrls),
+    new Set([
+      "https://updates.example.invalid/apps/pdf/releases/bifang-tools-pdf/windows.json",
+      "https://updates.example.invalid/apps/image/releases/bifang-tools-image/windows.json",
+    ]),
+  );
+  assert.ok(decisions.every(({ kind }) => kind === "optional"));
+
+  const crossedManifest = await new UpdateChecker({
+    baseUrl: configurations[0].baseUrl,
+    appId: configurations[0].appId,
+    platform: "windows",
+    currentVersion: "0.1.0",
+    installId: INSTALL_ID,
+    fetch: async () => ({
+      ok: true,
+      text: async () =>
+        JSON.stringify(manifest({ app_id: configurations[1].appId })),
+    }),
+  }).check();
+  assert.deepEqual(crossedManifest, {
+    kind: "none",
+    reason: "invalid_config",
   });
 });
 

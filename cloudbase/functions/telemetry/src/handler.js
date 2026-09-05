@@ -1,10 +1,12 @@
 "use strict";
 
+const { createHash } = require("node:crypto");
+const { isIP } = require("node:net");
+
 const { createBurstGuard } = require("./burst-guard");
 const { isAppId, validateAndSanitizePayload } = require("./validation");
 const { createCloudBaseWriter } = require("./writer");
 
-const TRACK_PATH = "/v1/track";
 const MAX_RAW_BODY_BYTES = 4096;
 
 const CORS_HEADERS = Object.freeze({
@@ -16,10 +18,18 @@ const CORS_HEADERS = Object.freeze({
 });
 
 function createHandler(options = {}) {
-  const allowedAppIds = normalizeAllowedAppIds(
+  const expectedAppId = normalizeSingleAllowedAppId(
     options.allowedAppIds === undefined
       ? process.env.ALLOWED_APP_IDS
       : options.allowedAppIds,
+  );
+  // A deployed function belongs to exactly one app. Treat a missing or
+  // accidentally comma-separated allow-list as a closed configuration instead
+  // of mixing multiple apps into one collection.
+  const trackPath = normalizeTrackPath(
+    options.trackPath === undefined
+      ? process.env.TRACK_PATH
+      : options.trackPath,
   );
   const writeEvent = normalizeWriter(options.writer || createCloudBaseWriter());
   const burstGuard = options.burstGuard || createBurstGuard();
@@ -29,7 +39,7 @@ function createHandler(options = {}) {
   return async function telemetryHandler(event = {}, context = {}) {
     const request = extractRequest(event, context);
 
-    if (request.path !== TRACK_PATH) {
+    if (request.path !== trackPath) {
       return jsonResponse(404, { ok: false, error: "not_found" });
     }
 
@@ -59,7 +69,7 @@ function createHandler(options = {}) {
       return invalidPayloadResponse();
     }
 
-    if (!allowedAppIds.has(validated.value.app_id)) {
+    if (validated.value.app_id !== expectedAppId) {
       return jsonResponse(403, { ok: false, error: "unknown_app" });
     }
 
@@ -77,12 +87,22 @@ function createHandler(options = {}) {
         throw new Error("invalid_server_clock");
       }
 
-      // Selectively reconstructed data prevents raw headers, client IPs, unknown
-      // fields, and a client-supplied received_at value from reaching storage.
+      const receivedAtIso = receivedAt.toISOString();
+      const activeDate = toShanghaiDate(receivedAt);
+
+      // Only a source address supplied by CloudBase's trusted request context is
+      // accepted. In particular, X-Forwarded-For and all other client-controlled
+      // headers are intentionally ignored.
       const storedEvent = {
         ...validated.value,
-        _id: validated.value.event_id,
-        received_at: receivedAt.toISOString(),
+        _id: createDailyActiveId(
+          validated.value.app_id,
+          activeDate,
+          validated.value.install_id,
+        ),
+        active_date: activeDate,
+        received_at: receivedAtIso,
+        source_ip: extractTrustedSourceIp(event, context),
       };
 
       await writeEvent(storedEvent);
@@ -101,22 +121,79 @@ function createHandler(options = {}) {
   };
 }
 
-function normalizeAllowedAppIds(value) {
+function toShanghaiDate(date) {
+  return new Date(date.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function createDailyActiveId(appId, activeDate, installId) {
+  return createHash("sha256")
+    .update(`${appId}\u0000${activeDate}\u0000${installId}`, "utf8")
+    .digest("hex");
+}
+
+function extractTrustedSourceIp(event, context) {
+  const safeEvent = event && typeof event === "object" ? event : {};
+  const safeContext = context && typeof context === "object" ? context : {};
+  const requestContext =
+    safeEvent.requestContext && typeof safeEvent.requestContext === "object"
+      ? safeEvent.requestContext
+      : {};
+  const requestHttp =
+    requestContext.http && typeof requestContext.http === "object"
+      ? requestContext.http
+      : {};
+  const functionHttp =
+    safeContext.httpContext && typeof safeContext.httpContext === "object"
+      ? safeContext.httpContext
+      : {};
+
+  for (const candidate of [
+    requestHttp.sourceIp,
+    requestContext.sourceIp,
+    functionHttp.sourceIp,
+    functionHttp.clientIp,
+  ]) {
+    if (typeof candidate !== "string") continue;
+    const normalized = candidate.trim();
+    if (isIP(normalized) !== 0) return normalized;
+  }
+  return null;
+}
+
+function normalizeSingleAllowedAppId(value) {
   let candidates;
   if (typeof value === "string") {
     candidates = value.split(",");
-  } else if (Array.isArray(value) || value instanceof Set) {
+  } else if (Array.isArray(value)) {
+    candidates = value;
+  } else if (value instanceof Set) {
     candidates = [...value];
   } else {
-    candidates = [];
+    return null;
   }
+  if (candidates.length !== 1 || typeof candidates[0] !== "string") {
+    return null;
+  }
+  const appId = candidates[0].trim();
+  return isAppId(appId) ? appId : null;
+}
 
-  return new Set(
-    candidates
-      .filter((candidate) => typeof candidate === "string")
-      .map((candidate) => candidate.trim())
-      .filter((candidate) => isAppId(candidate)),
-  );
+function normalizeTrackPath(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  if (
+    typeof value !== "string" ||
+    value.length > 256 ||
+    !/^\/[a-z0-9._/-]+$/.test(value) ||
+    value.includes("//") ||
+    value.endsWith("/")
+  ) {
+    throw new TypeError("TRACK_PATH must be a normalized absolute path");
+  }
+  return value;
 }
 
 function normalizeWriter(writer) {
@@ -248,9 +325,12 @@ function invalidPayloadResponse() {
 module.exports = {
   CORS_HEADERS,
   MAX_RAW_BODY_BYTES,
-  TRACK_PATH,
+  createDailyActiveId,
   createHandler,
   extractRequest,
-  normalizeAllowedAppIds,
+  extractTrustedSourceIp,
+  normalizeSingleAllowedAppId,
+  normalizeTrackPath,
   parseBody,
+  toShanghaiDate,
 };

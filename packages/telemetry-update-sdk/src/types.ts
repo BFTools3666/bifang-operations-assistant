@@ -8,63 +8,18 @@ export type Platform = (typeof SUPPORTED_PLATFORMS)[number];
 export type Architecture = (typeof SUPPORTED_ARCHITECTURES)[number];
 export type TelemetryEventName = (typeof TELEMETRY_EVENT_NAMES)[number];
 
-export type PrimitiveProperty = string | number | boolean;
-
-export interface EventPropertiesMap {
-  app_install: Readonly<Record<string, never>>;
-  app_start: Readonly<Record<string, never>>;
-  feature_used: {
-    feature_id: string;
-  };
-  task_started: {
-    task_type: string;
-  };
-  task_succeeded: {
-    task_type: string;
-    duration_ms: number;
-  };
-  task_failed: {
-    task_type: string;
-    error_code: string;
-  };
-  update_prompt_shown: {
-    target_version: string;
-  };
-  update_clicked: {
-    target_version: string;
-  };
-}
-
-export type SanitizedProperties = EventPropertiesMap[TelemetryEventName];
-export type EmptyTelemetryEventName = "app_install" | "app_start";
-export type PropertyTelemetryEventName = Exclude<
-  TelemetryEventName,
-  EmptyTelemetryEventName
->;
-
-interface TelemetryEventEnvelope {
-  schema_version: 1;
+export interface TelemetryEvent {
+  schema_version: 2;
   event_id: string;
+  event: "daily_active";
   app_id: string;
   app_version: string;
   install_id: string;
-  session_id: string;
   platform: Platform;
   arch: Architecture;
-  channel: string;
-  sdk_version: "1.0.0";
+  sdk_version: "2.0.0";
   occurred_at: string;
 }
-
-export type TelemetryEvent<
-  EventName extends TelemetryEventName = TelemetryEventName,
-> = TelemetryEventEnvelope &
-  {
-    [Name in EventName]: {
-      event: Name;
-      properties: EventPropertiesMap[Name];
-    };
-  }[EventName];
 
 export interface DebugLogger {
   debug(message: string, context?: Readonly<Record<string, unknown>>): void;
@@ -73,6 +28,13 @@ export interface DebugLogger {
 export interface IdentityStorage {
   read(): Promise<unknown | null>;
   write(record: PersistedInstallIdentity): Promise<void>;
+  /**
+   * Atomically claims one Asia/Shanghai calendar day before any request starts.
+   * Returning false means this installation already attempted its daily report.
+   * Throwing must fail closed: the SDK will not send when it cannot persist the
+   * gate, which protects a rate-limited endpoint from restart storms.
+   */
+  claimActivityDay(day: string): Promise<boolean>;
   /**
    * Atomically returns a valid existing record or persists the candidate.
    * Implement this when multiple storage instances or processes can share the
@@ -174,7 +136,6 @@ export interface TelemetryClientConfig {
   appVersion: string;
   platform: Platform;
   arch: Architecture;
-  channel?: string;
   endpoint?: string;
   enabled?: boolean;
   identityStorage: IdentityStorage;

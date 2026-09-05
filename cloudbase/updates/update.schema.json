@@ -1,7 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.example.invalid/bifang/update-manifest-v1.schema.json",
-  "title": "Bifang update manifest v1",
+  "title": "毕方更新清单 v1",
+  "description": "Windows、macOS 或 Linux 客户端读取的严格更新清单；每个字段的中文含义见 properties.description。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -22,63 +23,75 @@
   ],
   "properties": {
     "schema_version": {
+      "description": "清单协议版本。当前固定为整数 1，不是软件版本号。",
       "const": 1
     },
     "app_id": {
+      "description": "应用编号，必须与客户端配置、目录名和云函数 ALLOWED_APP_IDS 中的值完全一致。",
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
     },
     "platform": {
+      "description": "此清单适用的平台；Windows 清单填写 windows。",
       "enum": ["windows", "macos", "linux"]
     },
     "latest_version": {
+      "description": "当前可发布的最新软件版本，必须是完整 SemVer，例如 1.2.3。",
       "$ref": "#/$defs/semver"
     },
     "min_supported_version": {
+      "description": "仍允许继续使用的最低版本；客户端低于它时视为必须更新。",
       "$ref": "#/$defs/semver"
     },
     "enabled": {
+      "description": "是否启用此更新清单。false 表示暂时不提示更新。",
       "type": "boolean"
     },
     "force_update": {
+      "description": "是否把低于 latest_version 的客户端都标记为必须更新。常规发布建议为 false。",
       "type": "boolean"
     },
     "rollout": {
+      "description": "可选更新的灰度比例，整数 0 到 100；100 表示全部符合条件的客户端可见。",
       "type": "integer",
       "minimum": 0,
       "maximum": 100
     },
     "title": {
-      "description": "Untrusted plain text; hosts must not interpret it as HTML or Markdown.",
+      "description": "更新提示标题，只能作为不可信纯文本显示，不得解释为 HTML 或 Markdown。",
       "type": "string",
       "minLength": 1,
       "maxLength": 120,
       "pattern": "^(?=.*[^\\s\\u200C\\u200D\\uFE00-\\uFE0F])[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB]+$"
     },
     "message": {
-      "description": "Untrusted plain text; hosts must not interpret it as HTML or Markdown.",
+      "description": "更新提示正文，只能作为不可信纯文本显示，不得解释为 HTML 或 Markdown。",
       "type": "string",
       "minLength": 1,
       "maxLength": 1000,
       "pattern": "^(?=.*[^\\s\\u200C\\u200D\\uFE00-\\uFE0F])[^\\u0000-\\u001F\\u007F-\\u009F\\u00AD\\u061C\\u180E\\u200B\\u200E\\u200F\\u2028-\\u202E\\u2060-\\u206F\\uFEFF\\uFFF9-\\uFFFB]+$"
     },
     "download_url": {
+      "description": "安装包的真实公网 HTTPS 下载地址；.example.invalid 仅为占位符，禁止上线。",
       "type": "string",
       "maxLength": 2048,
       "format": "uri",
       "pattern": "^https://"
     },
     "release_notes_url": {
+      "description": "版本说明的真实公网 HTTPS 地址；.example.invalid 仅为占位符，禁止上线。",
       "type": "string",
       "maxLength": 2048,
       "format": "uri",
       "pattern": "^https://"
     },
     "sha256": {
+      "description": "安装包 SHA-256（64 位十六进制）；空字符串只允许占位测试，不代表安装包已校验。",
       "type": "string",
       "pattern": "^(?:|[0-9A-Fa-f]{64})$"
     },
     "published_at": {
+      "description": "发布时间，使用带时区的严格 RFC3339，例如 2026-09-04T08:00:00+08:00。",
       "type": "string",
       "maxLength": 35,
       "format": "date-time",
@@ -87,6 +100,7 @@
   },
   "$defs": {
     "semver": {
+      "description": "完整 Semantic Version（语义化版本）字符串。",
       "type": "string",
       "maxLength": 64,
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"

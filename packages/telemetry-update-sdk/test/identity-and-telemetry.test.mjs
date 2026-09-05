@@ -2,31 +2,43 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   FetchTelemetryTransport,
+  InstallIdentity,
   MemoryIdentityStorage,
   TelemetryClient,
   TelemetryTransportError,
   isUuidV4,
-  sanitizeEventProperties,
 } from "../dist/index.js";
 
-class CaptureTransport {
-  events = [];
+const DEFAULT_NOW = "2026-09-04T08:09:10.123Z";
 
-  async send(_endpoint, event) {
-    this.events.push(structuredClone(event));
+class CaptureTransport {
+  calls = [];
+
+  async send(endpoint, event, signal) {
+    this.calls.push({
+      endpoint,
+      event: structuredClone(event),
+      signal,
+    });
+  }
+
+  get events() {
+    return this.calls.map(({ event }) => event);
   }
 }
 
-class AcknowledgingTransport extends CaptureTransport {
-  async send(endpoint, event, signal) {
-    await super.send(endpoint, event, signal);
-    return { httpStatus: 202, ack: { ok: true } };
+class CountingMemoryStorage extends MemoryIdentityStorage {
+  claims = [];
+
+  async claimActivityDay(day) {
+    this.claims.push(day);
+    return super.claimActivityDay(day);
   }
 }
 
 function clientConfig(storage, transport, overrides = {}) {
   return {
-    appId: "example-tool",
+    appId: "bifang-tools",
     appVersion: "0.1.0",
     platform: "windows",
     arch: "x64",
@@ -35,163 +47,306 @@ function clientConfig(storage, transport, overrides = {}) {
     identityStorage: storage,
     transport,
     scheduler: (task) => task(),
+    now: () => new Date(DEFAULT_NOW),
     ...overrides,
   };
 }
 
-test("first init persists identity and queues app_install then app_start", async () => {
-  const storage = new MemoryIdentityStorage();
+test("first launch sends exactly one minimal daily_active event", async () => {
+  const storage = new CountingMemoryStorage();
   const transport = new CaptureTransport();
   const client = await TelemetryClient.init(clientConfig(storage, transport));
-  await client.drain();
-
-  assert.equal(transport.events.length, 2);
-  assert.deepEqual(
-    transport.events.map((event) => event.event),
-    ["app_install", "app_start"],
-  );
-  assert.ok(isUuidV4(client.installId));
-  assert.ok(isUuidV4(client.sessionId));
-  assert.equal(transport.events[0].install_id, client.installId);
-  assert.equal(transport.events[0].session_id, client.sessionId);
-  assert.equal(transport.events[0].schema_version, 1);
-  assert.equal(transport.events[0].sdk_version, "1.0.0");
-  assert.equal(transport.events[0].channel, "official");
-  assert.deepEqual(transport.events[0].properties, {});
-});
-
-test("drainResults retains synchronous init deliveries and returns each SDK event id", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport),
-  );
-
   const results = await client.drainResults();
+
+  assert.equal(client.enabled, true);
+  assert.equal(transport.events.length, 1);
+  assert.deepEqual(storage.claims, ["2026-09-04"]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].outcome, "sent");
+
+  const event = transport.events[0];
+  assert.deepEqual(Object.keys(event).sort(), [
+    "app_id",
+    "app_version",
+    "arch",
+    "event",
+    "event_id",
+    "install_id",
+    "occurred_at",
+    "platform",
+    "schema_version",
+    "sdk_version",
+  ]);
   assert.deepEqual(
-    results.map(({ event, outcome, receipt }) => ({
-      event,
-      outcome,
-      receipt,
-    })),
-    [
-      { event: "app_install", outcome: "sent", receipt: null },
-      { event: "app_start", outcome: "sent", receipt: null },
-    ],
+    {
+      schema_version: event.schema_version,
+      event: event.event,
+      app_id: event.app_id,
+      app_version: event.app_version,
+      install_id: event.install_id,
+      platform: event.platform,
+      arch: event.arch,
+      sdk_version: event.sdk_version,
+      occurred_at: event.occurred_at,
+    },
+    {
+      schema_version: 2,
+      event: "daily_active",
+      app_id: "bifang-tools",
+      app_version: "0.1.0",
+      install_id: client.installId,
+      platform: "windows",
+      arch: "x64",
+      sdk_version: "2.0.0",
+      occurred_at: DEFAULT_NOW,
+    },
   );
-  assert.deepEqual(
-    results.map((result) => result.eventId),
-    transport.events.map((event) => event.event_id),
-  );
-  assert.ok(results.every((result) => isUuidV4(result.eventId)));
-  assert.deepEqual(await client.drainResults(), []);
+  assert.ok(isUuidV4(event.event_id));
+  assert.equal(results[0].event, "daily_active");
+  assert.equal(results[0].eventId, event.event_id);
 });
 
-test("drainResults distinguishes strict service acknowledgements", async () => {
-  const transport = new AcknowledgingTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport),
+test("multiple tools keep telemetry endpoint, identity, and daily gate isolated", async () => {
+  const pdfStorage = new CountingMemoryStorage();
+  const imageStorage = new CountingMemoryStorage();
+  const pdfTransport = new CaptureTransport();
+  const imageTransport = new CaptureTransport();
+  const pdfEndpoint =
+    "https://gateway.example.invalid/apps/bifang-tools-pdf/v1/track";
+  const imageEndpoint =
+    "https://gateway.example.invalid/apps/bifang-tools-image/v1/track";
+
+  const [pdfClient, imageClient] = await Promise.all([
+    TelemetryClient.init(
+      clientConfig(pdfStorage, pdfTransport, {
+        appId: "bifang-tools-pdf",
+        endpoint: pdfEndpoint,
+      }),
+    ),
+    TelemetryClient.init(
+      clientConfig(imageStorage, imageTransport, {
+        appId: "bifang-tools-image",
+        endpoint: imageEndpoint,
+      }),
+    ),
+  ]);
+  await Promise.all([pdfClient.drain(), imageClient.drain()]);
+
+  assert.notEqual(pdfClient.installId, imageClient.installId);
+  assert.deepEqual(pdfStorage.claims, ["2026-09-04"]);
+  assert.deepEqual(imageStorage.claims, ["2026-09-04"]);
+  assert.deepEqual(
+    pdfTransport.calls.map(({ endpoint, event }) => ({
+      endpoint,
+      appId: event.app_id,
+    })),
+    [{ endpoint: pdfEndpoint, appId: "bifang-tools-pdf" }],
+  );
+  assert.deepEqual(
+    imageTransport.calls.map(({ endpoint, event }) => ({
+      endpoint,
+      appId: event.app_id,
+    })),
+    [{ endpoint: imageEndpoint, appId: "bifang-tools-image" }],
   );
 
-  const automatic = await client.drainResults();
-  assert.equal(automatic.length, 2);
-  assert.ok(
-    automatic.every(
-      (result) =>
-        result.outcome === "acknowledged" &&
-        result.receipt.httpStatus === 202 &&
-        result.receipt.ack.ok === true,
+  const restartedPdfTransport = new CaptureTransport();
+  const restartedImageTransport = new CaptureTransport();
+  await Promise.all([
+    TelemetryClient.init(
+      clientConfig(pdfStorage, restartedPdfTransport, {
+        appId: "bifang-tools-pdf",
+        endpoint: pdfEndpoint,
+      }),
+    ),
+    TelemetryClient.init(
+      clientConfig(imageStorage, restartedImageTransport, {
+        appId: "bifang-tools-image",
+        endpoint: imageEndpoint,
+      }),
+    ),
+  ]);
+  assert.deepEqual(restartedPdfTransport.events, []);
+  assert.deepEqual(restartedImageTransport.events, []);
+});
+
+test("another launch in the same Beijing day makes no request", async () => {
+  const storage = new CountingMemoryStorage();
+  const firstTransport = new CaptureTransport();
+  const first = await TelemetryClient.init(
+    clientConfig(storage, firstTransport, {
+      now: () => new Date("2026-09-04T16:01:00.000Z"),
+    }),
+  );
+  await first.drain();
+
+  const secondTransport = new CaptureTransport();
+  const second = await TelemetryClient.init(
+    clientConfig(storage, secondTransport, {
+      // Both instants are 2026-09-05 in Asia/Shanghai, despite different UTC days.
+      now: () => new Date("2026-09-05T15:59:59.999Z"),
+    }),
+  );
+
+  assert.equal(firstTransport.events.length, 1);
+  assert.deepEqual(secondTransport.events, []);
+  assert.deepEqual(await second.drainResults(), []);
+  assert.deepEqual(storage.claims, ["2026-09-05", "2026-09-05"]);
+  assert.equal(second.installId, first.installId);
+});
+
+test("a launch on the next Beijing day sends one new event", async () => {
+  const storage = new CountingMemoryStorage();
+  const firstTransport = new CaptureTransport();
+  const first = await TelemetryClient.init(
+    clientConfig(storage, firstTransport, {
+      now: () => new Date("2026-09-05T15:59:59.999Z"),
+    }),
+  );
+  await first.drain();
+
+  const secondTransport = new CaptureTransport();
+  const second = await TelemetryClient.init(
+    clientConfig(storage, secondTransport, {
+      now: () => new Date("2026-09-05T16:00:00.000Z"),
+    }),
+  );
+  await second.drain();
+
+  assert.deepEqual(storage.claims, ["2026-09-05", "2026-09-06"]);
+  assert.equal(firstTransport.events.length, 1);
+  assert.equal(secondTransport.events.length, 1);
+  assert.equal(second.installId, first.installId);
+  assert.notEqual(
+    secondTransport.events[0].event_id,
+    firstTransport.events[0].event_id,
+  );
+});
+
+test("concurrent launches sharing one storage send only once", async () => {
+  const storage = new MemoryIdentityStorage();
+  const transports = Array.from({ length: 12 }, () => new CaptureTransport());
+  const clients = await Promise.all(
+    transports.map((transport) =>
+      TelemetryClient.init(clientConfig(storage, transport)),
     ),
   );
+  await Promise.all(clients.map((client) => client.drain()));
 
-  client.track("feature_used", { feature_id: "cloudbase_validation" });
-  client.track("task_succeeded", {
-    task_type: "cloudbase_validation",
-    duration_ms: 1,
-  });
-  const manual = await client.drainResults();
-  assert.deepEqual(
-    manual.map(({ event, outcome }) => ({ event, outcome })),
-    [
-      { event: "feature_used", outcome: "acknowledged" },
-      { event: "task_succeeded", outcome: "acknowledged" },
-    ],
-  );
-  assert.deepEqual(
-    manual.map((result) => result.eventId),
-    transport.events.slice(-2).map((event) => event.event_id),
+  assert.equal(new Set(clients.map(({ installId }) => installId)).size, 1);
+  assert.equal(
+    transports.reduce((total, transport) => total + transport.events.length, 0),
+    1,
   );
 });
 
-test("default HTTP transport requires a JSON ok acknowledgement", async () => {
+test("the day is claimed before a network attempt and a failure is not retried that day", async () => {
   const originalFetch = globalThis.fetch;
+  const storage = new CountingMemoryStorage();
+  let fetchCalls = 0;
+  try {
+    globalThis.fetch = async () => {
+      fetchCalls += 1;
+      throw new TypeError("private network detail");
+    };
+    const first = await TelemetryClient.init(
+      clientConfig(storage, new FetchTelemetryTransport()),
+    );
+    const firstResults = await first.drainResults();
+
+    assert.equal(fetchCalls, 1);
+    assert.equal(firstResults.length, 1);
+    assert.equal(firstResults[0].outcome, "failed");
+    assert.equal(firstResults[0].failure.code, "network_error");
+
+    const laterTransport = new CaptureTransport();
+    const later = await TelemetryClient.init(
+      clientConfig(storage, laterTransport),
+    );
+    assert.deepEqual(await later.drainResults(), []);
+    assert.deepEqual(laterTransport.events, []);
+    assert.deepEqual(storage.claims, ["2026-09-04", "2026-09-04"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a claim failure fails closed and never reaches the gateway", async () => {
+  const transport = new CaptureTransport();
+  let claimCalls = 0;
+  const storage = new MemoryIdentityStorage();
+  storage.claimActivityDay = async () => {
+    claimCalls += 1;
+    throw new Error("disk unavailable");
+  };
+
+  const client = await TelemetryClient.init(clientConfig(storage, transport));
+
+  assert.equal(client.enabled, true);
+  assert.equal(claimCalls, 1);
+  assert.deepEqual(transport.events, []);
+  assert.deepEqual(await client.drainResults(), []);
+  await assert.doesNotReject(client.drain());
+});
+
+test("disabled and invalid configurations do not claim a day", async (t) => {
   const cases = [
-    {
-      response: { ok: true, status: 202, body: '{"ok":true}' },
-      expected: {
+    ["not explicitly enabled", { enabled: undefined }],
+    ["invalid app id", { appId: "Invalid App" }],
+    ["invalid app version", { appVersion: "latest" }],
+    ["invalid platform", { platform: "android" }],
+    ["invalid architecture", { arch: "ppc64" }],
+    ["unsafe endpoint", { endpoint: "http://telemetry.example.test/track" }],
+    ["missing endpoint", { endpoint: undefined }],
+  ];
+
+  for (const [name, overrides] of cases) {
+    await t.test(name, async () => {
+      const storage = new CountingMemoryStorage();
+      const transport = new CaptureTransport();
+      const client = await TelemetryClient.init(
+        clientConfig(storage, transport, overrides),
+      );
+
+      assert.equal(client.enabled, false);
+      assert.deepEqual(storage.claims, []);
+      assert.deepEqual(transport.events, []);
+      assert.deepEqual(await client.drainResults(), []);
+    });
+  }
+});
+
+test("acknowledgement, network, timeout, and scheduler outcomes stay isolated", async (t) => {
+  await t.test("strict acknowledgement", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), {
+        async send() {
+          return { httpStatus: 202, ack: { ok: true } };
+        },
+      }),
+    );
+    const results = await client.drainResults();
+    assert.equal(results.length, 1);
+    assert.deepEqual(
+      {
+        event: results[0].event,
+        outcome: results[0].outcome,
+        receipt: results[0].receipt,
+      },
+      {
+        event: "daily_active",
         outcome: "acknowledged",
         receipt: { httpStatus: 202, ack: { ok: true } },
       },
-    },
-    {
-      response: {
-        ok: false,
-        status: 403,
-        body: '{"ok":false,"error":"unknown_app"}',
-      },
-      expected: {
-        outcome: "failed",
-        failure: {
-          code: "server_rejected",
-          httpStatus: 403,
-          serverError: "unknown_app",
-        },
-      },
-    },
-    {
-      response: { ok: false, status: 404, body: "not json" },
-      expected: {
-        outcome: "failed",
-        failure: { code: "http_error", httpStatus: 404 },
-      },
-    },
-    {
-      response: { ok: false, status: 500, body: '{"ok":true}' },
-      expected: {
-        outcome: "failed",
-        failure: { code: "http_error", httpStatus: 500 },
-      },
-    },
-    {
-      response: { ok: true, status: 202, body: "not json" },
-      expected: {
-        outcome: "failed",
-        failure: { code: "invalid_response", httpStatus: 202 },
-      },
-    },
-    {
-      response: {
-        ok: true,
-        status: 202,
-        body: '{"ok":false,"error":"invalid_payload"}',
-      },
-      expected: {
-        outcome: "failed",
-        failure: {
-          code: "server_rejected",
-          httpStatus: 202,
-          serverError: "invalid_payload",
-        },
-      },
-    },
-  ];
+    );
+  });
 
-  try {
-    for (const { response, expected } of cases) {
-      globalThis.fetch = async () => ({
-        ok: response.ok,
-        status: response.status,
-        text: async () => response.body,
-      });
+  await t.test("network failure", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async () => {
+        throw new TypeError("do not expose me");
+      };
       const client = await TelemetryClient.init(
         clientConfig(
           new MemoryIdentityStorage(),
@@ -199,119 +354,92 @@ test("default HTTP transport requires a JSON ok acknowledgement", async () => {
         ),
       );
       const results = await client.drainResults();
-      assert.equal(results.length, 2);
-      for (const result of results) {
-        assert.equal(result.outcome, expected.outcome);
-        if (expected.receipt) {
-          assert.deepEqual(result.receipt, expected.receipt);
-        } else {
-          assert.equal(result.receipt, null);
-          assert.deepEqual(result.failure, expected.failure);
-        }
-      }
+      assert.equal(results.length, 1);
+      assert.equal(results[0].outcome, "failed");
+      assert.deepEqual(results[0].failure, { code: "network_error" });
+    } finally {
+      globalThis.fetch = originalFetch;
     }
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
+  });
 
-test("custom transport cannot acknowledge a non-2xx receipt", async () => {
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), {
-      async send() {
-        return { httpStatus: 500, ack: { ok: true } };
-      },
-    }),
-  );
-  const results = await client.drainResults();
-  assert.equal(results.length, 2);
-  assert.ok(
-    results.every(
-      (result) =>
-        result.outcome === "failed" &&
-        result.receipt === null &&
-        result.failure.code === "http_error" &&
-        result.failure.httpStatus === 500,
-    ),
-  );
-});
-
-test("drainResults exposes network, timeout, and scheduler failures without rejecting", async () => {
-  const originalFetch = globalThis.fetch;
-  try {
-    globalThis.fetch = async () => {
-      throw new TypeError("private network detail");
-    };
-    const networkClient = await TelemetryClient.init(
-      clientConfig(new MemoryIdentityStorage(), new FetchTelemetryTransport()),
-    );
-    const networkResults = await networkClient.drainResults();
-    assert.ok(
-      networkResults.every(
-        (result) =>
-          result.outcome === "failed" &&
-          result.failure.code === "network_error",
+  await t.test("timeout", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(
+        new MemoryIdentityStorage(),
+        { send: () => new Promise(() => undefined) },
+        { timeoutMs: 5 },
       ),
     );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+    const results = await client.drainResults();
+    assert.equal(results.length, 1);
+    assert.equal(results[0].outcome, "failed");
+    assert.deepEqual(results[0].failure, { code: "timeout" });
+    await assert.doesNotReject(client.drain());
+  });
 
-  const timeoutClient = await TelemetryClient.init(
-    clientConfig(
-      new MemoryIdentityStorage(),
-      { send: () => new Promise(() => undefined) },
-      { timeoutMs: 5 },
-    ),
-  );
-  const timeoutResults = await timeoutClient.drainResults();
-  assert.ok(
-    timeoutResults.every(
-      (result) =>
-        result.outcome === "failed" && result.failure.code === "timeout",
-    ),
-  );
+  await t.test("scheduler throws", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
+        scheduler() {
+          throw new Error("broken scheduler");
+        },
+      }),
+    );
+    const results = await client.drainResults();
+    assert.equal(results.length, 1);
+    assert.equal(results[0].outcome, "failed");
+    assert.deepEqual(results[0].failure, { code: "scheduler_error" });
+  });
 
-  const schedulerClient = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
-      scheduler() {
-        throw new Error("broken scheduler");
-      },
-    }),
-  );
-  const schedulerResults = await schedulerClient.drainResults();
-  assert.ok(
-    schedulerResults.every(
-      (result) =>
-        result.outcome === "failed" &&
-        result.failure.code === "scheduler_error",
-    ),
-  );
-
-  const droppedSchedulerClient = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
-      timeoutMs: 5,
-      scheduler() {},
-    }),
-  );
-  const droppedSchedulerResults = await droppedSchedulerClient.drainResults();
-  assert.ok(
-    droppedSchedulerResults.every(
-      (result) =>
-        result.outcome === "failed" &&
-        result.failure.code === "scheduler_error",
-    ),
-  );
+  await t.test("scheduler drops the task", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), new CaptureTransport(), {
+        timeoutMs: 5,
+        scheduler() {},
+      }),
+    );
+    const results = await client.drainResults();
+    assert.equal(results.length, 1);
+    assert.equal(results[0].outcome, "failed");
+    assert.deepEqual(results[0].failure, { code: "scheduler_error" });
+  });
 });
 
-test("transport errors expose only bounded structured server details", () => {
-  const error = new TelemetryTransportError("server_rejected", {
+test("invalid transport receipts and generic transport errors become safe results", async (t) => {
+  await t.test("non-2xx acknowledgement", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), {
+        async send() {
+          return { httpStatus: 500, ack: { ok: true } };
+        },
+      }),
+    );
+    const [result] = await client.drainResults();
+    assert.equal(result.outcome, "failed");
+    assert.deepEqual(result.failure, { code: "http_error", httpStatus: 500 });
+  });
+
+  await t.test("generic transport exception", async () => {
+    const client = await TelemetryClient.init(
+      clientConfig(new MemoryIdentityStorage(), {
+        async send() {
+          throw new Error("private exception text");
+        },
+      }),
+    );
+    const [result] = await client.drainResults();
+    assert.equal(result.outcome, "failed");
+    assert.deepEqual(result.failure, { code: "transport_error" });
+  });
+});
+
+test("transport errors expose only bounded machine-readable details", () => {
+  const safe = new TelemetryTransportError("server_rejected", {
     httpStatus: 403,
     serverError: "unknown_app",
   });
-  assert.equal(error.code, "server_rejected");
-  assert.equal(error.httpStatus, 403);
-  assert.equal(error.serverError, "unknown_app");
+  assert.equal(safe.httpStatus, 403);
+  assert.equal(safe.serverError, "unknown_app");
 
   const unsafe = new TelemetryTransportError("server_rejected", {
     httpStatus: 999,
@@ -321,330 +449,37 @@ test("transport errors expose only bounded structured server details", () => {
   assert.equal(unsafe.serverError, undefined);
 });
 
-test("concurrent drain callers both wait for the same pending sends", async () => {
-  const releases = [];
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), {
-      send() {
-        return new Promise((resolve) => releases.push(resolve));
-      },
-    }),
-  );
-  assert.equal(releases.length, 2);
-
-  let firstFinished = false;
-  let secondFinished = false;
-  const first = client.drain().then(() => {
-    firstFinished = true;
-  });
-  const second = client.drain().then(() => {
-    secondFinished = true;
-  });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(firstFinished, false);
-  assert.equal(secondFinished, false);
-
-  for (const release of releases) {
-    release();
-  }
-  await Promise.all([first, second]);
-  assert.equal(firstFinished, true);
-  assert.equal(secondFinished, true);
-});
-
-test("second init keeps install_id, changes session_id, and does not repeat app_install", async () => {
+test("install identity remains stable while launch sessions remain distinct", async () => {
   const storage = new MemoryIdentityStorage();
-  const firstTransport = new CaptureTransport();
-  const first = await TelemetryClient.init(
-    clientConfig(storage, firstTransport),
-  );
-  await first.drain();
+  const first = await new InstallIdentity(storage, {
+    now: () => new Date(DEFAULT_NOW),
+  }).initialize();
+  const second = await new InstallIdentity(storage, {
+    now: () => new Date("2026-09-05T00:00:00.000Z"),
+  }).initialize();
 
-  const secondTransport = new CaptureTransport();
-  const second = await TelemetryClient.init(
-    clientConfig(storage, secondTransport),
-  );
-  await second.drain();
-
+  assert.ok(isUuidV4(first.installId));
+  assert.ok(isUuidV4(first.sessionId));
+  assert.equal(first.isFirstInstall, true);
   assert.equal(second.installId, first.installId);
   assert.notEqual(second.sessionId, first.sessionId);
-  assert.deepEqual(
-    secondTransport.events.map((event) => event.event),
-    ["app_start"],
-  );
+  assert.equal(second.isFirstInstall, false);
 });
 
-test("an explicit valid channel is preserved", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport, { channel: "beta" }),
-  );
-  await client.drain();
-
-  assert.equal(client.enabled, true);
-  assert.ok(transport.events.length > 0);
-  assert.ok(transport.events.every((event) => event.channel === "beta"));
-});
-
-test("explicit invalid channels safely disable telemetry", async () => {
-  for (const channel of [null, "", "Stable Channel"]) {
-    const transport = new CaptureTransport();
-    const client = await TelemetryClient.init(
-      clientConfig(new MemoryIdentityStorage(), transport, { channel }),
-    );
-    await client.drain();
-
-    assert.equal(client.enabled, false, String(channel));
-    assert.deepEqual(transport.events, [], String(channel));
-  }
-});
-
-test("concurrent init on one storage creates one install marker and one install event", async () => {
+test("concurrent identity initialization selects one stable install id", async () => {
   const storage = new MemoryIdentityStorage();
-  const firstTransport = new CaptureTransport();
-  const secondTransport = new CaptureTransport();
+  const identities = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      new InstallIdentity(storage, {
+        now: () => new Date(DEFAULT_NOW),
+      }).initialize(),
+    ),
+  );
 
-  const [first, second] = await Promise.all([
-    TelemetryClient.init(clientConfig(storage, firstTransport)),
-    TelemetryClient.init(clientConfig(storage, secondTransport)),
-  ]);
-  await Promise.all([first.drain(), second.drain()]);
-
-  assert.equal(first.installId, second.installId);
-  assert.notEqual(first.sessionId, second.sessionId);
-  const allEvents = [...firstTransport.events, ...secondTransport.events];
+  assert.equal(new Set(identities.map(({ installId }) => installId)).size, 1);
   assert.equal(
-    allEvents.filter((event) => event.event === "app_install").length,
+    identities.filter(({ isFirstInstall }) => isFirstInstall).length,
     1,
   );
-  assert.equal(
-    allEvents.filter((event) => event.event === "app_start").length,
-    2,
-  );
-});
-
-test("only exact event property shapes are sanitized", () => {
-  const cases = [
-    ["app_install", {}],
-    ["app_start", {}],
-    ["feature_used", { feature_id: " export_csv " }],
-    ["task_started", { task_type: " batch_export " }],
-    ["task_succeeded", { task_type: " batch_export ", duration_ms: 0 }],
-    ["task_failed", { task_type: " batch_export ", error_code: " E_TIMEOUT " }],
-    ["update_prompt_shown", { target_version: "1.10.0-beta.1" }],
-    ["update_clicked", { target_version: "1.10.0" }],
-  ];
-
-  const expected = [
-    {},
-    {},
-    { feature_id: "export_csv" },
-    { task_type: "batch_export" },
-    { task_type: "batch_export", duration_ms: 0 },
-    { task_type: "batch_export", error_code: "E_TIMEOUT" },
-    { target_version: "1.10.0-beta.1" },
-    { target_version: "1.10.0" },
-  ];
-
-  cases.forEach(([event, properties], index) => {
-    assert.deepEqual(
-      sanitizeEventProperties(event, properties),
-      expected[index],
-    );
-  });
-});
-
-test("old aliases, missing keys, extra keys, and invalid values are rejected", () => {
-  const cases = [
-    ["app_install", { unexpected: true }],
-    ["app_start", { unexpected: true }],
-    ["app_start", new Date(0)],
-    ["feature_used", { feature: "export_csv" }],
-    ["feature_used", { feature_id: "export_csv", extra: true }],
-    ["feature_used", { feature_id: "x".repeat(65) }],
-    ["task_started", { task_type: "export", duration_ms: 1 }],
-    ["task_succeeded", { task_type: "export" }],
-    ["task_succeeded", { task_type: "export", duration_ms: 1, extra: true }],
-    ["task_succeeded", { task_type: "export", duration_ms: -1 }],
-    ["task_succeeded", { task_type: "export", duration_ms: 1.25 }],
-    ["task_succeeded", { task_type: "export", duration_ms: 604_800_001 }],
-    ["task_failed", { error_code: "E_TIMEOUT" }],
-    [
-      "task_failed",
-      { task_type: "export", error_code: "E_TIMEOUT", extra: true },
-    ],
-    ["update_prompt_shown", { latest_version: "1.0.0", required: false }],
-    ["update_prompt_shown", { target_version: "v1.0.0" }],
-    ["update_prompt_shown", { target_version: "1.0.0", required: false }],
-    ["update_clicked", { latest_version: "1.0.0", action: "update_now" }],
-    ["update_clicked", { target_version: "1.0.0", action: "update_now" }],
-  ];
-
-  for (const [event, properties] of cases) {
-    assert.equal(sanitizeEventProperties(event, properties), null, event);
-  }
-});
-
-test("track drops the whole event instead of stripping extra fields", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport),
-  );
-  await client.drain();
-  transport.events.length = 0;
-
-  client.track("feature_used", {
-    feature_id: "export_csv",
-    ignored_user_text: "must not leave the client",
-    nested: { secret: true },
-  });
-  client.track("feature_used", { feature_id: " export_csv " });
-  await client.drain();
-
-  assert.equal(transport.events.length, 1);
-  assert.equal(transport.events[0].event, "feature_used");
-  assert.deepEqual(transport.events[0].properties, {
-    feature_id: "export_csv",
-  });
-  assert.ok(Object.keys(transport.events[0].properties).length <= 20);
-});
-
-test("update helpers emit only the exact target_version property", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport),
-  );
-  await client.drain();
-  transport.events.length = 0;
-
-  const decision = {
-    kind: "optional",
-    config: { latest_version: "1.2.3" },
-  };
-  client.trackUpdatePromptShown(decision);
-  client.trackUpdateClicked(decision);
-  await client.drain();
-
-  assert.deepEqual(
-    transport.events.map(({ event, properties }) => ({ event, properties })),
-    [
-      {
-        event: "update_prompt_shown",
-        properties: { target_version: "1.2.3" },
-      },
-      {
-        event: "update_clicked",
-        properties: { target_version: "1.2.3" },
-      },
-    ],
-  );
-});
-
-test("task_failed requires task_type and error_code with no extra fields", () => {
-  assert.deepEqual(
-    sanitizeEventProperties("task_failed", {
-      task_type: "export",
-      error_code: "EXPORT_TIMEOUT",
-    }),
-    { task_type: "export", error_code: "EXPORT_TIMEOUT" },
-  );
-  assert.equal(
-    sanitizeEventProperties("task_failed", {
-      task_type: "export",
-      error_code: "EXPORT_TIMEOUT",
-      exception: "private exception message",
-    }),
-    null,
-  );
-  assert.equal(
-    sanitizeEventProperties("task_failed", {
-      task_type: "export",
-      error_code: "contains spaces and user text",
-    }),
-    null,
-  );
-});
-
-test("property identifiers reject high-confidence sensitive values", () => {
-  for (const featureId of [
-    "AA:BB:CC:DD:EE:FF",
-    "AA-BB-CC-DD-EE-FF",
-    "AABBCCDDEEFF",
-    "aabb.ccdd.eeff",
-    "13800138000",
-    "138-0013-8000",
-    "11010519491231002X",
-    "550e8400-e29b-41d4-a716-446655440000",
-    "0123456789abcdef",
-    "U29tZVNlbnNpdGl2ZURhdGE",
-    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123",
-  ]) {
-    assert.equal(
-      sanitizeEventProperties("feature_used", { feature_id: featureId }),
-      null,
-      featureId,
-    );
-  }
-});
-
-test("telemetry is disabled unless explicitly enabled", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), transport, {
-      enabled: undefined,
-    }),
-  );
-  client.track("feature_used", { feature_id: "export_csv" });
-  await client.drain();
-
-  assert.equal(client.enabled, false);
-  assert.deepEqual(transport.events, []);
-});
-
-test("unreachable transport and timeout never throw into host code", async () => {
-  const rejectingClient = await TelemetryClient.init(
-    clientConfig(new MemoryIdentityStorage(), {
-      async send() {
-        throw new Error("network unreachable");
-      },
-    }),
-  );
-  assert.doesNotThrow(() =>
-    rejectingClient.track("feature_used", { feature_id: "export_csv" }),
-  );
-  await assert.doesNotReject(rejectingClient.drain());
-
-  const hangingClient = await TelemetryClient.init(
-    clientConfig(
-      new MemoryIdentityStorage(),
-      { send: () => new Promise(() => undefined) },
-      { timeoutMs: 5 },
-    ),
-  );
-  hangingClient.track("feature_used", { feature_id: "export_csv" });
-  await assert.doesNotReject(hangingClient.drain());
-});
-
-test("broken storage recovers silently with a valid ephemeral identity", async () => {
-  const transport = new CaptureTransport();
-  const client = await TelemetryClient.init(
-    clientConfig(
-      {
-        async read() {
-          throw new Error("read failed");
-        },
-        async write() {
-          throw new Error("write failed");
-        },
-      },
-      transport,
-    ),
-  );
-  await assert.doesNotReject(client.drain());
-  assert.ok(isUuidV4(client.installId));
-  assert.ok(isUuidV4(client.sessionId));
-  assert.deepEqual(
-    transport.events.map((event) => event.event),
-    ["app_start"],
-  );
+  assert.equal(new Set(identities.map(({ sessionId }) => sessionId)).size, 12);
 });

@@ -23,51 +23,51 @@ class BridgeProcessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="毕方-sdk-python-") as state_directory:
             with CLIENT.BridgeProcess(CLIENT_PATH.with_name("bridge.mjs")) as bridge:
                 ping = bridge.request("ping", timeout=5)
-                self.assertEqual(ping["sdk_version"], "1.0.0")
+                self.assertEqual(ping["sdk_version"], "2.0.0")
                 initialized = bridge.request(
                     "init_capture",
                     timeout=10,
                     state_dir=state_directory,
-                    app_id="example-tool",
+                    app_id="bifang-tools",
                     app_version="0.1.0",
                     platform="windows",
                     arch="x64",
-                    channel="official",
                 )
                 self.assertFalse(initialized["network_performed"])
                 self.assertEqual(
                     [event["event"] for event in initialized["events"]],
-                    ["app_install", "app_start"],
+                    ["daily_active"],
                 )
-                tracked = bridge.request(
-                    "track_capture",
+                self.assertEqual(initialized["events"][0]["schema_version"], 2)
+                self.assertEqual(initialized["events"][0]["sdk_version"], "2.0.0")
+                self.assertNotIn("channel", initialized["events"][0])
+                self.assertNotIn("session_id", initialized["events"][0])
+                second = bridge.request(
+                    "init_capture",
                     timeout=10,
-                    event="task_succeeded",
-                    properties={"task_type": "batch_export", "duration_ms": 120},
+                    state_dir=state_directory,
+                    app_id="bifang-tools",
+                    app_version="0.1.0",
+                    platform="windows",
+                    arch="x64",
                 )
-                self.assertTrue(tracked["accepted_by_sdk"])
-                self.assertFalse(tracked["network_performed"])
-                self.assertEqual(tracked["events"][0]["channel"], "official")
-                self.assertEqual(
-                    tracked["events"][0]["properties"],
-                    {"task_type": "batch_export", "duration_ms": 120},
-                )
+                self.assertEqual(second["events"], [])
                 preview = bridge.request(
                     "preview_update",
                     timeout=10,
-                    app_id="example-tool",
+                    app_id="bifang-tools",
                     app_version="0.1.0",
                     platform="windows",
                     manifest={
                         "schema_version": 1,
-                        "app_id": "example-tool",
+                        "app_id": "bifang-tools",
                         "platform": "windows",
                         "enabled": True,
                         "latest_version": "0.1.0",
                         "min_supported_version": "0.1.0",
                         "force_update": False,
                         "rollout": 100,
-                        "title": "Example Tool 0.1.0",
+                        "title": "Bifang Tools 0.1.0",
                         "message": "Already current.",
                         "download_url": "https://downloads.example.invalid/tool.exe",
                         "release_notes_url": "https://releases.example.invalid/tool",
@@ -172,10 +172,6 @@ class SafetyPromptTests(unittest.TestCase):
             [
                 "https://telemetry.example.com/track",
                 "NO",
-                "1",
-                "",
-                "https://telemetry.example.com/track",
-                "NO",
                 "https://updates.example.com/base",
                 "NO",
             ]
@@ -190,7 +186,6 @@ class SafetyPromptTests(unittest.TestCase):
         client.live_endpoint = "https://telemetry.example.com/track"
         try:
             client.init_live()
-            client.track_live()
             client.start_live_update_check()
         finally:
             client.jobs.close()
@@ -209,7 +204,7 @@ class SafetyPromptTests(unittest.TestCase):
                 return None
 
         bridge = RecordingBridge()
-        answers = iter(["app-b", "", "", "", ""])
+        answers = iter(["app-b", "", "", ""])
         client = CLIENT.InteractiveClient(
             bridge,
             Path.cwd(),

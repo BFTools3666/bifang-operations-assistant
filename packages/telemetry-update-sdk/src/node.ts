@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, parse, resolve } from "node:path";
 import { isPersistedIdentity } from "./identity.js";
+import { isAppId } from "./validation.js";
 import type {
   IdentityReadOrCreateResult,
   IdentityStorage,
@@ -21,6 +22,12 @@ const MAX_IDENTITY_FILE_BYTES = 4_096;
 const SAFE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export interface NodeFileIdentityStorageOptions {
+  /**
+   * Optional stable application identifier used to namespace every file.
+   * Supplying it prevents two tools from sharing an install identity or daily
+   * activity gate even if a host accidentally gives them the same directory.
+   */
+  appId?: string;
   fileName?: string;
 }
 
@@ -33,6 +40,7 @@ export class NodeFileIdentityStorage implements IdentityStorage {
   readonly #appConfigDirectory: string;
   readonly #filePath: string;
   readonly #recoveryFilePath: string;
+  readonly #activityMarkerPrefix: string;
 
   constructor(
     appConfigDirectory: string,
@@ -47,13 +55,25 @@ export class NodeFileIdentityStorage implements IdentityStorage {
       throw new TypeError("appConfigDirectory must not be a filesystem root");
     }
 
-    const fileName = options.fileName ?? DEFAULT_FILE_NAME;
+    if (options.appId !== undefined && !isAppId(options.appId)) {
+      throw new TypeError("appId must be a valid application identifier");
+    }
+
+    const baseFileName = options.fileName ?? DEFAULT_FILE_NAME;
     if (
-      !SAFE_FILE_NAME.test(fileName) ||
-      fileName === "." ||
-      fileName === ".."
+      !SAFE_FILE_NAME.test(baseFileName) ||
+      baseFileName === "." ||
+      baseFileName === ".."
     ) {
       throw new TypeError("fileName must be a plain safe file name");
+    }
+
+    const fileName =
+      options.appId === undefined
+        ? baseFileName
+        : `${options.appId}.${baseFileName}`;
+    if (!SAFE_FILE_NAME.test(fileName)) {
+      throw new TypeError("appId and fileName produce an unsafe file name");
     }
 
     const filePath = resolve(join(directory, fileName));
@@ -66,6 +86,7 @@ export class NodeFileIdentityStorage implements IdentityStorage {
     this.#appConfigDirectory = directory;
     this.#filePath = filePath;
     this.#recoveryFilePath = `${filePath}.recovery-v1`;
+    this.#activityMarkerPrefix = `.${fileName}.daily-active-`;
   }
 
   get filePath(): string {
@@ -112,6 +133,32 @@ export class NodeFileIdentityStorage implements IdentityStorage {
       await handle?.close().catch(() => undefined);
       await rm(temporaryPath, { force: true }).catch(() => undefined);
       throw error;
+    }
+  }
+
+  async claimActivityDay(day: string): Promise<boolean> {
+    if (!isActivityDay(day)) {
+      throw new TypeError("day must be a valid YYYY-MM-DD date");
+    }
+
+    await mkdir(this.#appConfigDirectory, { recursive: true, mode: 0o700 });
+    const markerPath = join(
+      this.#appConfigDirectory,
+      `${this.#activityMarkerPrefix}${day}`,
+    );
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      handle = await open(markerPath, "wx", 0o600);
+      await handle.writeFile(`${day}\n`, "utf8");
+      await handle.sync();
+      return true;
+    } catch (error) {
+      if (hasErrorCode(error, "EEXIST")) {
+        return false;
+      }
+      throw error;
+    } finally {
+      await handle?.close().catch(() => undefined);
     }
   }
 
@@ -181,5 +228,16 @@ function hasErrorCode(error: unknown, expected: string): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === expected
+  );
+}
+
+function isActivityDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const instant = new Date(`${value}T00:00:00.000Z`);
+  return (
+    Number.isFinite(instant.getTime()) &&
+    instant.toISOString().slice(0, 10) === value
   );
 }

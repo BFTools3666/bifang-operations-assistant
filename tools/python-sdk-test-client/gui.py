@@ -1,8 +1,8 @@
 """CloudBase deployment acceptance wizard for non-technical operators.
 
 The Tkinter view only presents a guided workflow. The long-lived Node process
-loads the real TypeScript SDK, creates every telemetry envelope, validates it,
-performs explicitly requested network calls, and returns per-event delivery
+loads the real TypeScript SDK, creates the daily-active envelope, validates it,
+performs explicitly requested network calls, and returns delivery
 receipts. Importing this module is always headless and never starts networking.
 """
 
@@ -43,23 +43,26 @@ from client import (
 
 WINDOW_TITLE = "CloudBase 功能验证助手"
 CLOUD_CONSOLE_URL = "https://tcb.cloud.tencent.com/"
+QUICKSTART_DOCUMENT_URL = (
+    "https://my.feishu.cn/docx/CQEsdn73moXxM1xKvT9cDnZKnRg"
+)
 DATABASE_PATH = (
     "云开发统一工作台 → 选择环境 → 文档型数据库 → 集合管理 → "
-    "telemetry_events（匿名统计数据表）→ 文档列表 → 筛选"
+    "telemetry_<目标工具编号；短横线改下划线> → 文档列表 → 筛选"
 )
 DEFAULT_STATE_ROOT = Path(tempfile.gettempdir()) / "bifang-cloudbase-validator"
 LIVE_TELEMETRY_ENDPOINT_DEFAULT = ""
 LIVE_UPDATE_URL_DEFAULT = ""
 
-EXAMPLE_APPLICATION_ID = "example-tool"
+EXAMPLE_APPLICATION_ID = "bifang-tools"
 EXAMPLE_CURRENT_VERSION = "0.1.0"
 EXAMPLE_TELEMETRY_URL = (
     "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
-    "ap-shanghai.app.tcloudbase.com/v1/track"
+    "ap-shanghai.app.tcloudbase.com/apps/bifang-tools/v1/track"
 )
 EXAMPLE_UPDATE_URL = (
     "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
-    "ap-shanghai.app.tcloudbase.com/updates/example-tool/windows.json"
+    "ap-shanghai.app.tcloudbase.com/updates/bifang-tools/windows.json"
 )
 
 STEP_TITLES = (
@@ -71,36 +74,29 @@ STEP_TITLES = (
 
 RESOURCE_GUIDE: Tuple[Tuple[str, str], ...] = (
     (
-        "telemetry 云函数",
-        "这是接收测试数据的小程序。按本项目模板部署，函数入口使用 index.main。",
+        "telemetry-<应用编号> 云函数",
+        "每个工具单独部署一份。比如 bifang-tools 使用 telemetry-bifang-tools。",
     ),
     (
-        "POST /v1/track",
-        "这是数据进入云函数的固定通道。把它指向上面的云函数，并允许匿名调用。",
+        "POST /apps/<应用编号>/v1/track",
+        "每个工具使用自己的通道，并且只指向同名工具的云函数。",
     ),
     (
-        "telemetry_events",
-        "这是保存测试结果的数据库集合。收到成功回执前，云函数会先把记录写进这里。",
+        "telemetry_<规范化应用编号>",
+        "每个工具使用自己的数据表；把应用编号里的短横线改为下划线。",
     ),
     (
-        "ALLOWED_APP_IDS",
-        "这是云函数的“允许应用名单”环境变量。把准备验证的应用编号填进去。",
+        "三个独立函数参数",
+        "允许应用编号只填当前工具一个值，并核对独立数据表与独立通道。",
     ),
     (
         "更新 JSON",
-        "这是云端版本说明文件。发布为 updates/<应用编号>/windows.json。",
+        "每个工具单独发布为 updates/<应用编号>/windows.json。",
     ),
 )
 
 EVENT_CARD_DEFINITIONS: Tuple[Tuple[str, str, str], ...] = (
-    ("app_install", "安装记录", "安装记录 +1"),
-    ("app_start", "启动记录", "启动记录 +1"),
-    ("feature_used", "核心功能使用", "核心功能使用 +1"),
-    ("task_started", "任务开始", "任务开始 +1"),
-    ("task_succeeded", "任务成功", "任务成功 +1"),
-    ("task_failed", "任务失败", "任务失败 +1"),
-    ("update_prompt_shown", "更新提示展示", "更新提示展示 +1"),
-    ("update_clicked", "更新按钮点击", "更新按钮点击 +1"),
+    ("daily_active", "启动使用记录", "今日使用设备 +1"),
 )
 EXPECTED_EVENT_ORDER = tuple(item[0] for item in EVENT_CARD_DEFINITIONS)
 EVENT_NAMES = {item[0]: item[1] for item in EVENT_CARD_DEFINITIONS}
@@ -121,14 +117,14 @@ PRIMARY_UI_TEXT = "\n".join(
     (
         WINDOW_TITLE,
         *STEP_TITLES,
-        "打开新手部署文档",
+        "打开飞书新手部署文档",
         "打开 CloudBase 控制台",
         "应用编号",
         "当前版本",
         "数据接收地址",
         "更新文件地址",
         "载入本项目示例",
-        "发送一组测试数据到 CloudBase",
+        "发送 1 条启动使用测试到 CloudBase",
         "模拟 10 台设备使用",
         "本次云端数据预览",
         "复制本次测试查询条件",
@@ -146,13 +142,32 @@ PRIMARY_UI_TEXT = "\n".join(
     )
 )
 
-APP_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+APP_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$")
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
     r"(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+
+
+def telemetry_collection_name(app_id: str) -> str:
+    """Derive the collision-free collection name used by deployment config."""
+    normalized = app_id.strip()
+    if not APP_ID_PATTERN.fullmatch(normalized):
+        raise ValueError("invalid deployment app_id")
+    return f"telemetry_{normalized.replace('-', '_')}"
+
+
+def database_path_for_app(app_id: str) -> str:
+    try:
+        collection = telemetry_collection_name(app_id)
+    except ValueError:
+        collection = "telemetry_<目标工具编号；短横线改下划线>"
+    return (
+        "云开发统一工作台 → 选择环境 → 文档型数据库 → 集合管理 → "
+        f"{collection} → 文档列表 → 筛选"
+    )
 
 
 @dataclass(frozen=True)
@@ -180,7 +195,6 @@ class ConnectionSettings:
             "app_version": self.current_version,
             "platform": self.platform,
             "arch": self.architecture,
-            "channel": "official",
         }
 
 
@@ -205,14 +219,14 @@ class DeliveryCard:
 
 
 @dataclass(frozen=True)
-class BatchFeedback:
+class DailyActiveFeedback:
     summary: str
     detail: str
     tone: str
     confirmed_count: int
     expected_count: int
     cards: Tuple[DeliveryCard, ...]
-    batch_query_text: Optional[str]
+    record_query_text: Optional[str]
     advanced: Any
 
 
@@ -226,14 +240,10 @@ class SimulationFeedback:
     acknowledged_record_count: int
     planned_record_count: int
     failed_record_count: int
-    install_count: int
-    start_count: int
-    version_distribution: Tuple[Tuple[str, int], ...]
-    channel_distribution: Tuple[Tuple[str, int], ...]
-    feature_count: int
-    task_success_count: int
-    task_failure_count: int
-    task_success_rate: int
+    daily_active_count: int
+    system_distribution: Tuple[Tuple[str, int], ...]
+    architecture_distribution: Tuple[Tuple[str, int], ...]
+    device_details: Tuple[Tuple[int, str, str, str, bool], ...]
     filter_text: Optional[str]
     advanced: Any
 
@@ -284,23 +294,33 @@ def validate_settings(
     value = settings.normalized()
     if not APP_ID_PATTERN.fullmatch(value.application_id):
         return (
-            "请检查“应用编号”：只能使用小写字母、数字、点、短横线或下划线，"
-            "并以小写字母或数字开头。"
+            "请检查“应用编号”：长度应为 1–50，只能使用小写字母、数字或短横线，"
+            "并以小写字母或数字开头和结尾。每个工具必须使用唯一编号。"
         )
     if not SEMVER_PATTERN.fullmatch(value.current_version):
         return "请把“当前版本”填写成类似 1.2.3 的完整版本号。"
     if require_telemetry and not complete_https_url(value.telemetry_url):
-        return "请填写以 https:// 开头的完整“数据接收地址”，并包含 /v1/track。"
-    if require_telemetry and not urlparse(value.telemetry_url).path.endswith(
-        "/v1/track"
+        return (
+            "请填写以 https:// 开头的完整“数据接收地址”，并使用当前工具的 "
+            "/apps/<应用编号>/v1/track 独立通道。"
+        )
+    expected_track_path = f"/apps/{value.application_id}/v1/track"
+    if (
+        require_telemetry
+        and urlparse(value.telemetry_url).path != expected_track_path
     ):
-        return "“数据接收地址”应以 /v1/track 结尾，请回到 CloudBase 复制完整地址。"
+        return (
+            "“数据接收地址”必须使用当前工具的独立通道，并以 "
+            f"{expected_track_path} 结尾。不要使用历史共享 /v1/track 或其他工具的地址。"
+        )
     if require_update and not complete_https_url(value.update_url):
         return "请填写以 https:// 开头的完整“更新文件地址”。"
-    if require_update and not urlparse(value.update_url).path.endswith(
-        "/windows.json"
-    ):
-        return "“更新文件地址”应指向完整的 windows.json 文件。"
+    expected_update_path = f"/updates/{value.application_id}/windows.json"
+    if require_update and urlparse(value.update_url).path != expected_update_path:
+        return (
+            "“更新文件地址”必须指向当前工具的独立文件，并以 "
+            f"{expected_update_path} 结尾。"
+        )
     return None
 
 
@@ -340,13 +360,13 @@ def friendly_error(error: Any) -> str:
         )
     if status == 403 or "app_not_allowed" in lowered or "forbidden" in lowered:
         return (
-            "CloudBase 还不允许这个应用编号（403）。请把它加入云函数的允许名单"
-            "（环境变量 ALLOWED_APP_IDS），保存并重新部署后再试。"
+            "CloudBase 还不允许这个应用编号（403）。请打开当前工具自己的云函数，"
+            "确认允许名单环境变量 ALLOWED_APP_IDS 只填写这个应用编号，保存并重新部署后再试。"
         )
     if status == 404 or "not_found" in lowered:
         return (
-            "没有找到接收通道（404）。请在 CloudBase 核对 HTTP 路由 /v1/track，"
-            "并确认粘贴的是完整数据接收地址。"
+            "没有找到接收通道（404）。请在 CloudBase 核对独立 HTTP 路由 "
+            "/apps/<应用编号>/v1/track，并确认它指向当前工具自己的云函数。"
         )
     if status == 429 or "rate" in lowered:
         return "发送太频繁（429）。请等待一分钟，再点击一次发送。"
@@ -430,104 +450,79 @@ def _delivery_success(item: Dict[str, Any]) -> bool:
     return item.get("acknowledged") is True
 
 
-def build_batch_feedback(result: Any) -> BatchFeedback:
+def build_daily_active_feedback(result: Any) -> DailyActiveFeedback:
     raw_deliveries = result.get("deliveries") if isinstance(result, dict) else None
     deliveries = raw_deliveries if isinstance(raw_deliveries, list) else []
-    by_event: Dict[str, List[Dict[str, Any]]] = {}
-    for item in deliveries:
-        if isinstance(item, dict) and isinstance(item.get("event"), str):
-            by_event.setdefault(item["event"], []).append(item)
-
-    cards: List[DeliveryCard] = []
-    confirmed_count = 0
-    for event_name in EXPECTED_EVENT_ORDER:
-        candidates = by_event.get(event_name, [])
-        item = candidates.pop(0) if candidates else {}
-        acknowledged = _delivery_success(item)
-        event_id = item.get("event_id")
-        if not isinstance(event_id, str):
-            event_id = None
-        if acknowledged:
-            confirmed_count += 1
-            status_text = "已成功，CloudBase 已确认保存"
-            detail = (
-                "这条匿名样例已保存。可复制查询条件，到数据库中核对对应记录。"
-            )
-        else:
-            status_text = "没有收到"
-            detail = friendly_error(item.get("error", item))
-        cards.append(
-            DeliveryCard(
-                event_name=event_name,
-                title=EVENT_NAMES[event_name],
-                delta=EVENT_DELTAS[event_name],
-                acknowledged=acknowledged,
-                status_text=status_text,
-                detail=detail,
-                event_id=event_id,
-                query_text=compact_query("event_id", event_id) if event_id else None,
-            )
-        )
-
-    expected_count = len(EXPECTED_EVENT_ORDER)
-    missing_count = expected_count - confirmed_count
-    if confirmed_count == expected_count:
-        summary = f"CloudBase 已成功收到 {confirmed_count} 条测试数据"
-        detail = "八类匿名样例都已得到云端保存确认。下一步可复制整批查询条件去数据库核对。"
-        tone = "success"
-    elif confirmed_count:
-        summary = (
-            f"CloudBase 已确认收到 {confirmed_count} 条，"
-            f"另有 {missing_count} 条需要处理"
-        )
-        detail = "已成功的结果会保留；请按失败卡片的提示处理后，再发送一组新的测试数据。"
-        tone = "warning"
-    else:
-        summary = "CloudBase 还没有确认收到测试数据"
-        detail = "请按下方每张卡片的提示检查，修正后再发送。"
-        tone = "error"
-
-    session_id = result.get("session_id") if isinstance(result, dict) else None
-    batch_query = (
-        compact_query("session_id", session_id)
-        if isinstance(session_id, str) and session_id
-        else None
+    item = next(
+        (
+            value
+            for value in deliveries
+            if isinstance(value, dict) and value.get("event") == "daily_active"
+        ),
+        {},
     )
-    return BatchFeedback(
+    acknowledged = _delivery_success(item)
+    event_id = item.get("event_id")
+    if not isinstance(event_id, str):
+        event_id = None
+    if acknowledged:
+        summary = "CloudBase 已成功收到 1 条启动使用测试数据"
+        detail = (
+            "本次只发送了 1 个 POST。设备、操作系统和架构可在下方核对；"
+            "来源 IP 由服务端记录，请到数据库查看。"
+        )
+        status_text = "已成功，CloudBase 已确认保存"
+        card_detail = "这条启动使用记录已保存，可复制查询条件到数据库核对来源 IP。"
+        tone = "success"
+    else:
+        summary = "CloudBase 还没有确认收到启动使用记录"
+        detail = friendly_error(item.get("error", item))
+        status_text = "没有收到"
+        card_detail = detail
+        tone = "error"
+    card = DeliveryCard(
+        event_name="daily_active",
+        title=EVENT_NAMES["daily_active"],
+        delta=EVENT_DELTAS["daily_active"],
+        acknowledged=acknowledged,
+        status_text=status_text,
+        detail=card_detail,
+        event_id=event_id,
+        query_text=compact_query("event_id", event_id) if event_id else None,
+    )
+    record_query = compact_query("event_id", event_id) if event_id else None
+    return DailyActiveFeedback(
         summary=summary,
         detail=detail,
         tone=tone,
-        confirmed_count=confirmed_count,
-        expected_count=expected_count,
-        cards=tuple(cards),
-        batch_query_text=batch_query,
+        confirmed_count=1 if acknowledged else 0,
+        expected_count=1,
+        cards=(card,),
+        record_query_text=record_query,
         advanced=result,
     )
 
 
-def failed_batch_feedback(error: Any) -> BatchFeedback:
+def failed_daily_active_feedback(error: Any) -> DailyActiveFeedback:
     hint = friendly_error(error)
-    cards = tuple(
-        DeliveryCard(
-            event_name=event_name,
-            title=EVENT_NAMES[event_name],
-            delta=EVENT_DELTAS[event_name],
-            acknowledged=False,
-            status_text="没有收到",
-            detail=hint,
-            event_id=None,
-            query_text=None,
-        )
-        for event_name in EXPECTED_EVENT_ORDER
+    card = DeliveryCard(
+        event_name="daily_active",
+        title=EVENT_NAMES["daily_active"],
+        delta=EVENT_DELTAS["daily_active"],
+        acknowledged=False,
+        status_text="没有收到",
+        detail=hint,
+        event_id=None,
+        query_text=None,
     )
-    return BatchFeedback(
-        summary="CloudBase 还没有确认收到测试数据",
+    return DailyActiveFeedback(
+        summary="CloudBase 还没有确认收到启动使用记录",
         detail=hint,
         tone="error",
         confirmed_count=0,
-        expected_count=len(EXPECTED_EVENT_ORDER),
-        cards=cards,
-        batch_query_text=None,
+        expected_count=1,
+        cards=(card,),
+        record_query_text=None,
         advanced={
             "error": {
                 "code": _error_parts(error)[0],
@@ -535,13 +530,6 @@ def failed_batch_feedback(error: Any) -> BatchFeedback:
             }
         },
     )
-
-
-CHANNEL_NAMES = {
-    "official": "官方渠道",
-    "wechat": "微信渠道",
-    "bilibili": "哔哩哔哩渠道",
-}
 
 
 def _simulation_deliveries(device: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -552,50 +540,50 @@ def _simulation_deliveries(device: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def build_simulation_feedback(result: Any) -> SimulationFeedback:
-    """Summarize only acknowledged receipts from the ten-device SDK run."""
+    """Summarize one acknowledged daily-active receipt per simulated device."""
     raw_devices = result.get("devices") if isinstance(result, dict) else None
     devices = [item for item in raw_devices if isinstance(item, dict)] if isinstance(
         raw_devices, list
     ) else []
     acknowledged: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
-    acknowledged_devices: List[Dict[str, Any]] = []
     failed_receipts: List[Dict[str, Any]] = []
+    device_details: List[Tuple[int, str, str, str, bool]] = []
     for device in devices:
         all_receipts = _simulation_deliveries(device)
-        receipts = [
-            receipt
-            for receipt in all_receipts
-            if _delivery_success(receipt)
-        ]
+        receipts = [receipt for receipt in all_receipts if _delivery_success(receipt)]
         failed_receipts.extend(
             receipt for receipt in all_receipts if not _delivery_success(receipt)
         )
-        if receipts:
-            acknowledged_devices.append(device)
-            acknowledged.extend((device, receipt) for receipt in receipts)
-
-    def event_count(name: str) -> int:
-        return sum(
-            1 for _device, receipt in acknowledged if receipt.get("event") == name
+        daily_receipt = next(
+            (receipt for receipt in receipts if receipt.get("event") == "daily_active"),
+            None,
+        )
+        is_acknowledged = daily_receipt is not None
+        if daily_receipt is not None:
+            acknowledged.append((device, daily_receipt))
+        number = device.get("device_number")
+        install_id = device.get("install_id")
+        platform = device.get("platform")
+        arch = device.get("arch")
+        device_details.append(
+            (
+                number if isinstance(number, int) else len(device_details) + 1,
+                install_id if isinstance(install_id, str) else "未知设备",
+                platform if isinstance(platform, str) else "未知系统",
+                arch if isinstance(arch, str) else "未知架构",
+                is_acknowledged,
+            )
         )
 
-    versions: Dict[str, int] = {}
-    channels: Dict[str, int] = {}
-    for device in acknowledged_devices:
-        version = device.get("app_version")
-        channel = device.get("channel")
-        if isinstance(version, str):
-            versions[version] = versions.get(version, 0) + 1
-        if isinstance(channel, str):
-            display = CHANNEL_NAMES.get(channel, "其他渠道")
-            channels[display] = channels.get(display, 0) + 1
-
-    successes = event_count("task_succeeded")
-    failures = event_count("task_failed")
-    completed_tasks = successes + failures
-    success_rate = (
-        round(successes * 100 / completed_tasks) if completed_tasks else 0
-    )
+    systems: Dict[str, int] = {}
+    architectures: Dict[str, int] = {}
+    for device, _receipt in acknowledged:
+        platform = device.get("platform")
+        arch = device.get("arch")
+        if isinstance(platform, str):
+            systems[platform] = systems.get(platform, 0) + 1
+        if isinstance(arch, str):
+            architectures[arch] = architectures.get(arch, 0) + 1
     acknowledged_ids = [
         receipt.get("event_id")
         for _device, receipt in acknowledged
@@ -610,9 +598,9 @@ def build_simulation_feedback(result: Any) -> SimulationFeedback:
         if acknowledged_ids
         else None
     )
-    device_count = len(acknowledged_devices)
+    device_count = len(acknowledged)
     acknowledged_count = len(acknowledged)
-    planned_record_count = 50
+    planned_record_count = 10
     failed_record_count = max(0, planned_record_count - acknowledged_count)
     failure_hint = (
         friendly_error(
@@ -622,16 +610,15 @@ def build_simulation_feedback(result: Any) -> SimulationFeedback:
         else "请核对填写内容和 CloudBase 部署状态后重试。"
     )
     if device_count == 10 and acknowledged_count == planned_record_count:
-        summary = f"CloudBase 已确认收到 {device_count} 台匿名设备的模拟数据"
+        summary = f"CloudBase 已确认收到 {device_count} 台设备的启动使用记录"
         detail = (
             f"已保存 {acknowledged_count}/{planned_record_count} 条，失败 0 条。"
-            "下面所有数字都来自云端逐条确认，"
-            "不是发送前的计划数。"
+            "每台设备只有 1 个 POST；因为都从本机发出，服务端看到的来源 IP 通常相同。"
         )
         tone = "success"
     elif acknowledged_count:
         summary = (
-            f"CloudBase 已保存 {acknowledged_count}/{planned_record_count} 条模拟数据"
+            f"CloudBase 已保存 {acknowledged_count}/{planned_record_count} 条启动使用记录"
         )
         detail = (
             f"失败 {failed_record_count} 条；未确认的记录没有计入下面统计。"
@@ -639,7 +626,7 @@ def build_simulation_feedback(result: Any) -> SimulationFeedback:
         )
         tone = "warning"
     else:
-        summary = "CloudBase 还没有确认收到模拟数据"
+        summary = "CloudBase 还没有确认收到模拟启动使用记录"
         detail = failure_hint
         tone = "error"
 
@@ -652,14 +639,10 @@ def build_simulation_feedback(result: Any) -> SimulationFeedback:
         acknowledged_record_count=acknowledged_count,
         planned_record_count=planned_record_count,
         failed_record_count=failed_record_count,
-        install_count=event_count("app_install"),
-        start_count=event_count("app_start"),
-        version_distribution=tuple(sorted(versions.items())),
-        channel_distribution=tuple(sorted(channels.items())),
-        feature_count=event_count("feature_used"),
-        task_success_count=successes,
-        task_failure_count=failures,
-        task_success_rate=success_rate,
+        daily_active_count=acknowledged_count,
+        system_distribution=tuple(sorted(systems.items())),
+        architecture_distribution=tuple(sorted(architectures.items())),
+        device_details=tuple(device_details),
         filter_text=filter_text,
         advanced=result,
     )
@@ -673,16 +656,12 @@ def failed_simulation_feedback(error: Any) -> SimulationFeedback:
         device_count=0,
         planned_device_count=10,
         acknowledged_record_count=0,
-        planned_record_count=50,
-        failed_record_count=50,
-        install_count=0,
-        start_count=0,
-        version_distribution=(),
-        channel_distribution=(),
-        feature_count=0,
-        task_success_count=0,
-        task_failure_count=0,
-        task_success_rate=0,
+        planned_record_count=10,
+        failed_record_count=10,
+        daily_active_count=0,
+        system_distribution=(),
+        architecture_distribution=(),
+        device_details=(),
         filter_text=None,
         advanced=_safe_error(error),
     )
@@ -946,7 +925,7 @@ class CloudBaseWizardController:
         state_root: Path,
         confirm_send: Callable[[SendConfirmation], bool],
         on_progress: Callable[[str, int], None],
-        on_batch: Callable[[BatchFeedback], None],
+        on_daily_active: Callable[[DailyActiveFeedback], None],
         on_simulation: Callable[[SimulationFeedback], None],
         on_update: Callable[[UpdateFeedback], None],
         on_message: Callable[[str, str, str], None],
@@ -959,7 +938,7 @@ class CloudBaseWizardController:
         self.state_root = state_root.expanduser().resolve()
         self.confirm_send = confirm_send
         self.on_progress = on_progress
-        self.on_batch = on_batch
+        self.on_daily_active = on_daily_active
         self.on_simulation = on_simulation
         self.on_update = on_update
         self.on_message = on_message
@@ -1032,7 +1011,7 @@ class CloudBaseWizardController:
 
         return self.runner.submit("正在准备本地检查组件", work, success, failure)
 
-    def send_test_batch(self, raw_settings: ConnectionSettings) -> bool:
+    def send_daily_active(self, raw_settings: ConnectionSettings) -> bool:
         settings = raw_settings.normalized()
         self.on_progress(PROGRESS_STAGES[0], 25)
         input_error = validate_settings(
@@ -1048,10 +1027,10 @@ class CloudBaseWizardController:
         confirmation = SendConfirmation(
             host=parsed.hostname or settings.telemetry_url,
             target_url=settings.telemetry_url,
-            record_names=tuple(item[1] for item in EVENT_CARD_DEFINITIONS),
+            record_names=("1 条启动使用记录",),
             explanation=(
-                "将发送 8 条匿名样例，只包含随机编号、当前版本和固定测试值；"
-                "不会读取个人资料、文件内容、访问凭证或其他应用数据。"
+                "只发送 1 个 POST，包含随机设备编号、当前版本、操作系统和架构。"
+                "CloudBase 会从请求连接记录来源 IP；不会读取姓名、账号、文件或密钥。"
             ),
         )
         try:
@@ -1067,7 +1046,7 @@ class CloudBaseWizardController:
 
         self.on_progress(PROGRESS_STAGES[1], 50)
         self.on_progress(PROGRESS_STAGES[2], 75)
-        unique_root = self.state_root / f"batch-{uuid.uuid4().hex}"
+        unique_root = self.state_root / f"daily-active-{uuid.uuid4().hex}"
         payload = {
             **settings.bridge_fields(),
             "state_dir": str(unique_root),
@@ -1077,22 +1056,22 @@ class CloudBaseWizardController:
         }
 
         def success(result: Any) -> None:
-            feedback = build_batch_feedback(result)
+            feedback = build_daily_active_feedback(result)
             if feedback.confirmed_count:
                 self.on_progress(PROGRESS_STAGES[3], 100)
             else:
                 self.on_progress("CloudBase 尚未确认接收", 100)
-            self.on_batch(feedback)
+            self.on_daily_active(feedback)
             self.on_debug("本次发送的高级回执", result)
 
         def failure(error: BaseException) -> None:
             self.on_progress("CloudBase 尚未确认接收", 100)
-            self.on_batch(failed_batch_feedback(error))
+            self.on_daily_active(failed_daily_active_feedback(error))
             self.on_debug("本次发送失败的高级信息", _safe_error(error))
 
         return self._submit(
             "正在发送匿名测试数据",
-            "send_test_batch",
+            "send_daily_active",
             payload,
             success,
             failure,
@@ -1115,13 +1094,11 @@ class CloudBaseWizardController:
             host=parsed.hostname or settings.telemetry_url,
             target_url=settings.telemetry_url,
             record_names=(
-                "10 次匿名安装与启动",
-                "分布式功能使用",
-                "任务开始、成功与失败",
+                "10 台模拟设备各 1 条启动使用记录",
             ),
             explanation=(
-                "将模拟 10 台设备的匿名使用，不是真实账号登录。每台身份都由"
-                "本地真实校验组件随机生成，不读取这台电脑的信息，也不采集个人数据。"
+                "将发送最多 10 个 POST，每台模拟设备只发一次。记录仅含随机设备编号、"
+                "系统和架构；它们都从本机发出，所以服务端记录的来源 IP 通常相同。"
             ),
         )
         try:
@@ -1501,7 +1478,7 @@ class CloudBaseWizardApplication:
             state_root=state_root,
             confirm_send=self._confirm_send,
             on_progress=self._show_progress,
-            on_batch=self._show_batch,
+            on_daily_active=self._show_daily_active,
             on_simulation=self._show_simulation,
             on_update=self._show_update,
             on_message=self._show_message,
@@ -1571,13 +1548,15 @@ class CloudBaseWizardApplication:
             value="启动不会联网；只有点击发送或检查按钮后才会访问你填写的地址。"
         )
         self.progress_text_var = tk.StringVar(value="尚未发送")
-        self.batch_summary_var = tk.StringVar(value="发送后，这里会显示云端实际收到的内容")
-        self.batch_detail_var = tk.StringVar(value="")
+        self.daily_active_summary_var = tk.StringVar(
+            value="发送后，这里会显示云端实际收到的启动使用记录"
+        )
+        self.daily_active_detail_var = tk.StringVar(value="")
         self.simulation_summary_var = tk.StringVar(
-            value="也可以模拟 10 台匿名设备，查看更接近真实使用的汇总"
+            value="也可以模拟 10 台设备，每台只发送 1 条启动使用记录"
         )
         self.simulation_detail_var = tk.StringVar(
-            value="这里模拟的是匿名安装与设备使用，不是真实账号登录。"
+            value="同一台电脑发出的模拟请求，服务端记录的来源 IP 通常相同。"
         )
         self.update_summary_var = tk.StringVar(value="尚未检查版本")
         self.update_detail_var = tk.StringVar(
@@ -1659,7 +1638,7 @@ class CloudBaseWizardApplication:
         step_one = self._step(
             row,
             STEP_TITLES[0],
-            "先按新手文档部署并核对以下五项。每个代码名旁都写明了用途。",
+            "先按新手文档为当前工具部署并核对以下五项。其他工具必须使用另一套资源。",
         )
         row += 1
         resource_row = 2
@@ -1675,7 +1654,7 @@ class CloudBaseWizardApplication:
             )
             resource_row += 1
         doc_button = ttk.Button(
-            step_one, text="打开新手部署文档", command=self._open_quickstart
+            step_one, text="打开飞书新手部署文档", command=self._open_quickstart
         )
         doc_button.grid(row=resource_row, column=0, sticky="ew", pady=(10, 5))
         ttk.Button(
@@ -1694,7 +1673,7 @@ class CloudBaseWizardApplication:
             (
                 "应用编号",
                 self.application_id_var,
-                "从上一步云函数的允许名单复制同一个值，例如 example-tool。",
+                "从当前工具独立云函数复制唯一允许值，例如 bifang-tools；不要复用其他工具编号。",
             ),
             (
                 "当前版本",
@@ -1704,12 +1683,12 @@ class CloudBaseWizardApplication:
             (
                 "数据接收地址",
                 self.telemetry_url_var,
-                "从 CloudBase 的 HTTP 访问服务复制，必须是以 https:// 开头并以 /v1/track 结尾的完整地址。",
+                "必须使用当前工具的独立地址：https://.../apps/<同一应用编号>/v1/track。",
             ),
             (
                 "更新文件地址",
                 self.update_url_var,
-                "复制浏览器能直接打开的完整 windows.json 地址，不要只填文件夹。",
+                "必须使用当前工具的独立地址：https://.../updates/<同一应用编号>/windows.json。",
             ),
         )
         field_row = 2
@@ -1740,14 +1719,14 @@ class CloudBaseWizardApplication:
         step_three = self._step(
             row,
             STEP_TITLES[2],
-            "点击后只确认一次。程序会用固定匿名样例进行验证，并等待云端逐条确认保存。",
+            "单设备测试只发 1 个 POST：记录本次启动使用，不统计功能点击或操作过程。",
         )
         row += 1
         self.send_button = ttk.Button(
             step_three,
-            text="发送一组测试数据到 CloudBase",
+            text="发送 1 条启动使用测试到 CloudBase",
             style="Primary.TButton",
-            command=self._send_batch,
+            command=self._send_daily_active,
         )
         self.send_button.grid(row=2, column=0, sticky="ew", pady=(8, 8))
         self._buttons.append(self.send_button)
@@ -1762,8 +1741,8 @@ class CloudBaseWizardApplication:
         ttk.Label(
             step_three,
             text=(
-                "模拟的是 10 次匿名安装与设备使用，不是真实账号登录；"
-                "不会读取真实电脑信息。"
+                "模拟 10 台设备时最多发送 10 个 POST，每台一次。所有请求来自本机，"
+                "所以数据库里的来源 IP 通常相同；IP 由服务端识别。"
             ),
             style="Muted.TLabel",
             wraplength=750,
@@ -1775,33 +1754,36 @@ class CloudBaseWizardApplication:
         ttk.Label(
             step_three, textvariable=self.progress_text_var, style="Muted.TLabel"
         ).grid(row=6, column=0, sticky="w", pady=(4, 12))
-        self.batch_summary_label = ttk.Label(
+        self.daily_active_summary_label = ttk.Label(
             step_three,
-            textvariable=self.batch_summary_var,
+            textvariable=self.daily_active_summary_var,
             style="Success.TLabel",
             wraplength=750,
         )
-        self.batch_summary_label.grid(row=7, column=0, sticky="w")
+        self.daily_active_summary_label.grid(row=7, column=0, sticky="w")
         ttk.Label(
             step_three,
-            textvariable=self.batch_detail_var,
+            textvariable=self.daily_active_detail_var,
             wraplength=750,
         ).grid(row=8, column=0, sticky="w", pady=(4, 8))
-        self.batch_query_button = ttk.Button(
+        self.daily_active_query_button = ttk.Button(
             step_three,
             text="复制本次测试查询条件",
-            command=self._copy_batch_query,
+            command=self._copy_daily_active_query,
         )
-        self.batch_query_button.grid(row=9, column=0, sticky="ew", pady=(0, 8))
-        self.batch_query_button.grid_remove()
+        self.daily_active_query_button.grid(
+            row=9, column=0, sticky="ew", pady=(0, 8)
+        )
+        self.daily_active_query_button.grid_remove()
         ttk.Label(
             step_three,
             text=(
                 "无需看懂或修改复制出的内容。按钮只会打开控制台入口，不会假装"
                 "直达数据表。打开后按这条路径进入："
                 + DATABASE_PATH
-                + "。再把内容粘贴到筛选框。查询条件里已包含核对编号——这是每条"
-                "测试数据的唯一编号，用它能找到刚发送的那一条。"
+                + "。例如 bifang-tools 的表是 telemetry_bifang_tools。再把内容粘贴到筛选框。"
+                "查询条件里已包含本次记录的核对编号；"
+                "来源 IP 也只能在服务端数据库中查看。"
             ),
             style="Muted.TLabel",
             wraplength=750,
@@ -1814,7 +1796,7 @@ class CloudBaseWizardApplication:
         self.cards_frame = ttk.Frame(step_three)
         self.cards_frame.grid(row=12, column=0, sticky="ew", pady=(10, 0))
         self.cards_frame.columnconfigure(0, weight=1)
-        self._batch_query_text: Optional[str] = None
+        self._daily_active_query_text: Optional[str] = None
         self._card_queries: Dict[str, str] = {}
 
         ttk.Separator(step_three).grid(
@@ -1925,6 +1907,9 @@ class CloudBaseWizardApplication:
             architecture=detect_sdk_architecture(),
         )
 
+    def _database_path(self) -> str:
+        return database_path_for_app(self.application_id_var.get())
+
     def _load_project_example(self) -> None:
         self.application_id_var.set(EXAMPLE_APPLICATION_ID)
         self.current_version_var.set(EXAMPLE_CURRENT_VERSION)
@@ -1933,11 +1918,12 @@ class CloudBaseWizardApplication:
         self._show_message(
             "info",
             "已载入本项目示例",
-            "这些地址现在才被填入；尚未联网。点击发送或检查后才会访问云端。",
+            "这些地址现在才被填入；尚未联网。独立路由和更新文件必须先按新手文档部署，"
+            "点击发送或检查后才会访问云端。",
         )
 
-    def _send_batch(self) -> None:
-        self.controller.send_test_batch(self._settings())
+    def _send_daily_active(self) -> None:
+        self.controller.send_daily_active(self._settings())
 
     def _simulate_devices(self) -> None:
         self.controller.simulate_devices(self._settings())
@@ -1959,17 +1945,17 @@ class CloudBaseWizardApplication:
         self.progress_text_var.set(text)
         self.progress.configure(value=max(0, min(100, percent)))
 
-    def _show_batch(self, feedback: BatchFeedback) -> None:
+    def _show_daily_active(self, feedback: DailyActiveFeedback) -> None:
         if self._closing:
             return
-        self.batch_summary_var.set(feedback.summary)
-        self.batch_detail_var.set(feedback.detail)
-        self.batch_summary_label.configure(style=_tone_style(feedback.tone))
-        self._batch_query_text = feedback.batch_query_text
-        if self._batch_query_text:
-            self.batch_query_button.grid()
+        self.daily_active_summary_var.set(feedback.summary)
+        self.daily_active_detail_var.set(feedback.detail)
+        self.daily_active_summary_label.configure(style=_tone_style(feedback.tone))
+        self._daily_active_query_text = feedback.record_query_text
+        if self._daily_active_query_text:
+            self.daily_active_query_button.grid()
         else:
-            self.batch_query_button.grid_remove()
+            self.daily_active_query_button.grid_remove()
         for child in self.cards_frame.winfo_children():
             child.destroy()
         self._card_queries.clear()
@@ -2033,34 +2019,32 @@ class CloudBaseWizardApplication:
                     f"失败 {feedback.failed_record_count} 条"
                 ),
             ),
-            ("安装记录", f"{feedback.install_count} 条"),
-            ("启动记录", f"{feedback.start_count} 次"),
-            ("核心功能使用", f"{feedback.feature_count} 次"),
+            ("启动使用记录", f"{feedback.daily_active_count} 条"),
             (
-                "任务结果",
-                (
-                    f"成功 {feedback.task_success_count} 次 / "
-                    f"失败 {feedback.task_failure_count} 次 / "
-                    f"成功率 {feedback.task_success_rate}%"
-                ),
-            ),
-            (
-                "版本分布",
+                "操作系统",
                 "、".join(
-                    f"{version}：{count} 台"
-                    for version, count in feedback.version_distribution
+                    f"{system}：{count} 台"
+                    for system, count in feedback.system_distribution
                 )
                 or "暂无云端确认数据",
             ),
             (
-                "渠道分布",
+                "系统架构",
                 "、".join(
-                    f"{channel}：{count} 台"
-                    for channel, count in feedback.channel_distribution
+                    f"{arch}：{count} 台"
+                    for arch, count in feedback.architecture_distribution
                 )
                 or "暂无云端确认数据",
             ),
         ]
+        rows.extend(
+            (
+                f"设备 {number}",
+                f"{install_id[:8]}… · {system} · {arch} · "
+                + ("已保存" if acknowledged else "未确认"),
+            )
+            for number, install_id, system, arch, acknowledged in feedback.device_details
+        )
         for row, (label, value) in enumerate(rows):
             line = ttk.Frame(
                 self.simulation_preview_frame, padding=9, style="Card.TFrame"
@@ -2078,8 +2062,8 @@ class CloudBaseWizardApplication:
         ttk.Label(
             self.simulation_preview_frame,
             text=(
-                "这是本次已被 CloudBase 确认保存的数据汇总；"
-                "真实记录请到云端匿名统计数据表核对。"
+                "设备编号是匿名设备标识，仅用来区分每天实际启动使用的软件。"
+                "来源 IP 由服务端从连接中写入，请到云端数据表核对。"
             ),
             style="Muted.TLabel",
             wraplength=750,
@@ -2097,13 +2081,13 @@ class CloudBaseWizardApplication:
         self.message_detail_var.set(detail)
         self.message_title_label.configure(style=_tone_style(tone))
 
-    def _copy_batch_query(self) -> None:
-        if self._batch_query_text:
-            self._copy_text(self._batch_query_text)
+    def _copy_daily_active_query(self) -> None:
+        if self._daily_active_query_text:
+            self._copy_text(self._daily_active_query_text)
             self._show_message(
                 "success",
                 "已复制本次测试查询条件",
-                f"请按“{DATABASE_PATH}”进入，并粘贴到筛选框。",
+                f"请按“{self._database_path()}”进入，并粘贴到筛选框。",
             )
 
     def _copy_card_query(self, event_name: str) -> None:
@@ -2113,7 +2097,7 @@ class CloudBaseWizardApplication:
             self._show_message(
                 "success",
                 f"已复制“{EVENT_NAMES.get(event_name, '本条记录')}”查询条件",
-                f"请按“{DATABASE_PATH}”进入，并粘贴到筛选框。",
+                f"请按“{self._database_path()}”进入，并粘贴到筛选框。",
             )
 
     def _copy_simulation_filter(self) -> None:
@@ -2123,7 +2107,7 @@ class CloudBaseWizardApplication:
                 "success",
                 "已复制本次模拟的筛选条件",
                 (
-                    f"请按“{DATABASE_PATH}”进入并粘贴。若控制台不接受批量条件，"
+                    f"请按“{self._database_path()}”进入并粘贴。若控制台不接受批量条件，"
                     "可在文档列表按接收时间由新到旧查看最新记录。"
                 ),
             )
@@ -2163,24 +2147,15 @@ class CloudBaseWizardApplication:
             self.advanced_button.configure(text="显示高级排错信息")
 
     def _open_quickstart(self) -> None:
-        root = self.bridge_path.parents[2]
-        document = root / "docs" / "cloudbase-quickstart.md"
-        if not document.is_file():
-            self._show_message(
-                "error",
-                "没有找到新手部署文档",
-                "请确认当前工具仍放在完整项目目录中。",
-            )
-            return
         try:
-            opened = self.resource_opener(document.resolve().as_uri())
+            opened = self.resource_opener(QUICKSTART_DOCUMENT_URL)
         except BaseException:
             opened = False
         if opened is False:
             self._show_message(
                 "error",
-                "没有打开新手部署文档",
-                f"请手动打开：{document}",
+                "没有打开飞书新手部署文档",
+                f"请复制到浏览器打开：{QUICKSTART_DOCUMENT_URL}",
             )
 
     def _open_cloud_console(self) -> None:

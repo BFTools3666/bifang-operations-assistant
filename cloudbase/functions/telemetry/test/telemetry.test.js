@@ -1,54 +1,61 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 const { describe, test } = require("node:test");
 
 const { createBurstGuard } = require("../src/burst-guard");
 const {
+  createDailyActiveId,
   createHandler,
   extractRequest,
-  normalizeAllowedAppIds,
+  extractTrustedSourceIp,
+  normalizeSingleAllowedAppId,
+  normalizeTrackPath,
+  toShanghaiDate,
 } = require("../src/handler");
 const {
+  EVENTS,
   isIso8601,
   isSemVer,
   validateAndSanitizePayload,
 } = require("../src/validation");
 const {
+  COLLECTION_NAME_PATTERN,
   createCloudBaseWriter,
   createDefaultCloudBaseApp,
   isDuplicateWriteError,
+  normalizeCollectionName,
 } = require("../src/writer");
 const publicApi = require("../index");
 
 const EVENT_ID = "018f47a2-8b2d-4c6d-9a3f-8f4a8dc6d7b1";
+const SECOND_EVENT_ID = "5aee2344-a955-4568-8f89-74c3b7e9f04a";
 const INSTALL_ID = "87d6a4ee-df1d-471e-b3ee-cb32f547e429";
-const SESSION_ID = "d8024d55-17bf-4e8d-9218-2e2fd36f67b5";
-const SERVER_TIME = new Date("2026-09-03T01:02:03.456Z");
+const SECOND_INSTALL_ID = "d8024d55-17bf-4e8d-9218-2e2fd36f67b5";
+const SERVER_TIME = new Date("2026-09-03T16:02:03.456Z");
+const TEST_TRACK_PATH = "/apps/bifang-tools/v1/track";
 
 function makePayload(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     event_id: EVENT_ID,
-    event: "app_start",
-    app_id: "example-tool",
+    event: "daily_active",
+    app_id: "bifang-tools",
     app_version: "0.1.0",
     install_id: INSTALL_ID,
-    session_id: SESSION_ID,
     platform: "windows",
     arch: "x64",
-    channel: "official",
-    sdk_version: "1.0.0",
-    occurred_at: "2026-09-03T00:59:58.123Z",
-    properties: {},
+    sdk_version: "2.0.0",
+    occurred_at: "2026-09-03T16:01:58.123Z",
     ...overrides,
   };
 }
 
 function makeRequest(body, overrides = {}) {
   return {
-    path: "/v1/track",
+    path: TEST_TRACK_PATH,
     httpMethod: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: typeof body === "string" ? body : JSON.stringify(body),
@@ -63,7 +70,8 @@ function parseResponse(response) {
 function makeHarness(options = {}) {
   const writes = [];
   const handler = createHandler({
-    allowedAppIds: ["example-tool"],
+    allowedAppIds: ["bifang-tools"],
+    trackPath: TEST_TRACK_PATH,
     writer: async (document) => {
       writes.push(document);
     },
@@ -75,74 +83,130 @@ function makeHarness(options = {}) {
 }
 
 describe("HTTP Event function handler", () => {
-  test("accepts a valid event, reconstructs it, and overwrites received_at", async () => {
+  test("accepts only daily_active and adds Shanghai-day server metadata", async () => {
     const { handler, writes } = makeHarness();
-    const clientReceivedAt = "1999-01-01T00:00:00.000Z";
-    const request = makeRequest(
-      makePayload({
-        received_at: clientReceivedAt,
-      }),
-    );
-    request.requestContext = { sourceIp: "203.0.113.9" };
+    const request = makeRequest(makePayload());
+    request.requestContext = { http: { sourceIp: "203.0.113.9" } };
 
     const response = await handler(request);
 
     assert.equal(response.statusCode, 202);
     assert.deepEqual(parseResponse(response), { ok: true });
     assert.equal(writes.length, 1);
-    assert.equal(writes[0].received_at, SERVER_TIME.toISOString());
-    assert.notEqual(writes[0].received_at, clientReceivedAt);
-    assert.equal(writes[0]._id, EVENT_ID);
-    assert.equal(writes[0].event_id, EVENT_ID);
-    assert.equal(writes[0].channel, "official");
-    assert.equal("sourceIp" in writes[0], false);
+    assert.deepEqual(writes[0], {
+      ...makePayload(),
+      _id: createDailyActiveId("bifang-tools", "2026-09-04", INSTALL_ID),
+      active_date: "2026-09-04",
+      received_at: SERVER_TIME.toISOString(),
+      source_ip: "203.0.113.9",
+    });
+    assert.equal(response.body.includes("203.0.113.9"), false);
+    assert.equal(response.body.includes(INSTALL_ID), false);
     assert.equal(response.headers["Access-Control-Allow-Origin"], "*");
   });
 
-  test("accepts each event with its documented property shape", async () => {
+  test("deduplicates by app, Shanghai date, and installation rather than event id", async () => {
     const { handler, writes } = makeHarness();
-    const cases = [
-      ["app_install", {}],
-      ["app_start", {}],
-      ["feature_used", { feature_id: "export.pdf" }],
-      ["task_started", { task_type: "batch_export" }],
-      ["task_succeeded", { task_type: "batch_export", duration_ms: 0 }],
-      [
-        "task_failed",
-        { task_type: "batch_export", error_code: "E_NETWORK_TIMEOUT" },
-      ],
-      ["update_prompt_shown", { target_version: "1.10.0-beta.1" }],
-      ["update_clicked", { target_version: "1.10.0" }],
-    ];
 
-    for (const [index, [event, properties]] of cases.entries()) {
-      const uniqueEventId = `018f47a2-8b2d-4c6d-${(0x9a3f + index)
-        .toString(16)
-        .padStart(4, "0")}-8f4a8dc6d7b1`;
-      const response = await handler(
-        makeRequest(
-          makePayload({ event_id: uniqueEventId, event, properties }),
-        ),
-      );
-      assert.equal(response.statusCode, 202, event);
-    }
+    assert.equal((await handler(makeRequest(makePayload()))).statusCode, 202);
+    assert.equal(
+      (await handler(makeRequest(makePayload({ event_id: SECOND_EVENT_ID }))))
+        .statusCode,
+      202,
+    );
+    assert.equal(writes.length, 2);
+    assert.equal(writes[0]._id, writes[1]._id);
+    assert.notEqual(writes[0]._id, EVENT_ID);
 
-    assert.equal(writes.length, cases.length);
-  });
-
-  test("valid feature_used reaches the writer with only allowed properties", async () => {
-    const { handler, writes } = makeHarness();
-    const response = await handler(
+    const otherInstall = await handler(
       makeRequest(
         makePayload({
-          event: "feature_used",
-          properties: { feature_id: "quick_capture" },
+          event_id: SECOND_EVENT_ID,
+          install_id: SECOND_INSTALL_ID,
         }),
       ),
     );
+    assert.equal(otherInstall.statusCode, 202);
+    assert.notEqual(writes[0]._id, writes[2]._id);
+  });
 
-    assert.equal(response.statusCode, 202);
-    assert.deepEqual(writes[0].properties, { feature_id: "quick_capture" });
+  test("extracts IP only from trusted contexts and stores null when absent", async () => {
+    const cases = [
+      [
+        { requestContext: { http: { sourceIp: " 2001:db8::1 " } } },
+        {},
+        "2001:db8::1",
+      ],
+      [{ requestContext: { sourceIp: "198.51.100.8" } }, {}, "198.51.100.8"],
+      [{}, { httpContext: { sourceIp: "192.0.2.4" } }, "192.0.2.4"],
+      [{}, { httpContext: { clientIp: "2001:db8::8" } }, "2001:db8::8"],
+      [
+        {
+          requestContext: { http: { sourceIp: "not-an-ip" } },
+          headers: {
+            "content-type": "application/json",
+            "x-forwarded-for": "203.0.113.77",
+          },
+        },
+        {},
+        null,
+      ],
+    ];
+
+    for (const [eventExtras, context, expected] of cases) {
+      const { handler, writes } = makeHarness();
+      const request = makeRequest(makePayload(), eventExtras);
+      const response = await handler(request, context);
+      assert.equal(response.statusCode, 202);
+      assert.equal(writes[0].source_ip, expected);
+      assert.equal(response.body.includes(String(expected)), false);
+    }
+  });
+
+  test("rejects client-supplied IP, old telemetry fields, and every unknown field", async () => {
+    const { handler, writes } = makeHarness();
+    const cases = [
+      { source_ip: "203.0.113.9" },
+      { ip: "203.0.113.9" },
+      { client_ip: "203.0.113.9" },
+      { received_at: "2026-09-03T16:02:03.456Z" },
+      { session_id: SECOND_INSTALL_ID },
+      { channel: "official" },
+      { properties: {} },
+      { extra_field: true },
+    ];
+
+    for (const extra of cases) {
+      const response = await handler(makeRequest(makePayload(extra)));
+      assert.equal(response.statusCode, 400, JSON.stringify(extra));
+    }
+    assert.equal(writes.length, 0);
+  });
+
+  test("rejects old, high-frequency, and malformed envelope variants", async () => {
+    const { handler, writes } = makeHarness();
+    const cases = [
+      { schema_version: 1 },
+      { schema_version: "2" },
+      { event_id: "not-a-uuid" },
+      { event: "app_install" },
+      { event: "app_start" },
+      { event: "feature_used" },
+      { app_id: "Bad App" },
+      { app_version: "01.0.0" },
+      { install_id: "not-a-uuid" },
+      { platform: "android" },
+      { arch: "mips" },
+      { sdk_version: "2.0.1" },
+      { sdk_version: "v2.0.0" },
+      { occurred_at: "2026-02-30T00:00:00Z" },
+    ];
+
+    for (const overrides of cases) {
+      const response = await handler(makeRequest(makePayload(overrides)));
+      assert.equal(response.statusCode, 400, JSON.stringify(overrides));
+    }
+    assert.equal(writes.length, 0);
   });
 
   test("returns 400 and never writes malformed, oversized, encoded, or non-JSON bodies", async () => {
@@ -171,86 +235,6 @@ describe("HTTP Event function handler", () => {
     assert.equal(writes.length, 0);
   });
 
-  test("returns 400 without writing for disallowed event properties", async () => {
-    const { handler, writes } = makeHarness();
-    const cases = [
-      ["app_install", { unexpected: true }],
-      ["app_start", { unexpected: true }],
-      ["feature_used", { feature: "quick_capture" }],
-      ["feature_used", { feature_id: "quick_capture", email: "x@example.com" }],
-      ["feature_used", { feature_id: { nested: true } }],
-      ["feature_used", { feature_id: ["nested"] }],
-      ["feature_used", { feature_id: "folder/name" }],
-      ["feature_used", { feature_id: "data:text/plain;base64,SGVsbG8=" }],
-      ["feature_used", { feature_id: "AA:BB:CC:DD:EE:FF" }],
-      ["feature_used", { feature_id: "AA-BB-CC-DD-EE-FF" }],
-      ["feature_used", { feature_id: "AABBCCDDEEFF" }],
-      ["feature_used", { feature_id: "aabb.ccdd.eeff" }],
-      ["feature_used", { feature_id: "13800138000" }],
-      ["feature_used", { feature_id: "138-0013-8000" }],
-      ["feature_used", { feature_id: "11010519491231002X" }],
-      ["feature_used", { feature_id: "550e8400-e29b-41d4-a716-446655440000" }],
-      ["feature_used", { feature_id: "0123456789abcdef" }],
-      ["feature_used", { feature_id: "U29tZVNlbnNpdGl2ZURhdGE" }],
-      [
-        "feature_used",
-        {
-          feature_id:
-            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123",
-        },
-      ],
-      ["task_started", { task_type: "export", duration_ms: 1 }],
-      ["task_succeeded", { task_type: "export" }],
-      ["task_succeeded", { task_type: "export", duration_ms: 1, extra: true }],
-      ["task_succeeded", { task_type: "export", duration_ms: -1 }],
-      ["task_succeeded", { task_type: "export", duration_ms: 1.25 }],
-      ["task_succeeded", { task_type: "export", duration_ms: 604_800_001 }],
-      ["task_failed", { error_code: "E_TIMEOUT" }],
-      [
-        "task_failed",
-        { task_type: "export", error_code: "E_TIMEOUT", extra: true },
-      ],
-      ["update_prompt_shown", { latest_version: "1.0.0", required: false }],
-      ["update_prompt_shown", { target_version: "v1.0.0" }],
-      ["update_prompt_shown", { target_version: "1.0.0", required: false }],
-      ["update_clicked", { latest_version: "1.0.0", action: "update_now" }],
-      ["update_clicked", { target_version: "1.0.0", action: "update_now" }],
-    ];
-
-    for (const [event, properties] of cases) {
-      const response = await handler(
-        makeRequest(makePayload({ event, properties })),
-      );
-      assert.equal(response.statusCode, 400, event);
-    }
-    assert.equal(writes.length, 0);
-  });
-
-  test("returns 400 without writing for invalid envelope fields", async () => {
-    const { handler, writes } = makeHarness();
-    const cases = [
-      { schema_version: 2 },
-      { event_id: "not-a-uuid" },
-      { event: "user_profile_viewed" },
-      { app_id: "Bad App" },
-      { app_version: "01.0.0" },
-      { install_id: "not-a-uuid" },
-      { session_id: "not-a-uuid" },
-      { platform: "android" },
-      { arch: "mips" },
-      { channel: "Stable Channel" },
-      { sdk_version: "v1.0.0" },
-      { occurred_at: "2026-02-30T00:00:00Z" },
-      { extra_field: "not-allowed" },
-    ];
-
-    for (const overrides of cases) {
-      const response = await handler(makeRequest(makePayload(overrides)));
-      assert.equal(response.statusCode, 400, JSON.stringify(overrides));
-    }
-    assert.equal(writes.length, 0);
-  });
-
   test("rejects a syntactically valid but unknown app without writing", async () => {
     const { handler, writes } = makeHarness();
     const response = await handler(
@@ -265,10 +249,44 @@ describe("HTTP Event function handler", () => {
     assert.equal(writes.length, 0);
   });
 
+  test("fails closed when a function is configured for zero or multiple apps", async () => {
+    for (const allowedAppIds of [
+      "",
+      "bifang-tools,another-tool",
+      "bifang-tools,Bad App",
+    ]) {
+      const { handler, writes } = makeHarness({ allowedAppIds });
+      const response = await handler(makeRequest(makePayload()));
+
+      assert.equal(response.statusCode, 403);
+      assert.deepEqual(parseResponse(response), {
+        ok: false,
+        error: "unknown_app",
+      });
+      assert.equal(writes.length, 0);
+    }
+  });
+
+  test("accepts only the configured app-specific tracking path", async () => {
+    const trackPath = TEST_TRACK_PATH;
+    const { handler, writes } = makeHarness({ trackPath });
+
+    const legacyResponse = await handler(
+      makeRequest(makePayload(), { path: "/v1/track" }),
+    );
+    const isolatedResponse = await handler(
+      makeRequest(makePayload(), { path: trackPath }),
+    );
+
+    assert.equal(legacyResponse.statusCode, 404);
+    assert.equal(isolatedResponse.statusCode, 202);
+    assert.equal(writes.length, 1);
+  });
+
   test("supports CORS preflight before requiring a JSON content type", async () => {
     const { handler, writes } = makeHarness();
     const response = await handler({
-      path: "/v1/track",
+      path: TEST_TRACK_PATH,
       httpMethod: "OPTIONS",
       headers: { Origin: "tauri://localhost" },
     });
@@ -285,7 +303,10 @@ describe("HTTP Event function handler", () => {
   test("returns safe 404 and 405 responses for routes outside the contract", async () => {
     const { handler, writes } = makeHarness();
     const missing = await handler({ path: "/health", httpMethod: "GET" });
-    const wrongMethod = await handler({ path: "/v1/track", httpMethod: "GET" });
+    const wrongMethod = await handler({
+      path: TEST_TRACK_PATH,
+      httpMethod: "GET",
+    });
 
     assert.equal(missing.statusCode, 404);
     assert.deepEqual(parseResponse(missing), { ok: false, error: "not_found" });
@@ -300,7 +321,8 @@ describe("HTTP Event function handler", () => {
   test("returns only a generic 500 response when storage fails", async () => {
     const logs = [];
     const handler = createHandler({
-      allowedAppIds: "example-tool",
+      allowedAppIds: "bifang-tools",
+      trackPath: TEST_TRACK_PATH,
       writer: async () => {
         throw new Error("database secret and stack must not leak");
       },
@@ -321,7 +343,8 @@ describe("HTTP Event function handler", () => {
 
   test("a broken diagnostic logger cannot escape the generic error boundary", async () => {
     const handler = createHandler({
-      allowedAppIds: "example-tool",
+      allowedAppIds: "bifang-tools",
+      trackPath: TEST_TRACK_PATH,
       writer: async () => {
         throw new Error("storage failure");
       },
@@ -341,7 +364,7 @@ describe("HTTP Event function handler", () => {
     });
   });
 
-  test("enforces an injected per-instance burst guard without another write", async () => {
+  test("preserves the injected per-instance burst guard", async () => {
     let clock = 1000;
     const guard = createBurstGuard({
       limit: 1,
@@ -351,9 +374,13 @@ describe("HTTP Event function handler", () => {
     const { handler, writes } = makeHarness({ burstGuard: guard });
 
     const accepted = await handler(makeRequest(makePayload()));
-    const limited = await handler(makeRequest(makePayload()));
+    const limited = await handler(
+      makeRequest(makePayload({ event_id: SECOND_EVENT_ID })),
+    );
     clock += 10_000;
-    const acceptedAfterWindow = await handler(makeRequest(makePayload()));
+    const acceptedAfterWindow = await handler(
+      makeRequest(makePayload({ event_id: SECOND_EVENT_ID })),
+    );
 
     assert.equal(accepted.statusCode, 202);
     assert.equal(limited.statusCode, 429);
@@ -363,22 +390,29 @@ describe("HTTP Event function handler", () => {
     });
     assert.equal(acceptedAfterWindow.statusCode, 202);
     assert.equal(writes.length, 2);
+    assert.equal(writes[0]._id, writes[1]._id);
   });
 });
 
 describe("gateway shape and validation helpers", () => {
-  test("extracts API Gateway v2 and context HTTP shapes", () => {
+  test("extracts API Gateway v2 and context HTTP shapes without headers as IP", () => {
     assert.deepEqual(
       extractRequest({
         rawPath: "/v1/track",
         requestContext: { http: { method: "post" } },
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.77",
+        },
         body: "{}",
       }),
       {
         method: "POST",
         path: "/v1/track",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.77",
+        },
         body: "{}",
         isBase64Encoded: false,
       },
@@ -407,15 +441,82 @@ describe("gateway shape and validation helpers", () => {
     });
   });
 
-  test("normalizes a comma-separated ALLOWED_APP_IDS whitelist", () => {
-    assert.deepEqual(
-      [
-        ...normalizeAllowedAppIds(
-          " example-tool,second_tool.beta, Bad App,example-tool ",
-        ),
-      ],
-      ["example-tool", "second_tool.beta"],
+  test("uses the documented trusted IP precedence and validates addresses", () => {
+    assert.equal(
+      extractTrustedSourceIp(
+        {
+          requestContext: {
+            http: { sourceIp: "203.0.113.1" },
+            sourceIp: "203.0.113.2",
+          },
+          headers: { "x-forwarded-for": "203.0.113.99" },
+        },
+        { httpContext: { sourceIp: "203.0.113.3", clientIp: "203.0.113.4" } },
+      ),
+      "203.0.113.1",
     );
+    assert.equal(
+      extractTrustedSourceIp(
+        { requestContext: { http: { sourceIp: "bad" }, sourceIp: "::1" } },
+        {},
+      ),
+      "::1",
+    );
+    assert.equal(
+      extractTrustedSourceIp({ headers: { "x-real-ip": "203.0.113.8" } }, {}),
+      null,
+    );
+  });
+
+  test("derives calendar dates in Asia/Shanghai around UTC boundaries", () => {
+    assert.equal(
+      toShanghaiDate(new Date("2026-09-03T15:59:59.999Z")),
+      "2026-09-03",
+    );
+    assert.equal(
+      toShanghaiDate(new Date("2026-09-03T16:00:00.000Z")),
+      "2026-09-04",
+    );
+  });
+
+  test("generates a deterministic server-side SHA-256 daily key", () => {
+    const expected = createHash("sha256")
+      .update(`bifang-tools\u00002026-09-04\u0000${INSTALL_ID}`, "utf8")
+      .digest("hex");
+    assert.equal(
+      createDailyActiveId("bifang-tools", "2026-09-04", INSTALL_ID),
+      expected,
+    );
+    assert.equal(expected.length, 64);
+    assert.notEqual(
+      createDailyActiveId("bifang-tools", "2026-09-05", INSTALL_ID),
+      expected,
+    );
+  });
+
+  test("accepts exactly one valid ALLOWED_APP_IDS value", () => {
+    assert.equal(normalizeSingleAllowedAppId(" bifang-tools "), "bifang-tools");
+    assert.equal(
+      normalizeSingleAllowedAppId("bifang-tools,bifang-tools"),
+      null,
+    );
+    assert.equal(normalizeSingleAllowedAppId("Bad App"), null);
+  });
+
+  test("validates an app-specific TRACK_PATH and fails closed when absent", () => {
+    assert.equal(normalizeTrackPath(undefined), null);
+    assert.equal(
+      normalizeTrackPath("/apps/bifang-tools/v1/track"),
+      "/apps/bifang-tools/v1/track",
+    );
+    for (const invalid of [
+      "apps/bifang-tools/v1/track",
+      "/apps//v1/track",
+      "/apps/bifang-tools/v1/track/",
+      "/apps/bifang-tools/v1/track?source=test",
+    ]) {
+      assert.throws(() => normalizeTrackPath(invalid), /TRACK_PATH/);
+    }
   });
 
   test("exports a lazy CloudBase entrypoint and injectable test APIs", () => {
@@ -423,6 +524,14 @@ describe("gateway shape and validation helpers", () => {
     assert.equal(publicApi.handler, publicApi.main);
     assert.equal(typeof publicApi.createHandler, "function");
     assert.equal(typeof publicApi.createCloudBaseWriter, "function");
+  });
+
+  test("advertises daily_active as the only event and validates its exact shape", () => {
+    assert.deepEqual([...EVENTS], ["daily_active"]);
+    assert.deepEqual(validateAndSanitizePayload(makePayload()), {
+      ok: true,
+      value: makePayload(),
+    });
   });
 
   test("uses strict SemVer including normal prerelease syntax", () => {
@@ -446,19 +555,49 @@ describe("gateway shape and validation helpers", () => {
     assert.equal(isIso8601("2026-09-03 09:00:00"), false);
     assert.equal(isIso8601("2026-09-03T09:00:00+14:01"), false);
   });
-
-  test("enforces no more than twenty primitive property values before event rules", () => {
-    const properties = Object.fromEntries(
-      Array.from({ length: 21 }, (_, index) => [`key${index}`, index]),
-    );
-    const result = validateAndSanitizePayload(
-      makePayload({ event: "feature_used", properties }),
-    );
-    assert.equal(result.ok, false);
-  });
 });
 
 describe("CloudBase writer adapter", () => {
+  test("uses and validates an isolated collection name", async () => {
+    let selectedCollection;
+    const writer = createCloudBaseWriter({
+      collectionName: "telemetry_bifang_tools",
+      appFactory: () => ({
+        database: () => ({
+          collection(name) {
+            selectedCollection = name;
+            return { add: async () => {} };
+          },
+        }),
+      }),
+    });
+
+    await writer({ _id: "server-id" });
+    assert.equal(selectedCollection, "telemetry_bifang_tools");
+    assert.equal(normalizeCollectionName(undefined), null);
+    assert.equal(COLLECTION_NAME_PATTERN.test("telemetry_bifang_tools"), true);
+    for (const invalid of ["Telemetry", "telemetry-tools", "../events"]) {
+      assert.throws(() => normalizeCollectionName(invalid), /COLLECTION/);
+    }
+  });
+
+  test("fails closed before database initialization when collection is absent", async () => {
+    let appFactoryCalls = 0;
+    const writer = createCloudBaseWriter({
+      collectionName: "",
+      appFactory: () => {
+        appFactoryCalls += 1;
+        return { database() {} };
+      },
+    });
+
+    await assert.rejects(
+      writer({ _id: "server-id" }),
+      /telemetry_collection_not_configured/,
+    );
+    assert.equal(appFactoryCalls, 0);
+  });
+
   test("uses the current-environment symbol unless an explicit override exists", () => {
     const initCalls = [];
     const currentEnv = Symbol("current-cloudbase-environment");
@@ -495,8 +634,6 @@ describe("CloudBase writer adapter", () => {
         throw new Error("real CloudBase SDK did not return an app");
       }
       process.stdout.write("initialized");
-      // The SDK owns an auth-state MessagePort. This isolated test process exits
-      // explicitly after synchronous initialization; no database API is called.
       process.exit(0);
     `;
     const result = spawnSync(process.execPath, ["-e", script], {
@@ -509,11 +646,12 @@ describe("CloudBase writer adapter", () => {
     assert.equal(result.stdout, "initialized");
   });
 
-  test("is lazy, writes to telemetry_events, and fixes _id to event_id", async () => {
+  test("is lazy, writes to the configured collection, and preserves the handler _id", async () => {
     let appFactoryCalls = 0;
     let selectedCollection;
     const added = [];
     const writer = createCloudBaseWriter({
+      collectionName: "telemetry_bifang_tools",
       appFactory: async () => {
         appFactoryCalls += 1;
         return {
@@ -533,22 +671,43 @@ describe("CloudBase writer adapter", () => {
       },
     });
 
+    const dailyId = createDailyActiveId(
+      "bifang-tools",
+      "2026-09-04",
+      INSTALL_ID,
+    );
     assert.equal(appFactoryCalls, 0);
+    await writer({ _id: dailyId, event_id: EVENT_ID, event: "daily_active" });
     await writer({
-      event_id: EVENT_ID,
-      _id: "client-value",
-      event: "app_start",
+      _id: "another-server-id",
+      event_id: SECOND_EVENT_ID,
+      event: "daily_active",
     });
-    await writer({ event_id: INSTALL_ID, event: "app_start" });
 
     assert.equal(appFactoryCalls, 1);
-    assert.equal(selectedCollection, "telemetry_events");
-    assert.equal(added[0]._id, EVENT_ID);
-    assert.equal(added[1]._id, INSTALL_ID);
+    assert.equal(selectedCollection, "telemetry_bifang_tools");
+    assert.equal(added[0]._id, dailyId);
+    assert.equal(added[0].event_id, EVENT_ID);
+    assert.equal(added[1]._id, "another-server-id");
+  });
+
+  test("requires the handler-generated _id", async () => {
+    const writer = createCloudBaseWriter({
+      collectionName: "telemetry_bifang_tools",
+      appFactory: () => ({
+        database: () => ({ collection: () => ({ add: async () => {} }) }),
+      }),
+    });
+
+    await assert.rejects(
+      writer({ event_id: EVENT_ID }),
+      /document\._id is required/,
+    );
   });
 
   test("treats a duplicate _id insert as an idempotent success", async () => {
     const writer = createCloudBaseWriter({
+      collectionName: "telemetry_bifang_tools",
       appFactory: () => ({
         database: () => ({
           collection: () => ({
@@ -562,7 +721,7 @@ describe("CloudBase writer adapter", () => {
       }),
     });
 
-    assert.deepEqual(await writer({ event_id: EVENT_ID }), { duplicate: true });
+    assert.deepEqual(await writer({ _id: "server-id" }), { duplicate: true });
     assert.equal(isDuplicateWriteError({ code: 11000 }), true);
     assert.equal(isDuplicateWriteError(new Error("permission denied")), false);
   });
@@ -570,6 +729,7 @@ describe("CloudBase writer adapter", () => {
   test("propagates non-duplicate database failures to the generic handler boundary", async () => {
     const failure = new Error("permission denied");
     const writer = createCloudBaseWriter({
+      collectionName: "telemetry_bifang_tools",
       appFactory: () => ({
         database: () => ({
           collection: () => ({ add: async () => Promise.reject(failure) }),
@@ -577,6 +737,6 @@ describe("CloudBase writer adapter", () => {
       }),
     });
 
-    await assert.rejects(writer({ event_id: EVENT_ID }), failure);
+    await assert.rejects(writer({ _id: "server-id" }), failure);
   });
 });

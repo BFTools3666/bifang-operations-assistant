@@ -1,8 +1,8 @@
 {
   "name": "@bifang/cloudbase-telemetry-function",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Minimal CloudBase Event function for the Bifang telemetry protocol",
+  "description": "Minimal CloudBase Event function for one daily-active report per installation",
   "type": "commonjs",
   "main": "index.js",
   "engines": {

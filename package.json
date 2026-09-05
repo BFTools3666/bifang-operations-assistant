@@ -1,9 +1,9 @@
 {
   "name": "bifang-telemetry-update-infrastructure",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Reusable telemetry ingestion and update-checking infrastructure for small desktop tools.",
+  "description": "Low-volume daily-active telemetry and update-checking infrastructure for small desktop tools.",
   "engines": {
     "node": ">=20"
   },
@@ -12,6 +12,9 @@
     "cloudbase/functions/*"
   ],
   "scripts": {
+    "cloudbase:app:add": "node cloudbase/add-app.mjs",
+    "cloudbase:config": "node cloudbase/generate-cloudbaserc.mjs",
+    "cloudbase:config:check": "node cloudbase/generate-cloudbaserc.mjs --check",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:examples": "npm run build --workspace @bifang/telemetry-update-sdk && tsc -p examples/tsconfig.json --noEmit",
@@ -20,7 +23,7 @@
     "test:python-client": "python -m unittest discover -s tools/python-sdk-test-client/tests -p \"test_*.py\" -v",
     "format": "prettier --write \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
-    "check": "npm run format:check && npm run typecheck && npm test && npm run build && npm run typecheck:examples"
+    "check": "npm run cloudbase:config:check && npm run format:check && npm run typecheck && npm test && npm run build && npm run typecheck:examples"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
