@@ -64,7 +64,7 @@ TTL 索引创建 RequestId：`c559837f-2ed0-4608-988c-5322b3615dca`；索引复�
 - 其他应用集合 `telemetry_bifang_screen_recorder` 在全部观察期间保持 `4`，证明没有跨应用写入。
 - 客户端新增记录只投影非 IP、非安装标识字段，确认 schema v2、`daily_active`、APP_ID、`0.2.2`、Windows/x64、SDK `2.0.0`、服务端日期与 30 天到期时间。
 - 观察完成后按本轮查询得到的三个精确 `_id` 删除测试记录，返回 `n=3`；复核目标集合为 `0`、其他应用集合仍为 `4`。没有删除集合、TTL、函数、路由、清单或其他应用资源。
-- 最终免费用量为 `7.16 / 3000` 资源点，`packageDeduct=0`、`payAsYouGoDeduct=0`，环境仍为体验版 `NORMAL`。
+- 阻断前最近一次实时读取为 `7.23 / 3000` 资源点，`packageDeduct=0`、`payAsYouGoDeduct=0`，环境仍为体验版 `NORMAL`。
 
 完整客户端 E2E 没有通过：当前 Windows Computer Use 原生 RPC 未配置，无法取得规定的真实 GUI 点击与截图证据。候选的 Authenticode 状态为 `NotSigned`，仓库也没有批准的非交互签名钩子，因此没有上传 unsigned 安装包、没有启用更新清单、没有正式发布。
 
