@@ -35,7 +35,7 @@ npm run check
 
 为保护免费网关，客户端会在联网前先把“今天已经尝试上报”写入本地；即使随后网络失败，当天也不重试。此设计宁可少计一次，也不让反复启动冲击免费额度。
 
-本仓库自带的第一个示例工具编号为 `bifang-tools`。`.example.invalid` 下载地址和发布说明地址仍是 smoke test 占位值，禁止上线。新版客户端必须在其独立云函数、路由、集合和更新文件部署完成后再发布；否则请求会被拒绝或返回 404。现有 [部署回执](docs/cloudbase-deployment.md) 记录的是 `example-tool` 的历史 v1 验收结果，不代表新的 `daily_active`、多工具隔离资源或 `bifang-tools` 已经部署。正式发布前仍须替换下载地址、发布说明、文案、哈希与发布时间；14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
+当前登记的真实工具为 `bifang-screen-recorder`。未发布清单保持关闭，并把下载与发布说明地址指向现有免费 CloudBase 默认 HTTPS 域名下明确不存在的 `not-published` 路径；这样严格客户端仍能解析出 `disabled`，误点或误开地址也只会得到 404。正式发布前仍须先上传真实制品与发布说明，再替换地址、文案、哈希与发布时间并单独启用。现有 [历史部署回执](docs/cloudbase-deployment.md) 只记录 `example-tool` 的历史 v1 验收；新应用证据见各自独立回执。14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
 
 这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
 

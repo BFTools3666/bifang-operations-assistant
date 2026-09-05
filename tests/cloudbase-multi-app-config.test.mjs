@@ -5,7 +5,11 @@ import { join, sep } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { addApp, createDisabledUpdateManifest } from "../cloudbase/add-app.mjs";
+import {
+  DISABLED_UPDATE_MANIFEST_ORIGIN,
+  addApp,
+  createDisabledUpdateManifest,
+} from "../cloudbase/add-app.mjs";
 import { addAppPlatform } from "../cloudbase/add-app-platform.mjs";
 import {
   createCloudBaseConfig,
@@ -111,7 +115,7 @@ test("the registry rejects ambiguous or unsafe deployment app ids", () => {
   assert.throws(() => validateUpdatePlatforms(["linux"]), /windows, macos/);
 });
 
-test("the app scaffold starts with a disabled and unusable update manifest", () => {
+test("the app scaffold starts with a disabled manifest using inert public URLs", () => {
   const manifest = createDisabledUpdateManifest("new-tool");
 
   assert.equal(manifest.app_id, "new-tool");
@@ -120,13 +124,19 @@ test("the app scaffold starts with a disabled and unusable update manifest", () 
   assert.equal(manifest.rollout, 0);
   assert.equal(manifest.sha256, "");
   assert.equal(
-    new URL(manifest.download_url).hostname,
-    "downloads.example.invalid",
+    new URL(manifest.download_url).origin,
+    DISABLED_UPDATE_MANIFEST_ORIGIN,
   );
   assert.equal(
-    new URL(manifest.release_notes_url).hostname,
-    "releases.example.invalid",
+    new URL(manifest.download_url).pathname,
+    "/updates/new-tool/not-published/windows.exe",
   );
+  assert.equal(
+    new URL(manifest.release_notes_url).pathname,
+    "/updates/new-tool/not-published/windows-release-notes.html",
+  );
+  assert.equal(manifest.download_url.includes(".invalid"), false);
+  assert.equal(manifest.release_notes_url.includes(".invalid"), false);
   assert.equal(validateWindowsUpdateManifest(manifest, "new-tool"), manifest);
 });
 
@@ -139,7 +149,18 @@ test("the app scaffold creates a disabled macOS manifest with the same strict co
   assert.equal(manifest.force_update, false);
   assert.equal(manifest.rollout, 0);
   assert.equal(manifest.sha256, "");
-  assert.equal(new URL(manifest.download_url).pathname.endsWith(".dmg"), true);
+  assert.equal(
+    new URL(manifest.download_url).origin,
+    DISABLED_UPDATE_MANIFEST_ORIGIN,
+  );
+  assert.equal(
+    new URL(manifest.download_url).pathname,
+    "/updates/new-tool/not-published/macos.dmg",
+  );
+  assert.equal(
+    new URL(manifest.release_notes_url).pathname,
+    "/updates/new-tool/not-published/macos-release-notes.html",
+  );
   assert.equal(validateUpdateManifest(manifest, "new-tool", "macos"), manifest);
   assert.throws(
     () => validateUpdateManifest(manifest, "new-tool", "windows"),

@@ -13,7 +13,7 @@ Task4/Task8 部署及验收的是历史 v1 多事件协议，记录见 [`docs/cl
 - `plan-app-deployment.mjs`：只读生成单个目标应用的资源级阶段 4 计划，不执行命令。
 - `functions/telemetry/`：所有工具实例复用的 Node.js 20 CommonJS Event 函数源码，入口 `index.main`。
 - `updates/update.schema.json`：更新清单 v1 JSON Schema。
-- `updates/<app_id>/<platform>.json`：每个工具、每个平台独立的更新清单；当前支持 `windows.json` 和 `macos.json`，`.example.invalid` 地址必须在正式发布前替换。
+- `updates/<app_id>/<platform>.json`：每个工具、每个平台独立的更新清单；当前支持 `windows.json` 和 `macos.json`，禁用清单使用当前默认 HTTPS 域名下的 `not-published` 404 地址，正式发布前必须替换。
 - `updates/WINDOWS_JSON_FIELDS.zh-CN.md`：平台更新清单全部 14 个字段的中文说明；文件名作为历史兼容入口保留。
 
 生成器为每个工具创建一个 `telemetry-<app_id>` 配置，并由 HTTP 网关映射到 `/apps/<app_id>/v1/track`。这些都是普通 Event 云函数，不是监听 9000 端口的 HTTP Web 云函数。
@@ -58,7 +58,7 @@ npm run cloudbase:app:add -- bifang-tools-pdf
 npm run cloudbase:app:platform:add -- bifang-tools-pdf macos
 ```
 
-两个命令都会拒绝非法或重复编号/平台，不覆盖已有目录或清单，并创建 `enabled=false`、`rollout=0`、使用 `.example.invalid` 的安全占位清单。随后修改真实清单并执行：
+两个命令都会拒绝非法或重复编号/平台，不覆盖已有目录或清单，并创建 `enabled=false`、`rollout=0`、使用当前默认 HTTPS 域名下 `not-published` 404 地址的安全禁用清单。随后修改真实清单并执行：
 
 ```powershell
 npm ci

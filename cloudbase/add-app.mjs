@@ -17,11 +17,14 @@ const defaultConfigUrl = new URL(
   import.meta.url,
 );
 const defaultUpdatesUrl = new URL("./updates/", import.meta.url);
+export const DISABLED_UPDATE_MANIFEST_ORIGIN =
+  "https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com";
 
 export function createDisabledUpdateManifest(appId, platform = "windows") {
   deriveAppResources(appId);
   validateUpdatePlatforms([platform]);
   const extension = platform === "macos" ? "dmg" : "exe";
+  const notPublishedBase = `${DISABLED_UPDATE_MANIFEST_ORIGIN}/updates/${appId}/not-published`;
   const manifest = {
     schema_version: 1,
     app_id: appId,
@@ -33,8 +36,8 @@ export function createDisabledUpdateManifest(appId, platform = "windows") {
     rollout: 0,
     title: `${appId} 尚未发布更新`,
     message: "此清单尚未配置真实安装包，当前不会向用户显示更新。",
-    download_url: `https://downloads.example.invalid/${appId}/replace-me.${extension}`,
-    release_notes_url: `https://releases.example.invalid/${appId}/replace-me`,
+    download_url: `${notPublishedBase}/${platform}.${extension}`,
+    release_notes_url: `${notPublishedBase}/${platform}-release-notes.html`,
     sha256: "",
     published_at: "1970-01-01T00:00:00.000Z",
   };

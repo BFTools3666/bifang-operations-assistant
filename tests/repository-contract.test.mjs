@@ -6,6 +6,7 @@ import {
   isValidSemVer,
   parseUpdateConfig,
 } from "@bifang/telemetry-update-sdk";
+import { DISABLED_UPDATE_MANIFEST_ORIGIN } from "../cloudbase/add-app.mjs";
 
 const readJson = async (relativePath) =>
   JSON.parse(
@@ -109,7 +110,11 @@ test("the checked-in update template matches the v1 schema contract", async () =
   for (const key of ["download_url", "release_notes_url"]) {
     const url = new URL(manifest[key]);
     assert.equal(url.protocol, "https:");
-    assert.equal(url.hostname.endsWith(".example.invalid"), true);
+    assert.equal(url.origin, DISABLED_UPDATE_MANIFEST_ORIGIN);
+    assert.equal(
+      url.pathname.startsWith("/updates/bifang-screen-recorder/not-published/"),
+      true,
+    );
   }
 });
 

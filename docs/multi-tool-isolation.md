@@ -52,7 +52,7 @@ TRACK_PATH=/apps/bifang-tools-pdf/v1/track
 
    默认只登记 Windows。新应用从一开始同时支持 Windows 和 macOS 时使用 `npm run cloudbase:app:add -- bifang-tools-pdf windows macos`。命令会拒绝非法或重复编号/平台，不覆盖已有目录；成功后会同时更新 `cloudbase/apps.json`、创建每个登记平台默认关闭的清单，并重生成包含全部工具的 `cloudbaserc.json.example`。一次只运行一个新增工具命令，不要在两个终端并发执行；若电脑在写入中途异常退出，先运行下一步的一致性检查并处理提示，不要直接部署。
 
-2. 已登记应用后来新增 macOS 时，运行 `npm run cloudbase:app:platform:add -- bifang-tools-pdf macos`。该命令只追加平台与对应清单，不改函数/路由，也不覆盖已有文件。修改每个平台清单的版本、标题、说明、下载地址、发布说明地址、SHA-256 和发布时间。新文件默认 `enabled=false`、`rollout=0` 且使用 `.example.invalid`，因此不会意外发布；真实上线前必须替换占位地址。
+2. 已登记应用后来新增 macOS 时，运行 `npm run cloudbase:app:platform:add -- bifang-tools-pdf macos`。该命令只追加平台与对应清单，不改函数/路由，也不覆盖已有文件。修改每个平台清单的版本、标题、说明、下载地址、发布说明地址、SHA-256 和发布时间。新文件默认 `enabled=false`、`rollout=0`，并使用现有免费 CloudBase 默认 HTTPS 域名下的 `not-published` 404 地址；真实上线前必须先上传并验证制品和发布说明，再替换这些惰性地址。
 3. 运行配置一致性检查：
 
    ```powershell

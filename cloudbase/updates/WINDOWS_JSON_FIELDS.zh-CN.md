@@ -14,8 +14,8 @@
 | `rollout`               | 是   | 可选更新的灰度比例       | `0` 到 `100` 的整数；`100` 表示全部符合条件的客户端可见                        |
 | `title`                 | 是   | 更新提示标题             | 纯文本，1–120 个字符，不要写 HTML/Markdown                                     |
 | `message`               | 是   | 更新提示正文             | 纯文本，1–1000 个字符，不要写 HTML/Markdown                                    |
-| `download_url`          | 是   | 安装包下载地址           | 必须换成真实公网 HTTPS 地址；`.example.invalid` 只能占位，**不能上线**         |
-| `release_notes_url`     | 是   | 版本说明地址             | 必须换成真实公网 HTTPS 地址；`.example.invalid` 只能占位，**不能上线**         |
+| `download_url`          | 是   | 安装包下载地址           | 禁用时使用批准默认域名下 `not-published` 404 地址；启用前换成真实 HTTPS 制品   |
+| `release_notes_url`     | 是   | 版本说明地址             | 禁用时使用批准默认域名下 `not-published` 404 地址；启用前换成真实 HTTPS 页面   |
 | `sha256`                | 是   | 安装包 SHA-256           | 正式发布填 64 位十六进制；空字符串只用于占位测试，不代表已校验                 |
 | `published_at`          | 是   | 发布时间                 | 带时区的严格 RFC3339，如 `2026-09-04T08:00:00+08:00`                           |
 
@@ -23,8 +23,8 @@
 
 1. `app_id` 与云函数白名单、文件目录和客户端配置逐字一致。
 2. `latest_version`、`min_supported_version` 都是完整三段 SemVer。
-3. `download_url`、`release_notes_url` 已换成真实可访问的 HTTPS 地址，不含 `.example.invalid`。
+3. `download_url`、`release_notes_url` 已从 `not-published` 惰性地址换成真实可访问的 HTTPS 地址。
 4. 正式安装包已签名，并把它的真实 SHA-256 写入 `sha256`。
 5. 修改后先运行 `npm run check`，再部署静态文件。
 
-每个应用只生成 `cloudbase/apps.json` 明确登记的平台清单。`cloudbase/updates/bifang-tools/windows.json` 已使用本项目固定应用编号；其中两个 `.example.invalid` 地址故意不可用，同版本客户端不会看到新版本。替换真实下载地址、版本说明地址和安装包哈希后才能正式上线。
+每个应用只生成 `cloudbase/apps.json` 明确登记的平台清单。新清单中的两个 `not-published` 地址故意保持 404，且 `enabled=false`、`rollout=0`、`sha256=""`。上传并验证真实下载资源、版本说明和安装包哈希后才能替换地址并正式启用。

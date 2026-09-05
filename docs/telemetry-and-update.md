@@ -232,12 +232,12 @@ const checker = new UpdateChecker({
 
 逐字段中文解释见 [`WINDOWS_JSON_FIELDS.zh-CN.md`](../cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)（文件名为历史兼容入口，正文适用于两个平台）。JSON 不能写注释，也不能新增 `_说明` 或 `comment`；`update.schema.json` 使用 `additionalProperties: false`。
 
-`cloudbase/updates/bifang-tools/windows.json` 是仓库内第一个工具示例；当前仍是 smoke 清单。登记表只为该工具声明 Windows，而 `bifang-screen-recorder` 明确声明 Windows 和 macOS。所有新清单均从以下安全状态开始：
+当前登记表为 `bifang-screen-recorder` 明确声明 Windows 和 macOS。所有新清单均从以下安全状态开始：
 
 - `enabled=false`、`rollout=0`，默认不会向任何客户端显示更新。
 - `latest_version` 与 `min_supported_version` 都是 `0.1.0`，只是占位版本。
 - 标题和正文是中文纯文本。
-- `download_url`、`release_notes_url` 中的 `.example.invalid` 故意不可访问，**正式上线前必须替换**。
+- `download_url`、`release_notes_url` 指向现有免费 CloudBase 默认 HTTPS 域名下明确不存在的 `/updates/<app_id>/not-published/` 路径，使严格客户端可解析禁用状态，同时保持 HTTP 404；**正式上线前必须先上传真实资源并替换**。
 - `sha256=""` 只表示尚未放入真实安装包哈希，不代表已验证。
 
 更新判定顺序：
@@ -299,7 +299,7 @@ npm run check
 - 十台模拟设备最多 10 次 POST；同公网 IP 不影响 10 个 `install_id` 分别计数。
 - 客户端提供 `source_ip`、`active_date`、`received_at` 或旧 `channel/properties` 时被拒绝。
 - 未知 app 与非法 JSON 不写库。
-- 每个登记平台清单返回 200，14 字段与本地一致，`.example.invalid` 未进入正式发布配置。
+- 每个登记平台清单返回 200，14 字段与本地一致；禁用时两个惰性 URL 返回 404，启用时则必须替换为已经验证的真实资源。
 
 不要把本地 mock 结果称为真实 CloudBase 验收。新的真实结果应另建回执；不要覆盖 [历史 v1 部署回执](cloudbase-deployment.md)。
 
