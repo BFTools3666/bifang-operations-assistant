@@ -32,7 +32,7 @@ const UPDATE_MANIFEST_KEYS = [
 test("the checked-in update template matches the v1 schema contract", async () => {
   const schema = await readJson("cloudbase/updates/update.schema.json");
   const manifest = await readJson(
-    "cloudbase/updates/bifang-tools/windows.json",
+    "cloudbase/updates/bifang-screen-recorder/windows.json",
   );
 
   assert.equal(schema.additionalProperties, false);
@@ -54,10 +54,10 @@ test("the checked-in update template matches the v1 schema contract", async () =
     assert.equal(schemaSemVer.test(version), isValidSemVer(version), version);
   }
   assert.equal(manifest.schema_version, 1);
-  assert.equal(manifest.app_id, "bifang-tools");
+  assert.equal(manifest.app_id, "bifang-screen-recorder");
   assert.equal(manifest.platform, "windows");
-  assert.equal(manifest.latest_version, "0.1.0");
-  assert.equal(manifest.min_supported_version, "0.1.0");
+  assert.equal(manifest.latest_version, "0.0.0");
+  assert.equal(manifest.min_supported_version, "0.0.0");
   assert.equal(manifest.enabled, false);
   assert.equal(manifest.force_update, false);
   assert.equal(manifest.rollout, 0);
@@ -95,7 +95,11 @@ test("the checked-in update template matches the v1 schema contract", async () =
   assert.equal(schema.properties.download_url.maxLength, 2_048);
   assert.equal(schema.properties.release_notes_url.maxLength, 2_048);
 
-  const parsed = parseUpdateConfig(manifest, "bifang-tools", "windows");
+  const parsed = parseUpdateConfig(
+    manifest,
+    "bifang-screen-recorder",
+    "windows",
+  );
   assert.deepEqual(parsed, manifest);
   assert.deepEqual(
     decideUpdate("0.1.0", "33333333-3333-4333-8333-333333333333", parsed),
@@ -222,10 +226,10 @@ test("the CloudBase template keeps the Event-function deployment boundary", asyn
     "cloudbase/functions/telemetry/package.json",
   );
   const telemetryFunction = config.functions.find(
-    (candidate) => candidate.name === "telemetry-bifang-tools",
+    (candidate) => candidate.name === "telemetry-bifang-screen-recorder",
   );
   const telemetryRoute = config.gateway.routes.find(
-    (candidate) => candidate.path === "/apps/bifang-tools/v1/track",
+    (candidate) => candidate.path === "/apps/bifang-screen-recorder/v1/track",
   );
 
   assert.equal(config.version, "2.1");
@@ -235,9 +239,12 @@ test("the CloudBase template keeps the Event-function deployment boundary", asyn
   assert.equal(telemetryFunction.timeout, 3);
   assert.equal(
     telemetryFunction.envVariables.TELEMETRY_COLLECTION,
-    "telemetry_bifang_tools",
+    "telemetry_bifang_screen_recorder",
   );
-  assert.equal(telemetryRoute.target, "function:telemetry-bifang-tools");
+  assert.equal(
+    telemetryRoute.target,
+    "function:telemetry-bifang-screen-recorder",
+  );
   assert.equal(telemetryRoute.protocol, "HTTP_TO_HTTPS");
   assert.equal(telemetryRoute.enablePathTransmission, true);
   assert.equal(telemetryRoute.enableAuth, false);

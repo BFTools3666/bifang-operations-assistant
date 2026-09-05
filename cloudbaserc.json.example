@@ -5,21 +5,6 @@
   "functionRoot": "./cloudbase/functions",
   "functions": [
     {
-      "name": "telemetry-bifang-tools",
-      "dir": "./cloudbase/functions/telemetry",
-      "type": "Event",
-      "runtime": "Nodejs20.19",
-      "handler": "index.main",
-      "timeout": 3,
-      "memorySize": 256,
-      "installDependency": true,
-      "envVariables": {
-        "ALLOWED_APP_IDS": "bifang-tools",
-        "TELEMETRY_COLLECTION": "telemetry_bifang_tools",
-        "TRACK_PATH": "/apps/bifang-tools/v1/track"
-      }
-    },
-    {
       "name": "telemetry-bifang-screen-recorder",
       "dir": "./cloudbase/functions/telemetry",
       "type": "Event",
@@ -48,20 +33,6 @@
   ],
   "gateway": {
     "routes": [
-      {
-        "path": "/apps/bifang-tools/v1/track",
-        "target": "function:telemetry-bifang-tools",
-        "protocol": "HTTP_TO_HTTPS",
-        "enablePathTransmission": true,
-        "enableAuth": false,
-        "qpsPolicy": {
-          "qpsTotal": 100,
-          "qpsPerClient": {
-            "limitBy": "ClientIP",
-            "limitValue": 10
-          }
-        }
-      },
       {
         "path": "/apps/bifang-screen-recorder/v1/track",
         "target": "function:telemetry-bifang-screen-recorder",
