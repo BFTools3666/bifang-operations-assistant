@@ -57,9 +57,20 @@ TTL 索引创建 RequestId：`c559837f-2ed0-4608-988c-5322b3615dca`；索引复�
 - Python GUI/桥接测试 `41/41`。
 - 格式、TypeScript 类型检查、workspace 构建与示例类型检查全部通过。
 
+## Windows 安装态观察与清理
+
+- 精确客户端提交 `86bb78fcbc722841d10659e888d6b388bc8ca8b5` 构建的 `v0.2.2` NSIS 安装包完成专用路径安装，安装与卸载均退出 `0`。
+- 首次 `undecided` 启动使目标集合保持 `2`；隔离测试状态明确设为 `granted` 后目标集合精确增加到 `3`；第二实例和同一上海自然日完整重启均保持 `3`；隔离测试状态设为 `declined` 后仍保持 `3`。
+- 其他应用集合 `telemetry_bifang_screen_recorder` 在全部观察期间保持 `4`，证明没有跨应用写入。
+- 客户端新增记录只投影非 IP、非安装标识字段，确认 schema v2、`daily_active`、APP_ID、`0.2.2`、Windows/x64、SDK `2.0.0`、服务端日期与 30 天到期时间。
+- 观察完成后按本轮查询得到的三个精确 `_id` 删除测试记录，返回 `n=3`；复核目标集合为 `0`、其他应用集合仍为 `4`。没有删除集合、TTL、函数、路由、清单或其他应用资源。
+- 最终免费用量为 `7.16 / 3000` 资源点，`packageDeduct=0`、`payAsYouGoDeduct=0`，环境仍为体验版 `NORMAL`。
+
+完整客户端 E2E 没有通过：当前 Windows Computer Use 原生 RPC 未配置，无法取得规定的真实 GUI 点击与截图证据。候选的 Authenticode 状态为 `NotSigned`，仓库也没有批准的非交互签名钩子，因此没有上传 unsigned 安装包、没有启用更新清单、没有正式发布。
+
 ## 边界与后续门禁
 
-- 当前 Windows 更新清单保持 `enabled=false`、`rollout=0`，不会触发客户端更新。
+- 当前 Windows 更新清单保持 `enabled=false`、`rollout=0`，公网 SHA-256 为 `54b885e8d40e5aac65715f80e858bc3d447197ef72fa13f4a2c7bb1ca6306694`，不会触发客户端更新。
 - 统计只接收固定最小字段；30 天到期由目标集合 TTL 索引删除。
 - 正式更新发布仍必须先形成可验证的最终制品、SHA-256 与所需签名，再上传制品并最后启用清单；禁用清单不构成发布成功。
 - 本次只创建并部署 `bifang-mouse-clicker` 的目标资源；没有变更其他应用的远程函数、路由、集合或更新对象。
