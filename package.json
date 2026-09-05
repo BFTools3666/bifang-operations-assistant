@@ -13,6 +13,8 @@
   ],
   "scripts": {
     "cloudbase:app:add": "node cloudbase/add-app.mjs",
+    "cloudbase:app:platform:add": "node cloudbase/add-app-platform.mjs",
+    "cloudbase:app:deploy:plan": "node cloudbase/plan-app-deployment.mjs",
     "cloudbase:config": "node cloudbase/generate-cloudbaserc.mjs",
     "cloudbase:config:check": "node cloudbase/generate-cloudbaserc.mjs --check",
     "build": "npm run build --workspaces --if-present",

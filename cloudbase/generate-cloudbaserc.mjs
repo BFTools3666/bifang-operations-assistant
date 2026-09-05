@@ -11,6 +11,7 @@ const outputUrl = new URL("../cloudbaserc.json.example", import.meta.url);
 // free.
 export const DEPLOYMENT_APP_ID_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
+export const SUPPORTED_UPDATE_PLATFORMS = Object.freeze(["windows", "macos"]);
 const UPDATE_MANIFEST_KEYS = [
   "app_id",
   "download_url",
@@ -47,8 +48,8 @@ export function deriveAppResources(appId) {
 }
 
 export function createCloudBaseConfig(registry) {
-  const appIds = validateRegistry(registry);
-  const resources = appIds.map(deriveAppResources);
+  const applications = validateRegistry(registry);
+  const resources = applications.map(({ appId }) => deriveAppResources(appId));
 
   return {
     $schema: "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
@@ -115,32 +116,62 @@ export function validateRegistry(registry) {
     throw new TypeError("cloudbase/apps.json must contain an object");
   }
   assertExactKeys(registry, ["apps", "schema_version"], "registry");
-  if (registry.schema_version !== 1) {
-    throw new TypeError("cloudbase/apps.json schema_version must be 1");
+  if (registry.schema_version !== 2) {
+    throw new TypeError("cloudbase/apps.json schema_version must be 2");
   }
   if (!Array.isArray(registry.apps) || registry.apps.length === 0) {
     throw new TypeError("cloudbase/apps.json apps must be a non-empty array");
   }
 
-  const appIds = registry.apps.map((app, index) => {
+  const applications = registry.apps.map((app, index) => {
     if (!isPlainObject(app)) {
       throw new TypeError(`apps[${index}] must contain an object`);
     }
-    assertExactKeys(app, ["app_id"], `apps[${index}]`);
+    assertExactKeys(app, ["app_id", "platforms"], `apps[${index}]`);
     assertDeploymentAppId(app.app_id);
-    return app.app_id;
+    return {
+      appId: app.app_id,
+      platforms: validateUpdatePlatforms(
+        app.platforms,
+        `apps[${index}].platforms`,
+      ),
+    };
   });
 
+  const appIds = applications.map(({ appId }) => appId);
   if (new Set(appIds).size !== appIds.length) {
     throw new TypeError("cloudbase/apps.json contains duplicate app_id values");
   }
-  return appIds;
+  return applications;
 }
 
 export async function validateUpdateManifests(
-  appIds,
+  applications,
   updatesRootUrl = new URL("./updates/", import.meta.url),
 ) {
+  if (!Array.isArray(applications) || applications.length === 0) {
+    throw new TypeError("registered applications must be a non-empty array");
+  }
+  for (const [index, application] of applications.entries()) {
+    if (!isPlainObject(application)) {
+      throw new TypeError(`applications[${index}] must contain an object`);
+    }
+    assertExactKeys(
+      application,
+      ["appId", "platforms"],
+      `applications[${index}]`,
+    );
+    assertDeploymentAppId(application.appId);
+    validateUpdatePlatforms(
+      application.platforms,
+      `applications[${index}].platforms`,
+    );
+  }
+
+  const appIds = applications.map(({ appId }) => appId);
+  if (new Set(appIds).size !== appIds.length) {
+    throw new TypeError("registered applications contain duplicate app ids");
+  }
   const appIdSet = new Set(appIds);
   const entries = await readdir(updatesRootUrl, { withFileTypes: true });
   const orphanDirectories = entries
@@ -162,26 +193,61 @@ export async function validateUpdateManifests(
     );
   }
 
-  for (const appId of appIds) {
-    const manifestUrl = new URL(
-      `${encodeURIComponent(appId)}/windows.json`,
+  for (const { appId, platforms } of applications) {
+    const appUpdatesUrl = new URL(
+      `${encodeURIComponent(appId)}/`,
       updatesRootUrl,
     );
-    let manifest;
+    let manifestEntries;
     try {
-      manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
+      manifestEntries = await readdir(appUpdatesUrl, { withFileTypes: true });
     } catch (error) {
       throw new TypeError(
-        `missing or invalid update manifest: cloudbase/updates/${appId}/windows.json (${error.message})`,
+        `missing update directory: cloudbase/updates/${appId} (${error.message})`,
       );
     }
-    validateWindowsUpdateManifest(manifest, appId);
+
+    const expectedFiles = new Set(
+      platforms.map((platform) => `${platform}.json`),
+    );
+    const unexpectedEntries = manifestEntries
+      .filter(
+        (entry) =>
+          !entry.isFile() ||
+          entry.isSymbolicLink() ||
+          !expectedFiles.has(entry.name),
+      )
+      .map((entry) => entry.name)
+      .sort();
+    if (unexpectedEntries.length > 0) {
+      throw new TypeError(
+        `unexpected entries in cloudbase/updates/${appId}: ${unexpectedEntries.join(", ")}`,
+      );
+    }
+
+    for (const platform of platforms) {
+      const manifestUrl = new URL(`${platform}.json`, appUpdatesUrl);
+      let manifest;
+      try {
+        manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
+      } catch (error) {
+        throw new TypeError(
+          `missing or invalid update manifest: cloudbase/updates/${appId}/${platform}.json (${error.message})`,
+        );
+      }
+      validateUpdateManifest(manifest, appId, platform);
+    }
   }
 }
 
-export function validateWindowsUpdateManifest(manifest, expectedAppId) {
+export function validateUpdateManifest(
+  manifest,
+  expectedAppId,
+  expectedPlatform,
+) {
   assertDeploymentAppId(expectedAppId);
-  const label = `cloudbase/updates/${expectedAppId}/windows.json`;
+  assertUpdatePlatform(expectedPlatform);
+  const label = `cloudbase/updates/${expectedAppId}/${expectedPlatform}.json`;
   if (!isPlainObject(manifest)) {
     throw new TypeError(`${label} must contain an object`);
   }
@@ -194,7 +260,7 @@ export function validateWindowsUpdateManifest(manifest, expectedAppId) {
   if (
     manifest.schema_version !== 1 ||
     manifest.app_id !== expectedAppId ||
-    manifest.platform !== "windows" ||
+    manifest.platform !== expectedPlatform ||
     typeof manifest.enabled !== "boolean" ||
     !isSemVer(manifest.latest_version) ||
     !isSemVer(manifest.min_supported_version) ||
@@ -231,6 +297,35 @@ export function validateWindowsUpdateManifest(manifest, expectedAppId) {
   }
 
   return manifest;
+}
+
+export function validateWindowsUpdateManifest(manifest, expectedAppId) {
+  return validateUpdateManifest(manifest, expectedAppId, "windows");
+}
+
+export function validateMacosUpdateManifest(manifest, expectedAppId) {
+  return validateUpdateManifest(manifest, expectedAppId, "macos");
+}
+
+export function validateUpdatePlatforms(value, label = "platforms") {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new TypeError(`${label} must be a non-empty array`);
+  }
+  for (const platform of value) {
+    assertUpdatePlatform(platform, label);
+  }
+  if (new Set(value).size !== value.length) {
+    throw new TypeError(`${label} contains duplicate platform values`);
+  }
+  const canonical = SUPPORTED_UPDATE_PLATFORMS.filter((platform) =>
+    value.includes(platform),
+  );
+  if (canonical.some((platform, index) => platform !== value[index])) {
+    throw new TypeError(
+      `${label} must follow canonical order: ${SUPPORTED_UPDATE_PLATFORMS.join(", ")}`,
+    );
+  }
+  return [...value];
 }
 
 function isSemVer(value) {
@@ -410,6 +505,14 @@ function assertDeploymentAppId(appId) {
   if (typeof appId !== "string" || !DEPLOYMENT_APP_ID_PATTERN.test(appId)) {
     throw new TypeError(
       "app_id must be 1-50 lowercase letters, digits, or hyphens and must start and end with a letter or digit",
+    );
+  }
+}
+
+function assertUpdatePlatform(platform, label = "platform") {
+  if (!SUPPORTED_UPDATE_PLATFORMS.includes(platform)) {
+    throw new TypeError(
+      `${label} must contain only: ${SUPPORTED_UPDATE_PLATFORMS.join(", ")}`,
     );
   }
 }

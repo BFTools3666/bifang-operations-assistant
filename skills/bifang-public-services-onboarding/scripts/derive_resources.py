@@ -13,9 +13,7 @@ from validate_profile import APP_ID_PATTERN, read_json_file, validate_profile
 
 
 SUPPORTED_PLATFORMS = frozenset(("windows", "macos", "linux"))
-PLATFORM_GATE_REASON = (
-    "infrastructure 2.1.0 generates and validates only windows.json"
-)
+READY_MANIFEST_PLATFORMS = frozenset(("windows", "macos"))
 
 
 def derive_resources(
@@ -46,11 +44,13 @@ def derive_resources(
     }
     platform_gates = {
         platform: {
-            "status": "ready" if platform == "windows" else "pending",
+            "status": (
+                "ready" if platform in READY_MANIFEST_PLATFORMS else "pending"
+            ),
             "reason": (
-                "infrastructure 2.1.0 generates and validates windows.json"
-                if platform == "windows"
-                else PLATFORM_GATE_REASON
+                f"authoritative infrastructure generates and validates {platform}.json"
+                if platform in READY_MANIFEST_PLATFORMS
+                else f"authoritative infrastructure does not generate or validate {platform}.json"
             ),
         }
         for platform in platform_list

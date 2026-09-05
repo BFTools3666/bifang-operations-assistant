@@ -32,7 +32,7 @@
       "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
     },
     "platform": {
-      "description": "此清单适用的平台；Windows 清单填写 windows。",
+      "description": "此清单适用的平台，必须与文件名一致；windows.json 填 windows，macos.json 填 macos。",
       "enum": ["windows", "macos", "linux"]
     },
     "latest_version": {

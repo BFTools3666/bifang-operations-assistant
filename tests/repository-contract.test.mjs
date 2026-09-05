@@ -109,6 +109,33 @@ test("the checked-in update template matches the v1 schema contract", async () =
   }
 });
 
+test("every registered platform has one strict manifest accepted by the SDK", async () => {
+  const registry = await readJson("cloudbase/apps.json");
+  const schema = await readJson("cloudbase/updates/update.schema.json");
+
+  assert.equal(registry.schema_version, 2);
+  for (const application of registry.apps) {
+    assert.ok(application.platforms.length > 0);
+    assert.equal(
+      new Set(application.platforms).size,
+      application.platforms.length,
+    );
+    for (const platform of application.platforms) {
+      assert.equal(schema.properties.platform.enum.includes(platform), true);
+      const manifest = await readJson(
+        `cloudbase/updates/${application.app_id}/${platform}.json`,
+      );
+      assert.deepEqual(Object.keys(manifest).sort(), UPDATE_MANIFEST_KEYS);
+      assert.equal(manifest.app_id, application.app_id);
+      assert.equal(manifest.platform, platform);
+      assert.deepEqual(
+        parseUpdateConfig(manifest, application.app_id, platform),
+        manifest,
+      );
+    }
+  }
+});
+
 test("the curl example is the minimal daily-active ingestion envelope", async () => {
   const source = await readFile(
     new URL("../examples/telemetry-event.json", import.meta.url),

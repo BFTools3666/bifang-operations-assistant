@@ -17,7 +17,7 @@
 - 只使用小写字母、数字和短横线；
 - 开头和结尾必须是小写字母或数字。
 
-登记表 [`cloudbase/apps.json`](../cloudbase/apps.json) 是全部工具的唯一基础设施清单。生成器会根据它一次生成包含所有函数和路由的 `cloudbaserc.json.example`。
+登记表 [`cloudbase/apps.json`](../cloudbase/apps.json) 是全部工具及其更新平台的唯一基础设施清单。每项必须显式列出非空且无重复的 `platforms`；当前自动生成并校验 `windows` 和 `macos`，Linux 仍未开放。生成器会根据登记表一次生成包含所有函数和路由的 `cloudbaserc.json.example`，并逐项校验登记平台的清单文件。
 
 | 资源             | 派生规则                             | `bifang-tools-pdf` 示例                  |
 | ---------------- | ------------------------------------ | ---------------------------------------- |
@@ -27,6 +27,7 @@
 | 数据接收路由     | `/apps/<app_id>/v1/track`            | `/apps/bifang-tools-pdf/v1/track`        |
 | 更新目录         | `/updates/<app_id>`                  | `/updates/bifang-tools-pdf`              |
 | Windows 更新文件 | `/updates/<app_id>/windows.json`     | `/updates/bifang-tools-pdf/windows.json` |
+| macOS 更新文件   | `/updates/<app_id>/macos.json`       | `/updates/bifang-tools-pdf/macos.json`   |
 | 本地状态目录     | 每个宿主自己的 AppConfig 目录        | 由宿主程序单独指定                       |
 
 每个独立函数的环境变量必须精确对应同一工具：
@@ -49,16 +50,16 @@ TRACK_PATH=/apps/bifang-tools-pdf/v1/track
    npm run cloudbase:app:add -- bifang-tools-pdf
    ```
 
-   命令会拒绝非法或重复编号，不覆盖已有目录；成功后会同时更新 `cloudbase/apps.json`、创建默认关闭的 `cloudbase/updates/bifang-tools-pdf/windows.json`，并重生成包含全部工具的 `cloudbaserc.json.example`。一次只运行一个新增工具命令，不要在两个终端并发执行；若电脑在写入中途异常退出，先运行下一步的一致性检查并处理提示，不要直接部署。
+   默认只登记 Windows。新应用从一开始同时支持 Windows 和 macOS 时使用 `npm run cloudbase:app:add -- bifang-tools-pdf windows macos`。命令会拒绝非法或重复编号/平台，不覆盖已有目录；成功后会同时更新 `cloudbase/apps.json`、创建每个登记平台默认关闭的清单，并重生成包含全部工具的 `cloudbaserc.json.example`。一次只运行一个新增工具命令，不要在两个终端并发执行；若电脑在写入中途异常退出，先运行下一步的一致性检查并处理提示，不要直接部署。
 
-2. 修改新 `windows.json` 的版本、标题、说明、下载地址、发布说明地址、SHA-256 和发布时间。新文件默认 `enabled=false`、`rollout=0` 且使用 `.example.invalid`，因此不会意外发布；真实上线前必须替换占位地址。
+2. 已登记应用后来新增 macOS 时，运行 `npm run cloudbase:app:platform:add -- bifang-tools-pdf macos`。该命令只追加平台与对应清单，不改函数/路由，也不覆盖已有文件。修改每个平台清单的版本、标题、说明、下载地址、发布说明地址、SHA-256 和发布时间。新文件默认 `enabled=false`、`rollout=0` 且使用 `.example.invalid`，因此不会意外发布；真实上线前必须替换占位地址。
 3. 运行配置一致性检查：
 
    ```powershell
    npm run cloudbase:config:check
    ```
 
-   检查会验证编号、重复项、生成模板，以及每个登记工具是否存在 app ID 匹配的 Windows 清单。不要手工维护生成后的函数与路由列表；若确需重新生成，使用 `npm run cloudbase:config`。
+   检查会验证编号、平台、重复项、生成模板，以及每个登记工具是否存在 app ID/平台匹配的全部清单；缺失、多余、错平台和符号链接都会失败。不要手工维护生成后的函数与路由列表；若确需重新生成，使用 `npm run cloudbase:config`。
 
 4. 在 CloudBase 文档型数据库页面**手工创建** `telemetry_bifang_tools_pdf`，权限设为 `ADMINONLY`、仅管理员可读写或控制台中含义相同的选项。生成器只生成函数、路由和静态更新配置，**不会自动创建数据库集合**。
 5. 复制部署模板为本机配置，并只填写环境 ID：
@@ -76,7 +77,14 @@ TRACK_PATH=/apps/bifang-tools-pdf/v1/track
    tcb deploy --dry-run
    ```
 
-7. 在 dry-run 中确认：旧工具的函数和路由仍然存在；新增内容只有目标工具的函数、路由与更新目录；没有删除项、陌生资源或收费项。确认无误后才运行 `tcb deploy`。
+7. 在 dry-run 中确认：旧工具的函数和路由仍然存在；没有删除项、陌生资源或收费项。顶层 dry-run 只用于审查整份声明式配置；若它还计划创建或改动其他应用，就不得执行顶层 `tcb deploy`。
+8. 为目标应用生成只读、资源级部署计划：
+
+   ```powershell
+   npm run cloudbase:app:deploy:plan -- bifang-tools-pdf --env-id <现有免费环境ID> --origin https://<平台默认域名>
+   ```
+
+   计划必须只含目标集合、函数、单条路由和逐个平台的单文件上传，并明确排除其他 `app_id`、`--all`、`--force`、`--prune`、目录级托管上传和删除命令。这个命令只输出 JSON，不部署；阶段 4 仍须做远程只读快照、费用复核，并在真实写入前等待负责人明确继续。
 
 登记表和生成后的模板必须同时包含所有工具。不要为某个新工具制作一个只含单个函数的临时 `cloudbaserc.json`，否则部署预览可能出现删除其他工具资源。
 
@@ -104,7 +112,7 @@ TELEMETRY_ENDPOINT=https://demo-123.ap-shanghai.app.tcloudbase.com/apps/bifang-t
 UPDATE_BASE_URL=https://demo-123.ap-shanghai.app.tcloudbase.com/updates
 ```
 
-SDK 的 `UpdateChecker` 会根据 `APP_ID` 和平台自动拼出 `/updates/bifang-tools-pdf/windows.json`。测试 GUI 要填写完整更新文件地址；业务程序配置 `UPDATE_BASE_URL` 时只填到 `/updates`，不要重复拼接。
+SDK 的 `UpdateChecker` 会根据 `APP_ID` 和运行平台自动拼出 `/updates/bifang-tools-pdf/<platform>.json`。Windows 请求 `windows.json`，macOS 请求 `macos.json`。测试 GUI 要填写完整更新文件地址；业务程序配置 `UPDATE_BASE_URL` 时只填到 `/updates`，不要重复拼接。
 
 每个程序必须传入自己的稳定 AppConfig 目录。即使两个工具安装在同一台电脑，也不能共用保存 `install_id` 和每日上报标记的目录。
 
@@ -115,7 +123,7 @@ SDK 的 `UpdateChecker` 会根据 `APP_ID` 和平台自动拼出 `/updates/bifan
 1. GUI 的应用编号、数据路由和更新地址都含同一个 `app_id`。
 2. 当天首次启动最多产生一个 POST，再次启动产生零个 POST。
 3. 记录只出现在目标工具集合中，其他集合没有新增。
-4. 更新检查只读取目标工具的 `windows.json`。
+4. 更新检查只读取目标工具当前平台的清单文件。
 5. 修改一个工具的版本清单不会影响其他工具。
 6. 403 时核对目标函数唯一的 `ALLOWED_APP_IDS`；404 时核对目标工具路由或更新目录。
 

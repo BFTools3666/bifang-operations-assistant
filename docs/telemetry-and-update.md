@@ -3,17 +3,17 @@
 本文是 `毕方运营精灵` 公共基础设施仓库的长期维护文档。第一期只解决两个问题：
 
 1. 软件今天是否被启动使用过，以及大致是什么系统、架构和来源 IP。
-2. 客户端启动后检查静态 `windows.json`，判断是否有可选或必须更新。
+2. 客户端启动后检查静态 `<platform>.json`，判断是否有可选或必须更新。
 
 当前基础设施根版本为 `2.1.0`。新增的跨项目接入向导 `$bifang-public-services-onboarding` 版本为 `1.0.0`；本次没有改变 SDK 公共 API 或线上协议，因此 `@bifang/telemetry-update-sdk` 继续保持 `2.0.0`。
 
 统计事件固定为 `daily_active`，表示“软件在北京时间当天第一次启动使用”，**不是安装事件**。安装后从未启动不计数；同一个匿名 `install_id` 按 `Asia/Shanghai` 每天最多上报一次。第一期不统计渠道、功能点击、任务开始/成功/失败、更新提示或更新点击，也不接收任意 `properties`。
 
-Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证据保留在 [历史 v1 部署回执](cloudbase-deployment.md)，但它不证明当前 `daily_active` 版本已部署。发布新版客户端前必须先部署新版云函数并重新验收。
+Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证据保留在 [历史 v1 部署回执](cloudbase-deployment.md)，但它不证明当前 `daily_active` 版本已部署。2026-09-05 新协议已在 `bifang-screen-recorder` 独立资源上完成[部署与线上 E2E](cloudbase-bifang-screen-recorder-20260905.md)；其他应用仍需在发布新客户端前分别部署和验收。
 
 当前方案支持多个小工具。它们可以共用一个免费 CloudBase 环境和默认 HTTPS 域名，但每个工具必须拥有独立的应用编号、函数、路由、数据库集合、本地状态目录和更新清单。这样统计数据和版本发布完全分开，只共享平台免费额度。命名和新增流程见[多工具隔离指南](multi-tool-isolation.md)。
 
-全部工具登记在 `cloudbase/apps.json`。新增工具使用 `npm run cloudbase:app:add -- <app_id>`；该命令会安全创建默认关闭的更新清单，并重生成同时包含所有已登记函数和路由的 `cloudbaserc.json.example`。部署前用 `npm run cloudbase:config:check` 防止登记表、更新文件和生成模板漂移。
+全部工具及其更新平台登记在 `cloudbase/apps.json`。新增工具使用 `npm run cloudbase:app:add -- <app_id> [windows] [macos]`；已登记工具新增平台使用 `npm run cloudbase:app:platform:add -- <app_id> <platform>`。这些命令会安全创建默认关闭的更新清单，并保持同时包含所有已登记函数和路由的 `cloudbaserc.json.example` 一致。部署前用 `npm run cloudbase:config:check` 防止登记表、平台清单和生成模板漂移。
 
 跨项目向导的权威源码位于 [`skills/bifang-public-services-onboarding`](../skills/bifang-public-services-onboarding)。每次修改公共协议、资源命名、SDK 接入顺序或上线门禁时，都必须同步检查该 Skill 的版本元数据、三份按阶段加载的参考资料、Profile Schema、确定性脚本和行为测试。Skill 只引用本仓库权威路径并记录对应基础设施版本与源提交，不复制整份长期文档。
 
@@ -224,15 +224,15 @@ const checker = new UpdateChecker({
 
 更新检查应在主界面显示后异步触发，不能阻塞软件启动。SDK 只返回更新决策，不下载、不安装、不打开浏览器；签名、哈希校验、UI、退出与回滚由业务客户端负责。
 
-## 7. `windows.json` 更新清单
+## 7. 平台更新清单
 
-更新清单必须精确包含 14 个键：
+`windows.json` 与 `macos.json` 使用相同的严格 v1 Schema，并且 `platform` 必须与文件名及客户端运行平台一致。更新清单必须精确包含 14 个键：
 
 `schema_version`、`app_id`、`platform`、`latest_version`、`min_supported_version`、`enabled`、`force_update`、`rollout`、`title`、`message`、`download_url`、`release_notes_url`、`sha256`、`published_at`。
 
-逐字段中文解释见 [`WINDOWS_JSON_FIELDS.zh-CN.md`](../cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)。JSON 不能写注释，也不能新增 `_说明` 或 `comment`；`update.schema.json` 使用 `additionalProperties: false`。
+逐字段中文解释见 [`WINDOWS_JSON_FIELDS.zh-CN.md`](../cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)（文件名为历史兼容入口，正文适用于两个平台）。JSON 不能写注释，也不能新增 `_说明` 或 `comment`；`update.schema.json` 使用 `additionalProperties: false`。
 
-`cloudbase/updates/bifang-tools/windows.json` 是仓库内第一个工具示例；当前仍是 smoke 清单：
+`cloudbase/updates/bifang-tools/windows.json` 是仓库内第一个工具示例；当前仍是 smoke 清单。登记表只为该工具声明 Windows，而 `bifang-screen-recorder` 明确声明 Windows 和 macOS。所有新清单均从以下安全状态开始：
 
 - `enabled=false`、`rollout=0`，默认不会向任何客户端显示更新。
 - `latest_version` 与 `min_supported_version` 都是 `0.1.0`，只是占位版本。
@@ -255,10 +255,10 @@ const checker = new UpdateChecker({
 2. 为目标工具创建独立集合 `telemetry_<规范化app_id>`。
 3. 为目标工具部署独立函数 `telemetry-<app_id>`，配置单值 `ALLOWED_APP_IDS`、`TELEMETRY_COLLECTION` 和 `TRACK_PATH`。
 4. 创建 `/apps/<app_id>/v1/track` 独立网关路由，且只指向该工具函数。
-5. 上传 `/updates/<app_id>/<platform>.json` 独立更新清单。
+5. 逐个上传登记平台的 `/updates/<app_id>/<platform>.json` 独立更新清单，不上传整个 `/updates` 目录。
 6. 本地运行 `npm ci` 和 `npm run check`。
-7. 运行 `tcb validate`、`tcb deploy --dry-run`，确认不会删除其他工具资源，也没有陌生资源或收费项。
-8. **先部署目标工具的新版 telemetry 云函数。**
+7. 运行 `tcb validate`、`tcb deploy --dry-run`，确认不会删除其他工具资源，也没有陌生资源或收费项；如果整份配置仍计划改动其他应用，不得执行顶层 deploy。
+8. 使用 `npm run cloudbase:app:deploy:plan -- <app_id> --env-id <现有免费环境ID> --origin https://<平台默认域名>` 生成只读目标计划；**先部署目标工具的新版 telemetry 云函数。**
 9. 用新版测试程序验证 `daily_active`、每日幂等、服务端日期/时间/IP 和更新清单。
 10. 验收通过后再发布该工具客户端。
 
@@ -299,7 +299,7 @@ npm run check
 - 十台模拟设备最多 10 次 POST；同公网 IP 不影响 10 个 `install_id` 分别计数。
 - 客户端提供 `source_ip`、`active_date`、`received_at` 或旧 `channel/properties` 时被拒绝。
 - 未知 app 与非法 JSON 不写库。
-- `windows.json` 返回 200，14 字段与本地一致，`.example.invalid` 未进入正式发布配置。
+- 每个登记平台清单返回 200，14 字段与本地一致，`.example.invalid` 未进入正式发布配置。
 
 不要把本地 mock 结果称为真实 CloudBase 验收。新的真实结果应另建回执；不要覆盖 [历史 v1 部署回执](cloudbase-deployment.md)。
 

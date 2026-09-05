@@ -1,12 +1,12 @@
-# `windows.json` 14 个字段中文说明
+# 平台更新清单 14 个字段中文说明
 
-`windows.json` 是客户端启动后读取的更新清单，与“每日首次启动”统计互相独立。它必须是严格 JSON：**JSON 不能写注释，也不能自行添加 `_说明`、`comment` 等字段**，否则当前 Schema 和 SDK 会拒绝整个文件。中文说明请保留在本文档，不要塞进 JSON。
+`windows.json` 和 `macos.json` 是对应平台客户端启动后读取的更新清单，与“每日首次启动”统计互相独立。它们必须是严格 JSON：**JSON 不能写注释，也不能自行添加 `_说明`、`comment` 等字段**，否则当前 Schema 和 SDK 会拒绝整个文件。中文说明请保留在本文档，不要塞进 JSON。
 
 | 字段                    | 必填 | 中文含义                 | 示例或填写规则                                                                 |
 | ----------------------- | ---- | ------------------------ | ------------------------------------------------------------------------------ |
 | `schema_version`        | 是   | 更新清单协议版本         | 当前固定为整数 `1`，不是软件版本号                                             |
 | `app_id`                | 是   | 应用编号                 | 必须与客户端配置、目录名和云函数 `ALLOWED_APP_IDS` 完全一致，如 `bifang-tools` |
-| `platform`              | 是   | 清单适用的平台           | Windows 填 `windows`；另可为 `macos` 或 `linux`                                |
+| `platform`              | 是   | 清单适用的平台           | 必须与文件名一致：`windows.json` 填 `windows`，`macos.json` 填 `macos`         |
 | `latest_version`        | 是   | 当前可发布的最新版本     | 完整 SemVer，如 `1.2.3`，不要写 `v1.2`                                         |
 | `min_supported_version` | 是   | 仍允许继续使用的最低版本 | 客户端低于它时会被判为必须更新                                                 |
 | `enabled`               | 是   | 是否启用更新清单         | `false` 表示暂时不提示更新                                                     |
@@ -27,4 +27,4 @@
 4. 正式安装包已签名，并把它的真实 SHA-256 写入 `sha256`。
 5. 修改后先运行 `npm run check`，再部署静态文件。
 
-`cloudbase/updates/bifang-tools/windows.json` 已使用本项目固定应用编号；其中两个 `.example.invalid` 地址故意不可用，同版本客户端不会看到新版本。替换真实下载地址、版本说明地址和安装包哈希后才能正式上线。
+每个应用只生成 `cloudbase/apps.json` 明确登记的平台清单。`cloudbase/updates/bifang-tools/windows.json` 已使用本项目固定应用编号；其中两个 `.example.invalid` 地址故意不可用，同版本客户端不会看到新版本。替换真实下载地址、版本说明地址和安装包哈希后才能正式上线。

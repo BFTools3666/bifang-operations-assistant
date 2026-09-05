@@ -1,8 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "apps": [
     {
-      "app_id": "bifang-tools"
+      "app_id": "bifang-tools",
+      "platforms": ["windows"]
+    },
+    {
+      "app_id": "bifang-screen-recorder",
+      "platforms": ["windows", "macos"]
     }
   ]
 }

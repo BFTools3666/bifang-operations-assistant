@@ -6,11 +6,14 @@ import test from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { addApp, createDisabledUpdateManifest } from "../cloudbase/add-app.mjs";
+import { addAppPlatform } from "../cloudbase/add-app-platform.mjs";
 import {
   createCloudBaseConfig,
   deriveAppResources,
   validateRegistry,
+  validateUpdateManifest,
   validateUpdateManifests,
+  validateUpdatePlatforms,
   validateWindowsUpdateManifest,
 } from "../cloudbase/generate-cloudbaserc.mjs";
 
@@ -31,8 +34,11 @@ test("the app registry exactly generates the checked-in CloudBase template", asy
 test("each registered app gets one function, route, collection, and update path", () => {
   const appIds = ["bifang-tools", "image-helper"];
   const registry = {
-    schema_version: 1,
-    apps: appIds.map((app_id) => ({ app_id })),
+    schema_version: 2,
+    apps: appIds.map((app_id) => ({
+      app_id,
+      platforms: ["windows"],
+    })),
   };
   const config = createCloudBaseConfig(registry);
 
@@ -68,8 +74,11 @@ test("each registered app gets one function, route, collection, and update path"
 
 test("the registry rejects ambiguous or unsafe deployment app ids", () => {
   const registryFor = (...appIds) => ({
-    schema_version: 1,
-    apps: appIds.map((app_id) => ({ app_id })),
+    schema_version: 2,
+    apps: appIds.map((app_id) => ({
+      app_id,
+      platforms: ["windows"],
+    })),
   });
 
   assert.throws(
@@ -86,6 +95,20 @@ test("the registry rejects ambiguous or unsafe deployment app ids", () => {
   ]) {
     assert.throws(() => validateRegistry(registryFor(appId)), /app_id/);
   }
+
+  assert.throws(
+    () =>
+      validateRegistry({
+        schema_version: 2,
+        apps: [{ app_id: "safe-tool", platforms: [] }],
+      }),
+    /non-empty array/,
+  );
+  assert.throws(
+    () => validateUpdatePlatforms(["macos", "windows"]),
+    /canonical order/,
+  );
+  assert.throws(() => validateUpdatePlatforms(["linux"]), /windows, macos/);
 });
 
 test("the app scaffold starts with a disabled and unusable update manifest", () => {
@@ -105,6 +128,23 @@ test("the app scaffold starts with a disabled and unusable update manifest", () 
     "releases.example.invalid",
   );
   assert.equal(validateWindowsUpdateManifest(manifest, "new-tool"), manifest);
+});
+
+test("the app scaffold creates a disabled macOS manifest with the same strict contract", () => {
+  const manifest = createDisabledUpdateManifest("new-tool", "macos");
+
+  assert.equal(manifest.app_id, "new-tool");
+  assert.equal(manifest.platform, "macos");
+  assert.equal(manifest.enabled, false);
+  assert.equal(manifest.force_update, false);
+  assert.equal(manifest.rollout, 0);
+  assert.equal(manifest.sha256, "");
+  assert.equal(new URL(manifest.download_url).pathname.endsWith(".dmg"), true);
+  assert.equal(validateUpdateManifest(manifest, "new-tool", "macos"), manifest);
+  assert.throws(
+    () => validateUpdateManifest(manifest, "new-tool", "windows"),
+    /windows\.json/,
+  );
 });
 
 test("the complete update contract rejects unsafe or internally inconsistent manifests", () => {
@@ -138,14 +178,23 @@ test("the complete update contract rejects unsafe or internally inconsistent man
   }
 });
 
-test("the app scaffold adds a real temporary second app without overwriting the first", async () => {
+test("the app scaffold adds a cross-platform second app without overwriting the first", async () => {
   await withTemporaryCloudBaseFixture(async (fixture) => {
-    const resources = await addApp("second-tool", fixture);
+    const resources = await addApp("second-tool", {
+      ...fixture,
+      platforms: ["windows", "macos"],
+    });
     const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
     const config = JSON.parse(await readFile(fixture.configUrl, "utf8"));
-    const secondManifest = JSON.parse(
+    const windowsManifest = JSON.parse(
       await readFile(
         new URL("second-tool/windows.json", fixture.updatesUrl),
+        "utf8",
+      ),
+    );
+    const macosManifest = JSON.parse(
+      await readFile(
+        new URL("second-tool/macos.json", fixture.updatesUrl),
         "utf8",
       ),
     );
@@ -156,8 +205,11 @@ test("the app scaffold adds a real temporary second app without overwriting the 
     );
     assert.deepEqual(config, createCloudBaseConfig(registry));
     assert.equal(resources.functionName, "telemetry-second-tool");
-    assert.equal(secondManifest.app_id, "second-tool");
-    assert.equal(secondManifest.enabled, false);
+    assert.deepEqual(registry.apps[1].platforms, ["windows", "macos"]);
+    assert.equal(windowsManifest.app_id, "second-tool");
+    assert.equal(windowsManifest.platform, "windows");
+    assert.equal(macosManifest.app_id, "second-tool");
+    assert.equal(macosManifest.platform, "macos");
     await validateUpdateManifests(
       validateRegistry(registry),
       fixture.updatesUrl,
@@ -165,8 +217,47 @@ test("the app scaffold adds a real temporary second app without overwriting the 
   });
 });
 
+test("a registered app can safely add one missing platform without changing other apps", async () => {
+  await withTemporaryCloudBaseFixture(async (fixture) => {
+    const beforeConfig = await readFile(fixture.configUrl, "utf8");
+    const result = await addAppPlatform("first-tool", "macos", fixture);
+    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
+    const manifest = JSON.parse(
+      await readFile(
+        new URL("first-tool/macos.json", fixture.updatesUrl),
+        "utf8",
+      ),
+    );
+
+    assert.deepEqual(result, {
+      appId: "first-tool",
+      platform: "macos",
+      manifestPath: "/updates/first-tool/macos.json",
+    });
+    assert.deepEqual(registry.apps[0].platforms, ["windows", "macos"]);
+    assert.equal(manifest.platform, "macos");
+    assert.equal(manifest.enabled, false);
+    assert.equal(await readFile(fixture.configUrl, "utf8"), beforeConfig);
+    await validateUpdateManifests(
+      validateRegistry(registry),
+      fixture.updatesUrl,
+    );
+
+    const registryBeforeDuplicate = await readFile(fixture.registryUrl, "utf8");
+    await assert.rejects(
+      addAppPlatform("first-tool", "macos", fixture),
+      /platform already exists/,
+    );
+    assert.equal(
+      await readFile(fixture.registryUrl, "utf8"),
+      registryBeforeDuplicate,
+    );
+  });
+});
+
 test("the app scaffold refuses existing ids and orphan update directories", async () => {
   await withTemporaryCloudBaseFixture(async (fixture) => {
+    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
     const registryBefore = await readFile(fixture.registryUrl, "utf8");
     const configBefore = await readFile(fixture.configUrl, "utf8");
 
@@ -176,8 +267,35 @@ test("the app scaffold refuses existing ids and orphan update directories", asyn
 
     await mkdir(new URL("orphan-tool/", fixture.updatesUrl));
     await assert.rejects(
-      validateUpdateManifests(["first-tool"], fixture.updatesUrl),
+      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
       /unregistered update directories: orphan-tool/,
+    );
+  });
+});
+
+test("manifest validation rejects files that are not declared by the registry", async () => {
+  await withTemporaryCloudBaseFixture(async (fixture) => {
+    await writeFile(
+      new URL("first-tool/macos.json", fixture.updatesUrl),
+      `${JSON.stringify(createDisabledUpdateManifest("first-tool", "macos"), null, 2)}\n`,
+      "utf8",
+    );
+    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
+    await assert.rejects(
+      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
+      /unexpected entries.*macos\.json/,
+    );
+  });
+});
+
+test("manifest validation fails closed when a declared platform file is missing", async () => {
+  await withTemporaryCloudBaseFixture(async (fixture) => {
+    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
+    registry.apps[0].platforms.push("macos");
+
+    await assert.rejects(
+      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
+      /missing or invalid update manifest:.*macos\.json/,
     );
   });
 });
@@ -191,8 +309,8 @@ async function withTemporaryCloudBaseFixture(run) {
   const configUrl = pathToFileURL(join(root, "cloudbaserc.json.example"));
   const updatesUrl = pathToFileURL(`${updatesPath}${sep}`);
   const registry = {
-    schema_version: 1,
-    apps: [{ app_id: "first-tool" }],
+    schema_version: 2,
+    apps: [{ app_id: "first-tool", platforms: ["windows"] }],
   };
 
   try {

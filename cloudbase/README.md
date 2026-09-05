@@ -6,13 +6,15 @@ Task4/Task8 部署及验收的是历史 v1 多事件协议，记录见 [`docs/cl
 
 ## 目录
 
-- `apps.json`：全部工具的唯一登记表；部署模板同时保留这里列出的所有工具。
-- `add-app.mjs`：安全追加一个工具，并创建默认关闭的 Windows 更新清单。
-- `generate-cloudbaserc.mjs`：根据登记表生成和校验根目录 `cloudbaserc.json.example`。
+- `apps.json`：全部工具及其 Windows/macOS 更新平台的唯一登记表；部署模板同时保留这里列出的所有工具。
+- `add-app.mjs`：安全追加一个工具，并为明确登记的平台创建默认关闭的更新清单。
+- `add-app-platform.mjs`：为已登记工具安全追加一个更新平台，不覆盖既有清单。
+- `generate-cloudbaserc.mjs`：根据登记表生成根目录 `cloudbaserc.json.example`，并校验所有登记平台清单。
+- `plan-app-deployment.mjs`：只读生成单个目标应用的资源级阶段 4 计划，不执行命令。
 - `functions/telemetry/`：所有工具实例复用的 Node.js 20 CommonJS Event 函数源码，入口 `index.main`。
 - `updates/update.schema.json`：更新清单 v1 JSON Schema。
-- `updates/<app_id>/windows.json`：每个工具独立的 Windows 更新清单；`.example.invalid` 地址必须在正式发布前替换。
-- `updates/WINDOWS_JSON_FIELDS.zh-CN.md`：`windows.json` 全部 14 个字段的中文说明。
+- `updates/<app_id>/<platform>.json`：每个工具、每个平台独立的更新清单；当前支持 `windows.json` 和 `macos.json`，`.example.invalid` 地址必须在正式发布前替换。
+- `updates/WINDOWS_JSON_FIELDS.zh-CN.md`：平台更新清单全部 14 个字段的中文说明；文件名作为历史兼容入口保留。
 
 生成器为每个工具创建一个 `telemetry-<app_id>` 配置，并由 HTTP 网关映射到 `/apps/<app_id>/v1/track`。这些都是普通 Event 云函数，不是监听 9000 端口的 HTTP Web 云函数。
 
@@ -50,7 +52,13 @@ Task4/Task8 创建并验收的是下面“历史验收”章节所述的旧单�
 npm run cloudbase:app:add -- bifang-tools-pdf
 ```
 
-该命令会拒绝非法或重复编号，不覆盖已有目录，并创建 `enabled=false`、`rollout=0`、使用 `.example.invalid` 的安全占位清单。随后修改真实清单并执行：
+默认只登记 Windows；新应用同时支持 Windows 和 macOS 时在命令末尾追加 `windows macos`。已登记应用新增 macOS 时使用：
+
+```powershell
+npm run cloudbase:app:platform:add -- bifang-tools-pdf macos
+```
+
+两个命令都会拒绝非法或重复编号/平台，不覆盖已有目录或清单，并创建 `enabled=false`、`rollout=0`、使用 `.example.invalid` 的安全占位清单。随后修改真实清单并执行：
 
 ```powershell
 npm ci
@@ -66,13 +74,15 @@ tcb deploy --dry-run
 
 生成器不会创建数据库集合。每个新工具都要先在 CloudBase 数据库页面手工创建派生集合并设为仅管理员可读写。
 
-模板刻意不固定地域。CloudBase CLI 3.8.1 允许本次上海环境省略 `region`，其他地域必须按真实环境与当日配置 Schema 补入该字段。执行真正的 `tcb deploy` 前，必须确认 validate 通过，且 dry-run 保留所有已登记工具，没有删除旧函数/路由、陌生资源或收费项。新增、改名或删除工具时还要人工核对云端集合和孤儿更新目录；`apps.json` 不会自动清理云端。CLI/控制台字段如与模板不一致，以执行当日同版本官方文档为准。
+模板刻意不固定地域。CloudBase CLI 3.8.1 允许本次上海环境省略 `region`，其他地域必须按真实环境与当日配置 Schema 补入该字段。必须确认 validate 通过，且 dry-run 保留所有已登记工具，没有删除旧函数/路由、陌生资源或收费项。新增、改名或删除工具时还要人工核对云端集合和孤儿更新目录；`apps.json` 不会自动清理云端。CLI/控制台字段如与模板不一致，以执行当日同版本官方文档为准。
 
-检查无误后才执行真正部署：
+顶层 `tcb deploy` 会协调所有登记应用和共享 `/updates`，不能用于“只部署一个新应用”。阶段 3 只生成以下只读计划：
 
 ```powershell
-tcb deploy
+npm run cloudbase:app:deploy:plan -- bifang-tools-pdf --env-id <现有免费环境ID> --origin https://<平台默认域名>
 ```
+
+计划输出使用参数数组固化目标集合、单个函数、单条路由和逐平台单文件上传，并禁止 `--all`、`--force`、`--prune`、目录级托管上传与删除命令。它不会执行任何 CloudBase 写入。进入阶段 4 后仍须先读取云端现状、确认免费额度和零删除，再展示最终参数并等待负责人明确继续。
 
 ## 公网地址模板
 

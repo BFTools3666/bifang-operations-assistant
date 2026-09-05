@@ -268,16 +268,17 @@ test("resource derivation is deterministic across desktop and native platforms",
     platform_gates: {
       linux: {
         reason:
-          "infrastructure 2.1.0 generates and validates only windows.json",
+          "authoritative infrastructure does not generate or validate linux.json",
         status: "pending",
       },
       macos: {
         reason:
-          "infrastructure 2.1.0 generates and validates only windows.json",
-        status: "pending",
+          "authoritative infrastructure generates and validates macos.json",
+        status: "ready",
       },
       windows: {
-        reason: "infrastructure 2.1.0 generates and validates windows.json",
+        reason:
+          "authoritative infrastructure generates and validates windows.json",
         status: "ready",
       },
     },

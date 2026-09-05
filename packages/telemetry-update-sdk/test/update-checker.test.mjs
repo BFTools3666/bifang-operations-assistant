@@ -241,6 +241,31 @@ test("checker requests the canonical path and returns none on network failure", 
   });
 });
 
+test("macOS checks use macos.json and reject a crossed Windows manifest", async () => {
+  const requestedUrls = [];
+  const macosManifest = manifest({ platform: "macos" });
+  const macosChecker = new UpdateChecker({
+    baseUrl: "https://updates.example.invalid/replace-me/updates",
+    appId: "bifang-tools",
+    platform: "macos",
+    currentVersion: "0.1.0",
+    installId: INSTALL_ID,
+    fetch: async (url) => {
+      requestedUrls.push(url);
+      return { ok: true, text: async () => JSON.stringify(macosManifest) };
+    },
+  });
+
+  assert.equal((await macosChecker.check()).kind, "optional");
+  assert.deepEqual(requestedUrls, [
+    "https://updates.example.invalid/replace-me/updates/bifang-tools/macos.json",
+  ]);
+  assert.equal(
+    parseUpdateConfig(macosManifest, "bifang-tools", "windows"),
+    null,
+  );
+});
+
 test("multiple tools keep update bases and manifests isolated", async () => {
   const requestedUrls = [];
   const configurations = [

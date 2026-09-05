@@ -26,10 +26,10 @@ npm run check
 函数：telemetry-bifang-tools-pdf
 路由：/apps/bifang-tools-pdf/v1/track
 集合：telemetry_bifang_tools_pdf
-更新：/updates/bifang-tools-pdf/windows.json
+更新：/updates/bifang-tools-pdf/<platform>.json
 ```
 
-各工具的数据、更新开关和版本号完全分开；它们只共享免费环境、默认域名和免费额度。完整命名规则与新增步骤见[多工具隔离指南](docs/multi-tool-isolation.md)。
+各工具的数据、更新开关和版本号完全分开；它们只共享免费环境、默认域名和免费额度。登记表显式记录每个工具的 Windows/macOS 平台清单，缺失或多余文件都会使配置检查失败。完整命名规则与新增步骤见[多工具隔离指南](docs/multi-tool-isolation.md)。
 
 首次部署后，可使用面向普通用户的 [CloudBase 功能验证助手](tools/python-sdk-test-client/README.md)。Windows 图形界面基于标准库 Tkinter/ttk，用中文向导发送 `daily_active` 样例、模拟最多十台匿名设备，并真实读取完整更新文件地址。模拟十台设备最多产生 10 次 POST；它们在同一电脑测试时通常显示同一个公网 IP。启动与填写内容不会联网，只有用户点击发送或检查按钮后才会访问填写的地址。
 

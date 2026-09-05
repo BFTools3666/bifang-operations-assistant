@@ -6,8 +6,9 @@ import {
   createCloudBaseConfig,
   deriveAppResources,
   validateRegistry,
+  validateUpdateManifest,
   validateUpdateManifests,
-  validateWindowsUpdateManifest,
+  validateUpdatePlatforms,
 } from "./generate-cloudbaserc.mjs";
 
 const defaultRegistryUrl = new URL("./apps.json", import.meta.url);
@@ -17,12 +18,14 @@ const defaultConfigUrl = new URL(
 );
 const defaultUpdatesUrl = new URL("./updates/", import.meta.url);
 
-export function createDisabledUpdateManifest(appId) {
+export function createDisabledUpdateManifest(appId, platform = "windows") {
   deriveAppResources(appId);
+  validateUpdatePlatforms([platform]);
+  const extension = platform === "macos" ? "dmg" : "exe";
   const manifest = {
     schema_version: 1,
     app_id: appId,
-    platform: "windows",
+    platform,
     latest_version: "0.0.0",
     min_supported_version: "0.0.0",
     enabled: false,
@@ -30,23 +33,27 @@ export function createDisabledUpdateManifest(appId) {
     rollout: 0,
     title: `${appId} 尚未发布更新`,
     message: "此清单尚未配置真实安装包，当前不会向用户显示更新。",
-    download_url: `https://downloads.example.invalid/${appId}/replace-me.exe`,
+    download_url: `https://downloads.example.invalid/${appId}/replace-me.${extension}`,
     release_notes_url: `https://releases.example.invalid/${appId}/replace-me`,
     sha256: "",
     published_at: "1970-01-01T00:00:00.000Z",
   };
-  return validateWindowsUpdateManifest(manifest, appId);
+  return validateUpdateManifest(manifest, appId, platform);
 }
 
 export async function addApp(appId, options = {}) {
   const registryUrl = options.registryUrl || defaultRegistryUrl;
   const configUrl = options.configUrl || defaultConfigUrl;
   const updatesUrl = options.updatesUrl || defaultUpdatesUrl;
+  const platforms = validateUpdatePlatforms(
+    options.platforms || ["windows"],
+    "platforms",
+  );
   const resources = deriveAppResources(appId);
   const currentRegistryText = await readFile(registryUrl, "utf8");
   const registry = JSON.parse(currentRegistryText);
-  const currentAppIds = validateRegistry(registry);
-  if (currentAppIds.includes(appId)) {
+  const currentApplications = validateRegistry(registry);
+  if (currentApplications.some((application) => application.appId === appId)) {
     throw new Error(`app_id already exists: ${appId}`);
   }
 
@@ -63,11 +70,11 @@ export async function addApp(appId, options = {}) {
       "cloudbaserc.json.example has ungenerated changes; run the config check and reconcile it first",
     );
   }
-  await validateUpdateManifests(currentAppIds, updatesUrl);
+  await validateUpdateManifests(currentApplications, updatesUrl);
 
   const nextRegistry = {
     ...registry,
-    apps: [...registry.apps, { app_id: appId }],
+    apps: [...registry.apps, { app_id: appId, platforms }],
   };
   const nextRegistryText = `${JSON.stringify(nextRegistry, null, 2)}\n`;
   const nextConfigText = `${JSON.stringify(
@@ -75,13 +82,7 @@ export async function addApp(appId, options = {}) {
     null,
     2,
   )}\n`;
-  const manifestText = `${JSON.stringify(
-    createDisabledUpdateManifest(appId),
-    null,
-    2,
-  )}\n`;
   const appUpdatesUrl = new URL(`${encodeURIComponent(appId)}/`, updatesUrl);
-  const manifestUrl = new URL("windows.json", appUpdatesUrl);
   let createdDirectory = false;
   let registryTouched = false;
   let configTouched = false;
@@ -89,15 +90,26 @@ export async function addApp(appId, options = {}) {
   try {
     await mkdir(appUpdatesUrl, { recursive: false });
     createdDirectory = true;
-    await writeFile(manifestUrl, manifestText, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    for (const platform of platforms) {
+      const manifestText = `${JSON.stringify(
+        createDisabledUpdateManifest(appId, platform),
+        null,
+        2,
+      )}\n`;
+      await writeFile(
+        new URL(`${platform}.json`, appUpdatesUrl),
+        manifestText,
+        {
+          encoding: "utf8",
+          flag: "wx",
+        },
+      );
+    }
     registryTouched = true;
     await writeFile(registryUrl, nextRegistryText, "utf8");
     configTouched = true;
     await writeFile(configUrl, nextConfigText, "utf8");
-    await validateUpdateManifests([...currentAppIds, appId], updatesUrl);
+    await validateUpdateManifests(validateRegistry(nextRegistry), updatesUrl);
   } catch (error) {
     const rollback = [];
     if (registryTouched) {
@@ -127,12 +139,17 @@ export async function addApp(appId, options = {}) {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length !== 1) {
-    throw new TypeError("usage: npm run cloudbase:app:add -- <app_id>");
+  if (args.length < 1) {
+    throw new TypeError(
+      "usage: npm run cloudbase:app:add -- <app_id> [windows] [macos]",
+    );
   }
-  const resources = await addApp(args[0]);
+  const [appId, ...requestedPlatforms] = args;
+  const platforms =
+    requestedPlatforms.length === 0 ? ["windows"] : requestedPlatforms;
+  const resources = await addApp(appId, { platforms });
   process.stdout.write(
-    `added ${resources.appId}: ${resources.functionName}, ${resources.trackPath}, ${resources.collectionName}, ${resources.updatePath}/windows.json\n`,
+    `added ${resources.appId}: ${resources.functionName}, ${resources.trackPath}, ${resources.collectionName}, ${platforms.map((platform) => `${resources.updatePath}/${platform}.json`).join(", ")}\n`,
   );
 }
 
