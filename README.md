@@ -9,6 +9,10 @@
 
 本仓库不是小工具业务客户端，不包含 Tauri、Electron、自动下载或自动安装逻辑。独立的只读运营看板位于 `apps/operations-dashboard`；它只消费聚合数据，不改变各工具的上报协议或客户端行为。
 
+## 给开发者和 AI 的权威入口
+
+本 Git 仓库是指南、协议、Skill 和可维护源码的权威来源；飞书文件夹是方便分享的副本。其他 AI 接手时先读仓库级 [`AGENTS.md`](AGENTS.md)，再按其中顺序阅读[完整分步接入指南](docs/毕方小工具公共服务分步接入指南.md)及协议文件。CloudBase 新手版的 [Markdown 源文档](docs/cloudbase-quickstart.md)、[真实截图](docs/images/cloudbase)、[可分享 Word 版](docs/CloudBase免费额度内部署新手图文版.docx)和[生成脚本](tools/build_cloudbase_guide_docx.py)也全部由本仓库管理；不要把飞书导入文档或临时 Skill 压缩包当成较新的权威源码。
+
 运营看板已接入生产 CloudBase 的独立只读聚合函数，私有 Sites 仅本人可见。页面不再提供演示数据：读取失败明确显示不可用，真实零值按零显示。完整口径见[运营看板说明](docs/operations-dashboard.md)，部署版本、真实数据库对账和浏览器测试见[交付回执](docs/operations-dashboard-e2e-20260907.md)。
 
 第一期只回答“今天有多少台设备实际启动使用过”：同一个匿名 `install_id` 按北京时间（`Asia/Shanghai`）每天首次启动最多上报一次固定事件 `daily_active`。**不统计安装动作**，也不再统计渠道、功能点击、任务开始/成功/失败、更新提示或更新点击。客户端只提供匿名 `install_id`、`platform`、`arch`、`app_id` 和 `app_version`；服务端补充 `active_date`、`received_at` 和来源 `source_ip`。
@@ -22,13 +26,13 @@ npm ci
 npm run check
 ```
 
-新增工具时不要复用 `bifang-tools`。例如工具编号为 `bifang-tools-pdf`，对应资源为：
+新增工具时不要复用其他应用的编号。例如工具编号为 `bifang-pdf-tool`，对应资源为：
 
 ```text
-函数：telemetry-bifang-tools-pdf
-路由：/apps/bifang-tools-pdf/v1/track
-集合：telemetry_bifang_tools_pdf
-更新：/updates/bifang-tools-pdf/<platform>.json
+函数：telemetry-bifang-pdf-tool
+路由：/apps/bifang-pdf-tool/v1/track
+集合：telemetry_bifang_pdf_tool
+更新：/updates/bifang-pdf-tool/<platform>.json
 ```
 
 各工具的数据、更新开关和版本号完全分开；它们只共享免费环境、默认域名和免费额度。登记表显式记录每个工具的 Windows/macOS 平台清单，缺失或多余文件都会使配置检查失败。完整命名规则与新增步骤见[多工具隔离指南](docs/multi-tool-isolation.md)。
@@ -37,7 +41,7 @@ npm run check
 
 为保护免费网关，客户端会在联网前先把“今天已经尝试上报”写入本地；即使随后网络失败，当天也不重试。此设计宁可少计一次，也不让反复启动冲击免费额度。
 
-当前登记的真实工具为 `bifang-screen-recorder`。未发布清单保持关闭，并把下载与发布说明地址指向现有免费 CloudBase 默认 HTTPS 域名下明确不存在的 `not-published` 路径；这样严格客户端仍能解析出 `disabled`，误点或误开地址也只会得到 404。正式发布前仍须先上传真实制品与发布说明，再替换地址、文案、哈希与发布时间并单独启用。现有 [历史部署回执](docs/cloudbase-deployment.md) 只记录 `example-tool` 的历史 v1 验收；新应用证据见各自独立回执。14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
+当前登记应用以 [`cloudbase/apps.json`](cloudbase/apps.json) 为唯一权威，不在 README 复制一份容易过期的名单。未发布清单保持关闭，并把下载与发布说明地址指向现有免费 CloudBase 默认 HTTPS 域名下明确不存在的 `not-published` 路径；这样严格客户端仍能解析出 `disabled`，误点或误开地址也只会得到 404。正式发布前仍须先上传真实制品与发布说明，再替换地址、文案、哈希与发布时间并单独启用。现有 [历史部署回执](docs/cloudbase-deployment.md) 只记录 `example-tool` 的历史 v1 验收；新应用证据见各自独立回执。14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
 
 这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
 

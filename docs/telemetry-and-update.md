@@ -90,7 +90,7 @@ Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证�
 
 ### CloudBase 云函数
 
-`cloudbase/functions/telemetry` 是所有工具复用的 Node.js 20 CommonJS 函数源码，入口 `index.main`。部署时为每个工具创建一份独立 Event 云函数，例如 `telemetry-bifang-tools`；HTTP 网关把 `POST /apps/bifang-tools/v1/track` 包装成 Event 后调用它。它不是监听 9000 端口的 Web 云函数。
+`cloudbase/functions/telemetry` 是所有工具复用的 Node.js 20 CommonJS 函数源码，入口 `index.main`。部署时为每个工具创建一份独立 Event 云函数，例如 `telemetry-bifang-screen-recorder`；HTTP 网关把 `POST /apps/bifang-screen-recorder/v1/track` 包装成 Event 后调用它。它不是监听 9000 端口的 Web 云函数。
 
 函数只做以下工作：
 
@@ -112,7 +112,7 @@ Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证�
   "schema_version": 2,
   "event_id": "01234567-89ab-4def-8123-456789abcdef",
   "event": "daily_active",
-  "app_id": "bifang-tools",
+  "app_id": "bifang-screen-recorder",
   "app_version": "0.1.0",
   "install_id": "11111111-2222-4333-8444-555555555555",
   "platform": "windows",
@@ -167,8 +167,8 @@ Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证�
 | ---------------------- | ------------------------------ | ---- | ------------------------------------------------------- |
 | `ENV_ID`               | 部署工作站                     | 是   | `cloudbaserc.json.example` 的本地替换值，不是客户端配置 |
 | `ALLOWED_APP_IDS`      | 每个 `telemetry-<app_id>` 函数 | 是   | 新模板只填该函数唯一允许的一个应用编号；不要填逗号列表  |
-| `TELEMETRY_COLLECTION` | 每个 `telemetry-<app_id>` 函数 | 是   | 该工具独立集合，例如 `telemetry_bifang_tools`           |
-| `TRACK_PATH`           | 每个 `telemetry-<app_id>` 函数 | 是   | 独立路由，例如 `/apps/bifang-tools/v1/track`            |
+| `TELEMETRY_COLLECTION` | 每个 `telemetry-<app_id>` 函数 | 是   | 该工具独立集合，例如 `telemetry_bifang_screen_recorder` |
+| `TRACK_PATH`           | 每个 `telemetry-<app_id>` 函数 | 是   | 独立路由，例如 `/apps/bifang-screen-recorder/v1/track`  |
 | `CLOUDBASE_ENV_ID`     | 函数运行时                     | 否   | 通常不设置，函数使用当前 CloudBase 环境                 |
 
 共享 `/v1/track` 只为历史部署兼容保留，不用于新增工具。新工具必须让自己的函数仅配置一个 `ALLOWED_APP_IDS` 值，并使用 `/apps/<app_id>/v1/track`，否则就没有函数、路由和数据库级隔离。
@@ -179,7 +179,7 @@ Task4/Task8 在 2026-09-03 部署并验收的是历史 v1 多事件协议。证�
 
 | 发布配置键             | SDK 参数                        | 必需 | 示例                                        |
 | ---------------------- | ------------------------------- | ---- | ------------------------------------------- |
-| `APP_ID`               | `appId`                         | 是   | `bifang-tools`                              |
+| `APP_ID`               | `appId`                         | 是   | `bifang-screen-recorder`                    |
 | `APP_VERSION`          | `appVersion` / `currentVersion` | 是   | `0.1.0`                                     |
 | `TELEMETRY_ENDPOINT`   | `TelemetryClient.endpoint`      | 是   | `https://<默认域名>/apps/<app_id>/v1/track` |
 | `UPDATE_BASE_URL`      | `UpdateChecker.baseUrl`         | 是   | `https://<默认域名>/updates`                |
@@ -232,7 +232,7 @@ const checker = new UpdateChecker({
 
 逐字段中文解释见 [`WINDOWS_JSON_FIELDS.zh-CN.md`](../cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)（文件名为历史兼容入口，正文适用于两个平台）。JSON 不能写注释，也不能新增 `_说明` 或 `comment`；`update.schema.json` 使用 `additionalProperties: false`。
 
-当前登记表为 `bifang-screen-recorder` 明确声明 Windows 和 macOS。所有新清单均从以下安全状态开始：
+当前登记应用及各自平台只以 [`cloudbase/apps.json`](../cloudbase/apps.json) 为准，不在本文复制一份容易过期的名单。所有新清单均从以下安全状态开始：
 
 - `enabled=false`、`rollout=0`，默认不会向任何客户端显示更新。
 - `latest_version` 与 `min_supported_version` 都是 `0.1.0`，只是占位版本。

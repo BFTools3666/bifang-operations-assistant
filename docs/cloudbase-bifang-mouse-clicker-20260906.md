@@ -17,17 +17,17 @@
 
 ## 已部署资源
 
-| 类型 | 精确资源 | 验证 |
-| --- | --- | --- |
-| 应用登记 | `bifang-mouse-clicker` / `windows` | `cloudbase/apps.json` 已登记 |
-| 数据库 | `telemetry_bifang_mouse_clicker` | `ADMINONLY`，仅服务端管理权限 |
-| 保留策略 | `expires_at_ttl` | `expires_at: 1`，`expireAfterSeconds: 0` |
-| 云函数 | `telemetry-bifang-mouse-clicker` | Event / Nodejs20.19 / `index.main` / 3 s / 256 MB / Active |
-| 函数配置 | `ALLOWED_APP_IDS=bifang-mouse-clicker` | 远程详情一致 |
-| 函数配置 | `TELEMETRY_COLLECTION=telemetry_bifang_mouse_clicker` | 远程详情一致 |
-| 函数配置 | `TRACK_PATH=/apps/bifang-mouse-clicker/v1/track` | 远程详情一致 |
-| HTTP 路由 | `/apps/bifang-mouse-clicker/v1/track` | SCF 目标正确，启用路径透传，QPS `100` / ClientIP `10` |
-| Windows 清单 | `/updates/bifang-mouse-clicker/windows.json` | 默认 HTTPS 返回 200，与本地逐字节一致，保持禁用 |
+| 类型         | 精确资源                                              | 验证                                                       |
+| ------------ | ----------------------------------------------------- | ---------------------------------------------------------- |
+| 应用登记     | `bifang-mouse-clicker` / `windows`                    | `cloudbase/apps.json` 已登记                               |
+| 数据库       | `telemetry_bifang_mouse_clicker`                      | `ADMINONLY`，仅服务端管理权限                              |
+| 保留策略     | `expires_at_ttl`                                      | `expires_at: 1`，`expireAfterSeconds: 0`                   |
+| 云函数       | `telemetry-bifang-mouse-clicker`                      | Event / Nodejs20.19 / `index.main` / 3 s / 256 MB / Active |
+| 函数配置     | `ALLOWED_APP_IDS=bifang-mouse-clicker`                | 远程详情一致                                               |
+| 函数配置     | `TELEMETRY_COLLECTION=telemetry_bifang_mouse_clicker` | 远程详情一致                                               |
+| 函数配置     | `TRACK_PATH=/apps/bifang-mouse-clicker/v1/track`      | 远程详情一致                                               |
+| HTTP 路由    | `/apps/bifang-mouse-clicker/v1/track`                 | SCF 目标正确，启用路径透传，QPS `100` / ClientIP `10`      |
+| Windows 清单 | `/updates/bifang-mouse-clicker/windows.json`          | 默认 HTTPS 返回 200，与本地逐字节一致，保持禁用            |
 
 TTL 索引创建 RequestId：`c559837f-2ed0-4608-988c-5322b3615dca`；索引复核 RequestId：`d484df8c-e8dd-44d4-8e36-3d4be7c9438b`。
 
@@ -35,15 +35,15 @@ TTL 索引创建 RequestId：`c559837f-2ed0-4608-988c-5322b3615dca`；索引复�
 
 使用一次性合成 UUID 调用真实默认 HTTPS 端点：
 
-| 用例 | 实际结果 |
-| --- | --- |
-| 正确路径 `OPTIONS` | `204` |
-| 合法 schema v2 `daily_active` | `202 {"ok":true}` |
-| 同一事件原样重放 | `202 {"ok":true}`，集合仍只有一条对应记录 |
-| 多余字段 | `400 invalid_payload` |
-| 未登记 `app_id` | `403 unknown_app` |
-| 错误 GET 方法 | `405 method_not_allowed` |
-| 错误子路径 | `404 not_found` |
+| 用例                          | 实际结果                                  |
+| ----------------------------- | ----------------------------------------- |
+| 正确路径 `OPTIONS`            | `204`                                     |
+| 合法 schema v2 `daily_active` | `202 {"ok":true}`                         |
+| 同一事件原样重放              | `202 {"ok":true}`，集合仍只有一条对应记录 |
+| 多余字段                      | `400 invalid_payload`                     |
+| 未登记 `app_id`               | `403 unknown_app`                         |
+| 错误 GET 方法                 | `405 method_not_allowed`                  |
+| 错误子路径                    | `404 not_found`                           |
 
 认证数据库查询只投影了协议字段、服务端时间与 `expires_at`；没有查询或回显 `source_ip`。保留策略复验得到一条合成记录，其 BSON `expires_at` 精确为服务端 `received_at` 后 30 天。该次查询 RequestId：`1ea9020d-2391-437d-882d-4dcfe4ce661a`。
 

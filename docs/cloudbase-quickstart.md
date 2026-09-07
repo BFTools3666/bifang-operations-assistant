@@ -1,6 +1,6 @@
 # CloudBase 免费资源优先部署：新手图文版
 
-> 文档版本：2026-09-05。适用于本项目的 Windows 小白验证向导。控制台名称以后可能微调，但资源名称和核对原则不变。
+> 文档版本：2026-09-07。适用于本项目的 Windows 小白验证向导。控制台名称以后可能微调，但资源名称和核对原则不变。
 
 ## 先看结论
 
@@ -37,21 +37,21 @@
 
 ## 你最终要准备好的内容
 
-以下示例使用 `app_id=bifang-tools`。每增加一个工具，就按同一规则增加一整行独立资源；不要把新工具继续命名为 `bifang-tools`。
+以下资源映射使用已经登记的 `app_id=bifang-screen-recorder` 作为示例。给新工具操作时，必须先由负责人确认它自己的唯一 `app_id`，再把示例中的整组名称替换为该值；不要复用其他工具的编号。
 
-| 内容            | `bifang-tools` 示例                                      | 所在页面                       |
-| --------------- | -------------------------------------------------------- | ------------------------------ |
-| CloudBase 环境  | 复用已有免费体验环境                                     | 环境列表 / 左上角环境选择器    |
-| 环境 ID         | 每个环境不同，本流程只填入 CLI                           | 环境列表或环境总览             |
-| 数据库集合      | `telemetry_bifang_tools`                                 | 文档型数据库 → 集合管理        |
-| 云函数          | `telemetry-bifang-tools`，普通云函数                     | 云函数 / 托管 → 函数管理       |
-| 函数环境变量    | 下文列出的三个变量，每个函数只服务一个工具               | 目标函数 → 函数配置 → 环境变量 |
-| 数据接收路由    | `/apps/bifang-tools/v1/track` → `telemetry-bifang-tools` | HTTP 网关 → 路由管理           |
-| 更新路由        | `/updates` → 静态托管                                    | HTTP 网关 → 路由管理           |
-| 更新文件        | `updates/bifang-tools/windows.json`                      | 静态网站托管 → 文件管理        |
-| 平台 HTTPS 域名 | `*.app.tcloudbase.com`                                   | HTTP 网关 → 默认域名           |
+| 内容            | `bifang-screen-recorder` 示例                                                | 所在页面                       |
+| --------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| CloudBase 环境  | 复用已有免费体验环境                                                         | 环境列表 / 左上角环境选择器    |
+| 环境 ID         | 每个环境不同，本流程只填入 CLI                                               | 环境列表或环境总览             |
+| 数据库集合      | `telemetry_bifang_screen_recorder`                                           | 文档型数据库 → 集合管理        |
+| 云函数          | `telemetry-bifang-screen-recorder`，普通云函数                               | 云函数 / 托管 → 函数管理       |
+| 函数环境变量    | 下文列出的三个变量，每个函数只服务一个工具                                   | 目标函数 → 函数配置 → 环境变量 |
+| 数据接收路由    | `/apps/bifang-screen-recorder/v1/track` → `telemetry-bifang-screen-recorder` | HTTP 网关 → 路由管理           |
+| 更新路由        | `/updates` → 静态托管                                                        | HTTP 网关 → 路由管理           |
+| 更新文件        | `updates/bifang-screen-recorder/windows.json`                                | 静态网站托管 → 文件管理        |
+| 平台 HTTPS 域名 | `*.app.tcloudbase.com`                                                       | HTTP 网关 → 默认域名           |
 
-派生规则固定为：函数名 `telemetry-<app_id>`；集合名 `telemetry_` 加上把 `app_id` 中每个短横线替换为下划线后的结果；数据路由 `/apps/<app_id>/v1/track`；更新文件 `updates/<app_id>/<platform>.json`。例如 `bifang-tools-pdf` 的集合是 `telemetry_bifang_tools_pdf`。完整说明见[多工具隔离指南](multi-tool-isolation.md)。
+派生规则固定为：函数名 `telemetry-<app_id>`；集合名 `telemetry_` 加上把 `app_id` 中每个短横线替换为下划线后的结果；数据路由 `/apps/<app_id>/v1/track`；更新文件 `updates/<app_id>/<platform>.json`。例如 `bifang-pdf-tool` 的集合是 `telemetry_bifang_pdf_tool`。完整说明见[多工具隔离指南](multi-tool-isolation.md)。
 
 ---
 
@@ -110,7 +110,7 @@
 左侧菜单 → 文档型数据库 → 集合管理
 ```
 
-先确定这个工具唯一的 `app_id`。基础设施编号必须只含小写字母、数字和短横线，最长 50 个字符，并以小写字母或数字开头和结尾。`bifang-tools` 对应集合 `telemetry_bifang_tools`。
+先确定这个工具唯一的 `app_id`。基础设施编号必须只含小写字母、数字和短横线，最长 50 个字符，并以小写字母或数字开头和结尾。例如 `bifang-screen-recorder` 对应集合 `telemetry_bifang_screen_recorder`。
 
 已有该工具独立集合时不要重复创建。没有时：
 
@@ -118,13 +118,13 @@
 2. 集合名称准确填写 `telemetry_<规范化app_id>`；规范化只把每个短横线 `-` 替换为下划线 `_`。
 3. 权限选择“仅管理员可读写”或平台中含义相同的管理员/云函数专用选项。
 4. 不要选择“所有用户可读写”。
-5. 点击确定后，应在左侧集合列表中看到该工具自己的集合，例如 `telemetry_bifang_tools`。
+5. 点击确定后，应在左侧集合列表中看到该工具自己的集合，例如 `telemetry_bifang_screen_recorder`。
 
 仓库生成器不会自动创建数据库集合，这一步必须在 CloudBase 数据库页面手工完成。只生成 `cloudbaserc.json.example` 或部署函数并不能代替建集合。
 
 ![文档型数据库：集合管理页面](images/cloudbase/03-database-collection.jpg)
 
-> 截图中的 `telemetry_events` 和已有记录来自历史验收，只用于定位集合页面。新方案不要继续共用它；`bifang-tools` 应写入 `telemetry_bifang_tools`，其他工具写入各自集合。
+> 截图中的 `telemetry_events` 和已有记录来自历史验收，只用于定位集合页面。新方案不要继续共用它；每个工具都应写入由自身 `app_id` 派生的独立集合。
 
 ![创建集合窗口：填写集合名称并选择权限](images/cloudbase/04-create-collection.jpg)
 
@@ -150,13 +150,13 @@ tcb login
 
 登录只在腾讯云官方页面完成。不要把验证码、Cookie、Token、SecretId 或 SecretKey 发给任何人。
 
-如果要新增工具，先用安全命令登记。例如：
+如果要新增工具，先用安全命令登记。把下面的占位符替换为负责人已经确认的正式编号；不要原样运行占位符：
 
 ```powershell
-npm run cloudbase:app:add -- bifang-tools-pdf
+npm run cloudbase:app:add -- <已确认的新app_id>
 ```
 
-它会拒绝重复或非法编号，自动创建默认关闭的占位更新清单，并重生成同时包含所有工具的部署模板。已有 `bifang-tools` 时不要重复执行。随后检查并生成本机配置：
+它会拒绝重复或非法编号，自动创建默认关闭的占位更新清单，并重生成同时包含所有工具的部署模板。已经登记的编号不要重复执行。随后检查并生成本机配置：
 
 ```powershell
 npm run cloudbase:config:check
@@ -164,7 +164,7 @@ Copy-Item -LiteralPath .\cloudbaserc.json.example -Destination .\cloudbaserc.jso
 $env:ENV_ID = "<刚才复制的环境ID>"
 ```
 
-`app_id` 是软件的短英文编号，不是 CloudBase 自动生成的。本仓库第一个示例是 `bifang-tools`；每个新工具必须另取唯一编号。登记表在 `cloudbase/apps.json`，但优先使用上面的追加命令，不要手工维护生成后的函数和路由列表。生成后的一个模板会同时保留全部工具函数和路由，避免部署新工具时漏掉旧资源。
+`app_id` 是软件的短英文编号，不是 CloudBase 自动生成的。当前已登记编号只以 `cloudbase/apps.json` 为准；每个新工具必须另取唯一编号。优先使用上面的追加命令，不要手工维护生成后的函数和路由列表。生成后的一个模板会同时保留全部工具函数和路由，避免部署新工具时漏掉旧资源。
 
 规则：只用小写字母、数字和短横线，最长 50 个字符，并以小写字母或数字开头和结尾。GUI、独立函数配置、路由、集合派生名和更新文件中的 `app_id` 必须完全一致。
 
@@ -214,7 +214,7 @@ tcb deploy
 
 应看到：
 
-- 函数名 `telemetry-<app_id>`，例如 `telemetry-bifang-tools`；
+- 函数名 `telemetry-<app_id>`，例如 `telemetry-bifang-screen-recorder`；
 - 状态“正常”；
 - 类型“普通云函数”；
 - 运行环境 Node.js 20.x。
@@ -230,7 +230,7 @@ tcb deploy
 
 ![函数配置：ALLOWED_APP_IDS 在环境变量区域](images/cloudbase/06-function-config.jpg)
 
-> 截图来自历史体验环境，只用于定位设置区域。画面中的 `telemetry` 函数、旧应用编号和旧变量数量都不要照抄。新方案中 `bifang-tools` 使用 `telemetry-bifang-tools`，三个变量分别为 `bifang-tools`、`telemetry_bifang_tools` 和 `/apps/bifang-tools/v1/track`。画面中的 5 秒也是历史值；当前生成模板已经使用 3 秒。
+> 截图来自历史体验环境，只用于定位设置区域。画面中的 `telemetry` 函数、旧应用编号、旧变量数量和 5 秒超时都不要照抄。新方案必须从目标 `app_id` 派生函数、集合和路由；当前生成模板使用 3 秒。
 
 不要点“编辑”修改其他网络、VPC 或固定出口 IP。官方说明：[云函数控制台](https://cloud.tencent.com/document/product/876/46899)。
 
@@ -244,10 +244,10 @@ tcb deploy
 
 先确认页面顶部的“HTTP 网关”开关已开启，再选择“默认域名”。应看到一个以 `.app.tcloudbase.com` 结尾的 HTTP 网关默认域名。不要误用静态托管的 `*.tcloudbaseapp.com` 地址。下方“路由管理”应有：
 
-| 路由                          | 资源类型 | 资源对象                 |
-| ----------------------------- | -------- | ------------------------ |
-| `/apps/bifang-tools/v1/track` | 云函数   | `telemetry-bifang-tools` |
-| `/updates`                    | 静态托管 | 静态托管实例             |
+| 路由                                    | 资源类型 | 资源对象                           |
+| --------------------------------------- | -------- | ---------------------------------- |
+| `/apps/bifang-screen-recorder/v1/track` | 云函数   | `telemetry-bifang-screen-recorder` |
+| `/updates`                              | 静态托管 | 静态托管实例                       |
 
 ![HTTP 网关：开关、默认域名和两条路由](images/cloudbase/08-default-domain.jpg)
 
@@ -261,17 +261,17 @@ tcb deploy
 左侧菜单 → 静态网站托管 → 文件管理 → updates → <你的 app_id>
 ```
 
-应看到 `windows.json`。如果 `app_id` 是 `bifang-tools`，完整云端路径为：
+应看到 `windows.json`。如果 `app_id` 是 `bifang-screen-recorder`，完整云端路径为：
 
 ```text
-updates/bifang-tools/windows.json
+updates/bifang-screen-recorder/windows.json
 ```
 
 ![静态托管：updates/app_id/windows.json](images/cloudbase/10-update-json-file.jpg)
 
-> 截图中的目录名属于历史验收，只用于定位文件管理页面。本次必须上传到 `updates/bifang-tools/windows.json`。
+> 截图中的目录名属于历史验收，只用于定位文件管理页面。本次必须上传到 `updates/<目标app_id>/windows.json`，不能覆盖其他工具的文件。
 
-本地示例随项目提供，路径是 `cloudbase/updates/bifang-tools/windows.json`。官方说明：[静态托管文件管理](https://docs.cloudbase.net/hosting/manage)。
+本地已登记应用的清单位于 `cloudbase/updates/<目标app_id>/windows.json`；例如 `cloudbase/updates/bifang-screen-recorder/windows.json`。先核对 `cloudbase/apps.json`，不存在的目录不能当作已登记或已部署。官方说明：[静态托管文件管理](https://docs.cloudbase.net/hosting/manage)。
 
 ### `windows.json` 14 个字段怎么看
 
@@ -315,12 +315,12 @@ py -3 .\tools\python-sdk-test-client\gui.py
 
 GUI 中只需要填写四项：
 
-| GUI 字段     | 去哪里找                                                | 正确格式                                                   | 不要填什么                        |
-| ------------ | ------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------- |
-| 应用编号     | 目标工具函数 → 函数配置，核对其唯一 `ALLOWED_APP_IDS`   | `bifang-tools`                                             | 其他工具编号、环境 ID、软件中文名 |
-| 当前版本     | 来自当前正在验证的软件，不来自 CloudBase                | 完整三段版本，如 `0.1.0`                                   | `v0.1`、日期、最新云端版本        |
-| 数据接收地址 | `HTTP 网关 → 默认域名`，再拼 `/apps/<app_id>/v1/track`  | `https://<网关默认域名>/apps/bifang-tools/v1/track`        | 共享旧 `/v1/track`、其他工具路由  |
-| 更新文件地址 | 同一网关默认域名，再拼 `/updates/<app_id>/windows.json` | `https://<网关默认域名>/updates/bifang-tools/windows.json` | 其他工具文件、`cloud://` 地址     |
+| GUI 字段     | 去哪里找                                                | 正确格式                                                             | 不要填什么                        |
+| ------------ | ------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------- |
+| 应用编号     | 目标工具函数 → 函数配置，核对其唯一 `ALLOWED_APP_IDS`   | `bifang-screen-recorder`                                             | 其他工具编号、环境 ID、软件中文名 |
+| 当前版本     | 来自当前正在验证的软件，不来自 CloudBase                | 完整三段版本，如 `0.1.0`                                             | `v0.1`、日期、最新云端版本        |
+| 数据接收地址 | `HTTP 网关 → 默认域名`，再拼 `/apps/<app_id>/v1/track`  | `https://<网关默认域名>/apps/bifang-screen-recorder/v1/track`        | 共享旧 `/v1/track`、其他工具路由  |
+| 更新文件地址 | 同一网关默认域名，再拼 `/updates/<app_id>/windows.json` | `https://<网关默认域名>/updates/bifang-screen-recorder/windows.json` | 其他工具文件、`cloud://` 地址     |
 
 ## 地址怎么拼
 
@@ -330,14 +330,14 @@ GUI 中只需要填写四项：
 demo-123.ap-shanghai.app.tcloudbase.com
 ```
 
-且 `app_id` 是 `bifang-tools`，则填写：
+且 `app_id` 是 `bifang-screen-recorder`，则填写：
 
 ```text
 数据接收地址：
-https://demo-123.ap-shanghai.app.tcloudbase.com/apps/bifang-tools/v1/track
+https://demo-123.ap-shanghai.app.tcloudbase.com/apps/bifang-screen-recorder/v1/track
 
 更新文件地址：
-https://demo-123.ap-shanghai.app.tcloudbase.com/updates/bifang-tools/windows.json
+https://demo-123.ap-shanghai.app.tcloudbase.com/updates/bifang-screen-recorder/windows.json
 ```
 
 逐字检查：
@@ -382,7 +382,7 @@ GUI 不需要、也不应保存 SecretId、SecretKey、Token、Cookie 或腾讯�
 1. GUI 中确认四项无误。
 2. 点击“发送 1 条启动使用测试到 CloudBase”，在确认框中再次检查目标域名。它只发送固定的 `daily_active`，不发送安装、渠道、功能、任务或更新交互事件。
 3. 成功后点击“复制本次测试查询条件”。
-4. 回到 `文档型数据库 → 集合管理 → telemetry_<目标工具规范化app_id> → 文档列表 → 筛选`；例如 `bifang-tools` 使用 `telemetry_bifang_tools`。
+4. 回到 `文档型数据库 → 集合管理 → telemetry_<目标工具规范化app_id> → 文档列表 → 筛选`；例如 `bifang-screen-recorder` 使用 `telemetry_bifang_screen_recorder`。
 5. 粘贴筛选条件；能查到本次新记录，才算端到端成功。
 6. 再点击“检查有没有新版本”，确认能读取 `windows.json`。
 
