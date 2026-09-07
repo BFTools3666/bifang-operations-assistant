@@ -12,6 +12,10 @@ const outputUrl = new URL("../cloudbaserc.json.example", import.meta.url);
 export const DEPLOYMENT_APP_ID_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 export const SUPPORTED_UPDATE_PLATFORMS = Object.freeze(["windows", "macos"]);
+export const OPERATIONS_DASHBOARD = Object.freeze({
+  functionName: "operations-dashboard-api",
+  path: "/admin/v1/metrics",
+});
 const UPDATE_MANIFEST_KEYS = [
   "app_id",
   "download_url",
@@ -50,30 +54,56 @@ export function deriveAppResources(appId) {
 export function createCloudBaseConfig(registry) {
   const applications = validateRegistry(registry);
   const resources = applications.map(({ appId }) => deriveAppResources(appId));
+  const dashboardApps = applications.map(({ appId, platforms }) => ({
+    appId,
+    collectionName: deriveAppResources(appId).collectionName,
+    platforms,
+  }));
 
   return {
     $schema: "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
     version: "2.1",
     envId: "{{env.ENV_ID}}",
     functionRoot: "./cloudbase/functions",
-    functions: resources.map((resource) => ({
-      name: resource.functionName,
-      // CloudBase CLI resolves an explicit dir from the project root, not from
-      // functionRoot. All isolated function instances intentionally reuse this
-      // same source directory.
-      dir: "./cloudbase/functions/telemetry",
-      type: "Event",
-      runtime: "Nodejs20.19",
-      handler: "index.main",
-      timeout: 3,
-      memorySize: 256,
-      installDependency: true,
-      envVariables: {
-        ALLOWED_APP_IDS: resource.appId,
-        TELEMETRY_COLLECTION: resource.collectionName,
-        TRACK_PATH: resource.trackPath,
+    functions: [
+      ...resources.map((resource) => ({
+        name: resource.functionName,
+        // CloudBase CLI resolves an explicit dir from the project root, not from
+        // functionRoot. All isolated function instances intentionally reuse this
+        // same source directory.
+        dir: "./cloudbase/functions/telemetry",
+        type: "Event",
+        runtime: "Nodejs20.19",
+        handler: "index.main",
+        timeout: 3,
+        memorySize: 256,
+        installDependency: true,
+        envVariables: {
+          ALLOWED_APP_IDS: resource.appId,
+          TELEMETRY_COLLECTION: resource.collectionName,
+          TRACK_PATH: resource.trackPath,
+        },
+      })),
+      {
+        name: OPERATIONS_DASHBOARD.functionName,
+        dir: "./cloudbase/functions/operations-dashboard",
+        type: "Event",
+        runtime: "Nodejs20.19",
+        handler: "index.main",
+        timeout: 8,
+        memorySize: 256,
+        installDependency: true,
+        envVariables: {
+          CLOUDBASE_ENV_ID: "{{env.ENV_ID}}",
+          // CLI 3.8.1 revives object-shaped JSON strings while parsing config.
+          // Keep this a string for SCF; the handler accepts these two layers.
+          DASHBOARD_APPS_JSON: JSON.stringify(JSON.stringify(dashboardApps)),
+          DASHBOARD_PATH: OPERATIONS_DASHBOARD.path,
+          DASHBOARD_TOKEN_SHA256: "{{env.DASHBOARD_TOKEN_SHA256}}",
+          DASHBOARD_UPDATES_BASE_URL: "{{env.DASHBOARD_UPDATES_BASE_URL}}",
+        },
       },
-    })),
+    ],
     hosting: [
       {
         name: "updates",
@@ -101,6 +131,22 @@ export function createCloudBaseConfig(registry) {
             },
           },
         })),
+        {
+          path: OPERATIONS_DASHBOARD.path,
+          target: `function:${OPERATIONS_DASHBOARD.functionName}`,
+          protocol: "HTTP_TO_HTTPS",
+          enablePathTransmission: true,
+          // The gateway is reachable, but the function requires a high-entropy
+          // bearer token and fails closed when its SHA-256 is not configured.
+          enableAuth: false,
+          qpsPolicy: {
+            qpsTotal: 5,
+            qpsPerClient: {
+              limitBy: "ClientIP",
+              limitValue: 2,
+            },
+          },
+        },
         {
           path: "/updates",
           target: "hosting:updates",

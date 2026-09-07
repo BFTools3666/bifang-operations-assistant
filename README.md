@@ -7,7 +7,9 @@
 - 框架无关的 TypeScript SDK；
 - 自动化测试、宿主接入片段和维护文档。
 
-本仓库不是业务客户端，不包含 Tauri、Electron、React、产品界面、自动下载或自动安装逻辑。
+本仓库不是小工具业务客户端，不包含 Tauri、Electron、自动下载或自动安装逻辑。独立的只读运营看板位于 `apps/operations-dashboard`；它只消费聚合数据，不改变各工具的上报协议或客户端行为。
+
+运营看板已接入生产 CloudBase 的独立只读聚合函数，私有 Sites 仅本人可见。页面不再提供演示数据：读取失败明确显示不可用，真实零值按零显示。完整口径见[运营看板说明](docs/operations-dashboard.md)，部署版本、真实数据库对账和浏览器测试见[交付回执](docs/operations-dashboard-e2e-20260907.md)。
 
 第一期只回答“今天有多少台设备实际启动使用过”：同一个匿名 `install_id` 按北京时间（`Asia/Shanghai`）每天首次启动最多上报一次固定事件 `daily_active`。**不统计安装动作**，也不再统计渠道、功能点击、任务开始/成功/失败、更新提示或更新点击。客户端只提供匿名 `install_id`、`platform`、`arch`、`app_id` 和 `app_version`；服务端补充 `active_date`、`received_at` 和来源 `source_ip`。
 

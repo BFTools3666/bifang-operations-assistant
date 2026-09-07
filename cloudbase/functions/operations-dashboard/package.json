@@ -1,0 +1,20 @@
+{
+  "name": "@bifang/cloudbase-operations-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authenticated read-only aggregation API for the Bifang operations dashboard",
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node --check index.js && node --check src/aggregate.js && node --check src/handler.js && node --check src/manifest-reader.js && node --check src/reader.js && node --check src/validation.js && node --check src/diagnostics.js",
+    "check": "npm run build",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "3.8.2",
+    "@cloudbase/signature-nodejs": "2.2.0"
+  }
+}

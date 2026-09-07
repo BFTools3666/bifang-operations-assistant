@@ -11,7 +11,9 @@ import {
   createDisabledUpdateManifest,
 } from "../cloudbase/add-app.mjs";
 import { addAppPlatform } from "../cloudbase/add-app-platform.mjs";
+import { parseDashboardApps } from "../cloudbase/functions/operations-dashboard/src/handler.js";
 import {
+  OPERATIONS_DASHBOARD,
   createCloudBaseConfig,
   deriveAppResources,
   validateRegistry,
@@ -46,8 +48,8 @@ test("each registered app gets one function, route, collection, and update path"
   };
   const config = createCloudBaseConfig(registry);
 
-  assert.equal(config.functions.length, appIds.length);
-  assert.equal(config.gateway.routes.length, appIds.length + 1);
+  assert.equal(config.functions.length, appIds.length + 1);
+  assert.equal(config.gateway.routes.length, appIds.length + 2);
   assert.equal(
     config.gateway.routes.some((route) => route.path === "/v1/track"),
     false,
@@ -74,6 +76,94 @@ test("each registered app gets one function, route, collection, and update path"
     assert.equal(route.enableAuth, false);
     assert.equal(resources.updatePath, `/updates/${appId}`);
   }
+
+  const dashboardFunction = config.functions.find(
+    (candidate) => candidate.name === OPERATIONS_DASHBOARD.functionName,
+  );
+  const dashboardRoute = config.gateway.routes.find(
+    (candidate) => candidate.path === OPERATIONS_DASHBOARD.path,
+  );
+  assert.ok(dashboardFunction);
+  assert.equal(
+    dashboardFunction.dir,
+    "./cloudbase/functions/operations-dashboard",
+  );
+  assert.equal(dashboardFunction.timeout, 8);
+  assert.equal(
+    dashboardFunction.envVariables.CLOUDBASE_ENV_ID,
+    "{{env.ENV_ID}}",
+  );
+  assert.equal(
+    dashboardFunction.envVariables.DASHBOARD_TOKEN_SHA256,
+    "{{env.DASHBOARD_TOKEN_SHA256}}",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.parse(dashboardFunction.envVariables.DASHBOARD_APPS_JSON)),
+    appIds.map((appId) => ({
+      appId,
+      collectionName: deriveAppResources(appId).collectionName,
+      platforms: ["windows"],
+    })),
+  );
+  assert.equal(
+    dashboardRoute.target,
+    `function:${OPERATIONS_DASHBOARD.functionName}`,
+  );
+  assert.equal(dashboardRoute.protocol, "HTTP_TO_HTTPS");
+  assert.equal(dashboardRoute.enablePathTransmission, true);
+  assert.equal(dashboardRoute.enableAuth, false);
+  assert.equal(dashboardRoute.qpsPolicy.qpsTotal, 5);
+  assert.equal(dashboardRoute.qpsPolicy.qpsPerClient.limitValue, 2);
+});
+
+test("generated dashboard env stays a string through CLI 3.8.1 and parses in the handler", () => {
+  const registry = {
+    schema_version: 2,
+    apps: [{ app_id: "dashboard-tool", platforms: ["windows", "macos"] }],
+  };
+  const expectedApps = [
+    {
+      appId: "dashboard-tool",
+      collectionName: "telemetry_dashboard_tool",
+      platforms: ["windows", "macos"],
+    },
+  ];
+  const config = createCloudBaseConfig(registry);
+  const dashboard = config.functions.find(
+    (candidate) => candidate.name === OPERATIONS_DASHBOARD.functionName,
+  );
+  // ConfigParser.parseRawConfig in CloudBase CLI 3.8.1 applies this reviver
+  // after template substitution. A once-encoded JSON array becomes an array,
+  // which SCF rejects as an environment variable; the generated value must
+  // survive as a string and still decode to the exact registered applications.
+  const cliParse = (raw) =>
+    JSON.parse(JSON.stringify(raw), (_key, value) => {
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          if (typeof parsed === "object") return parsed;
+        } catch {
+          // The CLI leaves non-JSON strings unchanged.
+        }
+      }
+      return value;
+    });
+  const onceEncoded = JSON.stringify(expectedApps);
+  assert.equal(Array.isArray(cliParse({ apps: onceEncoded }).apps), true);
+
+  const deployed = cliParse(dashboard).envVariables;
+  assert.equal(typeof deployed.DASHBOARD_APPS_JSON, "string");
+  assert.equal(
+    cliParse(deployed).DASHBOARD_APPS_JSON,
+    deployed.DASHBOARD_APPS_JSON,
+  );
+  assert.deepEqual(
+    parseDashboardApps(deployed.DASHBOARD_APPS_JSON),
+    expectedApps,
+  );
+  assert.equal(deployed.CLOUDBASE_ENV_ID, config.envId);
+  assert.equal("DASHBOARD_TOKEN" in deployed, false);
+  assert.equal("CLOUDBASE_METRICS_TOKEN" in deployed, false);
 });
 
 test("the registry rejects ambiguous or unsafe deployment app ids", () => {

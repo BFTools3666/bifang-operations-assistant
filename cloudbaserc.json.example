@@ -33,6 +33,23 @@
         "TELEMETRY_COLLECTION": "telemetry_bifang_mouse_clicker",
         "TRACK_PATH": "/apps/bifang-mouse-clicker/v1/track"
       }
+    },
+    {
+      "name": "operations-dashboard-api",
+      "dir": "./cloudbase/functions/operations-dashboard",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 8,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "CLOUDBASE_ENV_ID": "{{env.ENV_ID}}",
+        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"]}]\"",
+        "DASHBOARD_PATH": "/admin/v1/metrics",
+        "DASHBOARD_TOKEN_SHA256": "{{env.DASHBOARD_TOKEN_SHA256}}",
+        "DASHBOARD_UPDATES_BASE_URL": "{{env.DASHBOARD_UPDATES_BASE_URL}}"
+      }
     }
   ],
   "hosting": [
@@ -73,6 +90,20 @@
           "qpsPerClient": {
             "limitBy": "ClientIP",
             "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/admin/v1/metrics",
+        "target": "function:operations-dashboard-api",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 5,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 2
           }
         }
       },
