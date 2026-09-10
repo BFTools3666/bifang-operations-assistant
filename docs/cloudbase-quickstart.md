@@ -134,7 +134,7 @@ npm run cloudbase:version-api:deploy:plan -- --env-id <环境ID> --origin https:
 CloudBase 开发平台 → 文档型数据库 → 集合管理
 ```
 
-如果计划要求创建缺失集合，名称必须与派生结果完全一致，权限选择 `ADMINONLY`。控制台中不要照历史截图抄写 `telemetry_events` 等旧示例名；只使用本次只读计划列出的逐应用集合名。
+如果计划要求创建缺失集合，名称必须与派生结果完全一致，权限选择 `ADMINONLY`。每个 telemetry 集合还必须由确认后的单应用计划创建或保留精确 TTL 索引 `expires_at_ttl`：键为 `expires_at: 1`，`expireAfterSeconds: 0`；写入后必须用计划中的 `listIndexes` 命令读回并核对三项完全一致。控制台中不要照历史截图抄写 `telemetry_events` 等旧示例名；只使用本次只读计划列出的逐应用集合名。
 
 不要覆盖现有非空集合，不把一个应用的 code/data 写入另一个应用集合。已有集合 ACL、索引或数据与目标冲突时停止。
 

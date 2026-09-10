@@ -51,6 +51,13 @@ test("the target-only plan contains telemetry writes for only the selected app",
   assert.equal(plan.resources.function, "telemetry-bifang-screen-recorder");
   assert.equal(plan.resources.collection, "telemetry_bifang_screen_recorder");
   assert.equal(plan.resources.collection_permission, "ADMINONLY");
+  assert.deepEqual(plan.resources.collection_indexes, [
+    {
+      name: "expires_at_ttl",
+      key: { expires_at: 1 },
+      expireAfterSeconds: 0,
+    },
+  ]);
   assert.deepEqual(
     plan.release_streams.map(({ code }) => code),
     [
@@ -62,7 +69,7 @@ test("the target-only plan contains telemetry writes for only the selected app",
   const commands = plan.write_steps_after_confirmation
     .filter(({ kind }) => kind === "command")
     .map(({ argv }) => argv);
-  assert.deepEqual(commands[0], [
+  assert.deepEqual(commands[1], [
     "tcb",
     "fn",
     "deploy",
@@ -73,7 +80,7 @@ test("the target-only plan contains telemetry writes for only the selected app",
     ENV_ID,
     "--json",
   ]);
-  assert.equal(commands.length, 2);
+  assert.equal(commands.length, 3);
   for (const argv of commands) {
     assert.equal(argv.includes("--all"), false);
     assert.equal(argv.includes("--force"), false);
@@ -83,6 +90,54 @@ test("the target-only plan contains telemetry writes for only the selected app",
     assert.equal(argv.includes("application-version-api"), false);
   }
   assert.equal(JSON.stringify(plan).includes("manifest"), false);
+});
+
+test("the target-only plan creates and verifies the exact telemetry TTL index", () => {
+  const plan = createAppDeploymentPlan(registry(), "bifang-screen-recorder", {
+    envId: ENV_ID,
+    origin: ORIGIN,
+  });
+  const createStep = plan.write_steps_after_confirmation.find(
+    ({ resource }) => resource === "collection-index",
+  );
+  assert.deepEqual(createStep.argv.slice(0, 5), [
+    "tcb",
+    "db",
+    "nosql",
+    "execute",
+    "--command",
+  ]);
+  assert.equal(createStep.argv[createStep.argv.indexOf("-e") + 1], ENV_ID);
+  const createCommands = JSON.parse(
+    createStep.argv[createStep.argv.indexOf("--command") + 1],
+  );
+  assert.equal(createCommands.length, 1);
+  assert.equal(createCommands[0].TableName, "telemetry_bifang_screen_recorder");
+  assert.equal(createCommands[0].CommandType, "COMMAND");
+  assert.deepEqual(JSON.parse(createCommands[0].Command), {
+    createIndexes: "telemetry_bifang_screen_recorder",
+    indexes: [
+      {
+        name: "expires_at_ttl",
+        key: { expires_at: 1 },
+        expireAfterSeconds: 0,
+      },
+    ],
+  });
+
+  const verifyStep = plan.post_write_verification.find(
+    ({ resource } = {}) => resource === "collection-index",
+  );
+  const verifyCommands = JSON.parse(
+    verifyStep.argv[verifyStep.argv.indexOf("--command") + 1],
+  );
+  assert.deepEqual(JSON.parse(verifyCommands[0].Command), {
+    listIndexes: "telemetry_bifang_screen_recorder",
+    cursor: {},
+  });
+  assert.match(verifyStep.success_condition, /expires_at_ttl/);
+  assert.match(verifyStep.success_condition, /expires_at:1/);
+  assert.match(verifyStep.success_condition, /expireAfterSeconds:0/);
 });
 
 test("the target-only route command uses the exact default domain and isolated telemetry function", () => {
@@ -170,6 +225,7 @@ test("the checked-in target plan is telemetry-only", async () => {
   assert.equal(plan.mode, "telemetry-target-only-preview");
   assert.deepEqual(Object.keys(plan.resources).sort(), [
     "collection",
+    "collection_indexes",
     "collection_permission",
     "function",
     "route",

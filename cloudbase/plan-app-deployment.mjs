@@ -9,6 +9,11 @@ import {
 
 const defaultRegistryUrl = new URL("./apps.json", import.meta.url);
 const ENV_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,127}$/;
+const TELEMETRY_TTL_INDEX = Object.freeze({
+  name: "expires_at_ttl",
+  key: Object.freeze({ expires_at: 1 }),
+  expireAfterSeconds: 0,
+});
 
 export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
   const applications = validateRegistry(registry);
@@ -46,6 +51,20 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       Routes: [toCloudBaseApiRoute(route)],
     },
   });
+  const createTtlIndexCommand = createNoSqlCommandArgument(
+    resources.collectionName,
+    {
+      createIndexes: resources.collectionName,
+      indexes: [TELEMETRY_TTL_INDEX],
+    },
+  );
+  const listIndexesCommand = createNoSqlCommandArgument(
+    resources.collectionName,
+    {
+      listIndexes: resources.collectionName,
+      cursor: {},
+    },
+  );
 
   return {
     schema_version: 2,
@@ -58,6 +77,13 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       function: resources.functionName,
       collection: resources.collectionName,
       collection_permission: "ADMINONLY",
+      collection_indexes: [
+        {
+          name: TELEMETRY_TTL_INDEX.name,
+          key: { ...TELEMETRY_TTL_INDEX.key },
+          expireAfterSeconds: TELEMETRY_TTL_INDEX.expireAfterSeconds,
+        },
+      ],
       route,
     },
     release_streams: application.releaseStreams.map((stream) => ({
@@ -89,7 +115,7 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       {
         kind: "manual-read-only",
         resource: "collection-and-cost",
-        instruction: `Verify ${resources.collectionName} ownership, ADMINONLY ACL and indexes, then confirm the existing environment remains zero-cost with overrun disabled. Stop on incomplete inventory, a conflicting collection, non-zero amount, upgrade prompt or insufficient quota.`,
+        instruction: `Verify ${resources.collectionName} ownership, ADMINONLY ACL and indexes, including expires_at_ttl with key expires_at:1 and expireAfterSeconds:0, then confirm the existing environment remains zero-cost with overrun disabled. Stop on incomplete inventory, a conflicting collection or index, non-zero amount, upgrade prompt or insufficient quota.`,
       },
     ],
     write_steps_after_confirmation: [
@@ -97,6 +123,22 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
         kind: "manual",
         resource: "collection",
         instruction: `Create or verify ${resources.collectionName} with ADMINONLY permission; stop if it exists with a different contract.`,
+      },
+      {
+        kind: "command",
+        resource: "collection-index",
+        argv: [
+          "tcb",
+          "db",
+          "nosql",
+          "execute",
+          "--command",
+          createTtlIndexCommand,
+          "-e",
+          envId,
+          "--json",
+        ],
+        instruction: `Create or preserve the exact expires_at_ttl index on ${resources.collectionName}; a same-name index with any other key or expireAfterSeconds value must stop the deployment.`,
       },
       {
         kind: "command",
@@ -130,6 +172,22 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       },
     ],
     post_write_verification: [
+      {
+        kind: "command",
+        resource: "collection-index",
+        argv: [
+          "tcb",
+          "db",
+          "nosql",
+          "execute",
+          "--command",
+          listIndexesCommand,
+          "-e",
+          envId,
+          "--json",
+        ],
+        success_condition: `The returned indexes for ${resources.collectionName} must contain exactly one expires_at_ttl with key expires_at:1 and expireAfterSeconds:0.`,
+      },
       `DescribeHTTPServiceRoute must return exactly ${route.path} -> ${resources.functionName} for the selected domain.`,
       `DescribeDatabaseACL must return ADMINONLY for ${resources.collectionName}.`,
       "A valid daily_active request must be acknowledged once and an identical retry must remain idempotent.",
@@ -151,6 +209,16 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       "paid plans, resource packs or overage",
     ],
   };
+}
+
+function createNoSqlCommandArgument(collectionName, command) {
+  return JSON.stringify([
+    {
+      TableName: collectionName,
+      CommandType: "COMMAND",
+      Command: JSON.stringify(command),
+    },
+  ]);
 }
 
 function toCloudBaseApiRoute(route) {
