@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "canonicalRepositoryUrl": "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git",
   "repositoryIdentity": "bifang-operations-assistant",
-  "minimumInfrastructureCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
+  "minimumInfrastructureCommit": "6419aa99e069933d6f659b4dc7231fc8ef3d78e8",
   "infrastructureVersion": "3.0.0",
   "applicationVersionContractVersion": "1.0.0",
   "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",

@@ -4,7 +4,7 @@ description: Onboard the current small-tool repository to Bifang public services
 metadata:
   version: "2.0.0"
   infrastructure-version: "3.0.0"
-  infrastructure-source-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"
+  infrastructure-source-commit: "6419aa99e069933d6f659b4dc7231fc8ef3d78e8"
   application-version-contract-version: "1.0.0"
   application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"
   source-repository: "bifang-operations-assistant"
