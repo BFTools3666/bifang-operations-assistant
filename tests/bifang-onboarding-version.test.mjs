@@ -15,7 +15,7 @@ const runGit = (args) =>
     encoding: "utf8",
   });
 
-test("onboarding skill release versions stay aligned without changing the SDK API version", async () => {
+test("onboarding, infrastructure, and application-version SDK releases stay aligned", async () => {
   const rootPackage = await readJson("../package.json");
   const lock = await readJson("../package-lock.json");
   const sdkPackage = await readJson(
@@ -29,21 +29,25 @@ test("onboarding skill release versions stay aligned without changing the SDK AP
     "utf8",
   );
 
-  assert.equal(rootPackage.version, "2.1.0");
+  assert.equal(rootPackage.version, "3.0.0");
   assert.equal(lock.version, rootPackage.version);
   assert.equal(lock.packages[""].version, rootPackage.version);
-  assert.equal(sdkPackage.version, "2.0.0");
-  assert.match(skill, /version:\s*["']1\.0\.0["']/);
-  assert.match(skill, /infrastructure-version:\s*["']2\.1\.0["']/);
+  assert.equal(sdkPackage.version, "3.0.0");
+  assert.match(skill, /version:\s*["']2\.0\.0["']/);
+  assert.match(skill, /infrastructure-version:\s*["']3\.0\.0["']/);
   assert.match(
     skill,
-    /protocol-baseline-commit:\s*["']01f42449bf0f80a2660e7ee0899eef1176aca934["']/,
+    /application-version-contract-version:\s*["']1\.0\.0["']/,
+  );
+  assert.match(
+    skill,
+    /application-version-baseline-commit:\s*["']92b0c599a42c3a094c99787e6928c30c2d2ea3af["']/,
   );
   const sourceCommit = skill.match(
     /infrastructure-source-commit:\s*["']([0-9a-f]{40})["']/,
   );
   assert.ok(sourceCommit, "infrastructure source commit must be recorded");
-  assert.notEqual(sourceCommit[1], "01f42449bf0f80a2660e7ee0899eef1176aca934");
+  assert.notEqual(sourceCommit[1], "92b0c599a42c3a094c99787e6928c30c2d2ea3af");
 
   const commitExists = runGit([
     "cat-file",
@@ -53,7 +57,7 @@ test("onboarding skill release versions stay aligned without changing the SDK AP
   assert.equal(commitExists.status, 0, commitExists.stderr);
   const sourcePackage = runGit(["show", `${sourceCommit[1]}:package.json`]);
   assert.equal(sourcePackage.status, 0, sourcePackage.stderr);
-  assert.equal(JSON.parse(sourcePackage.stdout).version, "2.1.0");
+  assert.equal(JSON.parse(sourcePackage.stdout).version, "3.0.0");
   const isAncestor = runGit([
     "merge-base",
     "--is-ancestor",

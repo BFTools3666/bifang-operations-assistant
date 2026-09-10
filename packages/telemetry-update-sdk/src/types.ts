@@ -17,7 +17,7 @@ export interface TelemetryEvent {
   install_id: string;
   platform: Platform;
   arch: Architecture;
-  sdk_version: "2.0.0";
+  sdk_version: "3.0.0";
   occurred_at: string;
 }
 
@@ -147,54 +147,60 @@ export interface TelemetryClientConfig {
   uuid?: () => string;
 }
 
-export interface UpdateConfig {
-  schema_version: 1;
-  app_id: string;
-  platform: Platform;
-  enabled: boolean;
-  latest_version: string;
-  min_supported_version: string;
-  force_update: boolean;
-  rollout: number;
+/** Frozen bare seven-field response from application-version API v1. */
+export interface ApplicationVersionData {
+  update: boolean;
+  downloadUrl: string;
   /** Untrusted remote plain text. Hosts must never interpret it as markup. */
-  title: string;
-  /** Untrusted remote plain text. Hosts must never interpret it as markup. */
-  message: string;
-  download_url: string;
-  release_notes_url: string;
-  sha256: string;
-  published_at: string;
+  promptContent: string;
+  forcedUpdate: boolean;
+  promptUpdate: boolean;
+  stopUpdate: boolean;
+  /** Server-sanitized compatibility rich text; hosts must keep bridges disabled. */
+  updateContent: string;
 }
 
-export type NoUpdateReason =
-  "disabled" | "unavailable" | "invalid_config" | "up_to_date" | "rollout";
+export type NoApplicationVersionReason =
+  | "disabled"
+  | "unavailable"
+  | "invalid_config"
+  | "invalid_response"
+  | "up_to_date";
 
-export interface NoUpdateDecision {
+export interface NoApplicationVersionDecision {
   kind: "none";
-  reason: NoUpdateReason;
+  reason: NoApplicationVersionReason;
 }
 
-export interface OptionalUpdateDecision {
+export interface OptionalApplicationVersionDecision {
   kind: "optional";
-  config: UpdateConfig;
+  data: ApplicationVersionData;
 }
 
-export interface RequiredUpdateDecision {
+export interface RequiredApplicationVersionDecision {
   kind: "required";
-  config: UpdateConfig;
+  data: ApplicationVersionData;
 }
 
-export type AvailableUpdateDecision =
-  OptionalUpdateDecision | RequiredUpdateDecision;
+export interface StoppedApplicationVersionDecision {
+  kind: "stopped";
+  data: ApplicationVersionData;
+}
 
-export type UpdateDecision = NoUpdateDecision | AvailableUpdateDecision;
+export type AvailableApplicationVersionDecision =
+  OptionalApplicationVersionDecision | RequiredApplicationVersionDecision;
 
-export interface UpdateFetchResponse {
+export type ApplicationVersionDecision =
+  | NoApplicationVersionDecision
+  | AvailableApplicationVersionDecision
+  | StoppedApplicationVersionDecision;
+
+export interface ApplicationVersionFetchResponse {
   ok: boolean;
   text(): Promise<string>;
 }
 
-export type UpdateFetch = (
+export type ApplicationVersionFetch = (
   url: string,
   init: {
     method: "GET";
@@ -202,26 +208,32 @@ export type UpdateFetch = (
     signal: AbortSignal;
     cache?: "no-store";
   },
-) => Promise<UpdateFetchResponse>;
+) => Promise<ApplicationVersionFetchResponse>;
 
-export interface UpdateCheckerConfig {
+export interface ApplicationVersionCheckerConfig {
+  /** Must end at exactly /tools/version-control/v1, with v1 appearing once. */
   baseUrl: string;
-  appId: string;
-  platform: Platform;
+  code: string;
   currentVersion: string;
-  installId: string;
+  appKey: string;
+  appSecret: string;
   enabled?: boolean;
   timeoutMs?: number;
-  fetch?: UpdateFetch;
+  fetch?: ApplicationVersionFetch;
   logger?: DebugLogger;
 }
 
-export interface UpdateHostHooks {
+export interface ApplicationVersionHostHooks {
   onOptionalUpdate?: (
-    decision: Readonly<OptionalUpdateDecision>,
+    decision: Readonly<OptionalApplicationVersionDecision>,
   ) => void | Promise<void>;
   onRequiredUpdate?: (
-    decision: Readonly<RequiredUpdateDecision>,
+    decision: Readonly<RequiredApplicationVersionDecision>,
   ) => void | Promise<void>;
-  onNoUpdate?: (decision: Readonly<NoUpdateDecision>) => void | Promise<void>;
+  onStoppedUpdate?: (
+    decision: Readonly<StoppedApplicationVersionDecision>,
+  ) => void | Promise<void>;
+  onNoUpdate?: (
+    decision: Readonly<NoApplicationVersionDecision>,
+  ) => void | Promise<void>;
 }

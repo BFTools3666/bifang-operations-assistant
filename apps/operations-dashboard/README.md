@@ -1,6 +1,6 @@
 # 毕方运营精灵 WebApp
 
-这是一个私有、只读的 CloudBase 运营驾驶舱。首屏展示每日活跃匿名安装数、周期活跃、今日回访、数据新鲜度、活跃趋势、版本/平台/架构分布和更新清单状态。
+这是一个私有、只读的 CloudBase 运营驾驶舱。首屏展示每日活跃匿名安装数、周期活跃、今日回访、数据新鲜度、活跃趋势、版本/平台/架构分布和 application-version 发布流状态。
 
 ## 本地预览
 
@@ -15,8 +15,8 @@ npm run dev
 
 - 浏览器从不直连 `ADMINONLY` 数据库集合，也不持有腾讯云 SecretId/SecretKey。
 - 原始 Bearer Token 只存在于私有 Sites 运行环境和本地未提交 `.env`；CloudBase 函数只保存其 SHA-256。
-- 聚合接口最多查询 30 天，只返回日期、计数、版本、平台、架构和更新清单摘要。
+- 聚合接口最多查询 30 天，只返回日期、计数，以及发布流 code、平台、架构、渠道、最高版本和状态摘要。
 - 接口不返回原始文档、`install_id`、`event_id` 或 `source_ip`。
 - WebApp 没有更新发布、数据库写入、删除、套餐升级或付费操作。
 
-CloudBase 远程部署必须先完成实时免费额度、现有函数/路由和零删除预检，仅执行负责人已授权的生产看板范围。详见仓库的 `docs/operations-dashboard.md` 与 `docs/operations-dashboard-e2e-20260907.md`。
+CloudBase 远程部署必须先完成实时免费额度、现有函数/路由和零删除预检，仅执行负责人已授权的生产看板范围。详见仓库的 `docs/operations-dashboard.md`；3.0 的新生产回执只能在本次真实部署与 Edge E2E 后生成。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only project scan for legacy Bifang routes and architecture evidence."""
+"""Read-only scan for Bifang telemetry and application-version API evidence."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -128,6 +129,135 @@ UPDATE_MANIFEST_PATTERN = re.compile(
     r"/updates/(?P<app_id>[A-Za-z0-9_-]{1,100})"
     r"/(?P<platform>windows|macos|linux)\.json",
 )
+STATIC_UPDATE_BASE_PATTERN = re.compile(
+    r"(?:https?://[^\s\"'`]+)?/updates(?:/|(?=$|[\s\"'`?#,)]))",
+    re.IGNORECASE,
+)
+APPLICATION_VERSION_DOUBLE_V1_PATTERN = re.compile(
+    r"/tools/version-control/v1/v1(?:/|(?=$|[\s\"'`?#,)]))",
+    re.IGNORECASE,
+)
+APPLICATION_VERSION_CHECK_PATTERN = re.compile(
+    r"/tools/version-control/v1/versions/[^/\s\"'`?#]+/[^/\s\"'`?#]+",
+    re.IGNORECASE,
+)
+APPLICATION_VERSION_ADS_SHOW_PATTERN = re.compile(
+    r"/tools/version-control/v1/app/[^/\s\"'`?#]+/ads/show",
+    re.IGNORECASE,
+)
+APPLICATION_VERSION_BASE_PATTERN = re.compile(
+    r"/tools/version-control/v1(?=$|[/\s\"'`?#,)])",
+    re.IGNORECASE,
+)
+APPLICATION_VERSION_HEADER_PATTERNS = {
+    "x_app_key_header": re.compile(r"(?<![A-Za-z0-9-])x-app-key(?![A-Za-z0-9-])", re.IGNORECASE),
+    "x_app_secret_header": re.compile(
+        r"(?<![A-Za-z0-9-])x-app-secret(?![A-Za-z0-9-])", re.IGNORECASE
+    ),
+}
+IDENTIFIER_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_-]{1,80}")
+UPDATE_BASE_URL_IDENTIFIERS = frozenset(
+    (
+        "updatebaseurl",
+        "legacyupdatebaseurl",
+        "staticupdatebaseurl",
+    )
+)
+UPDATE_SEGMENT_PATTERN = re.compile(
+    r'''(?i)(?:["'`])/?updates(?:[/\\]|["'`])'''
+)
+RELATIVE_UPDATE_MANIFEST_PATTERN = re.compile(
+    r'''(?ix)
+    (?<![A-Za-z0-9/])updates[/\\]
+    (?:[^\s"'`/\\]+[/\\])?
+    (?:windows|macos|linux|\$\{[^}]+\}|\{[^}]+\})\.json
+    '''
+)
+PATH_ASSEMBLY_PATTERN = re.compile(
+    r"(?i)(?:\bnew\s+URL\s*\(|\b(?:path\.)?join\s*\(|\.join\s*\(|"
+    r"\bconcat\s*\(|\$\{|\+\s*[A-Za-z_'\"]|(?:format|sprintf)\s*\()"
+)
+JSON_PATH_CONTEXT_PATTERN = re.compile(
+    r"(?i)(?:\.json|windows|macos|linux|platform|app[_-]?id|manifest)"
+)
+LEGACY_MANIFEST_FIELDS = frozenset(
+    (
+        "schemaversion",
+        "appid",
+        "platform",
+        "latestversion",
+        "minsupportedversion",
+        "enabled",
+        "forceupdate",
+        "rollout",
+        "title",
+        "message",
+        "downloadurl",
+        "releasenotesurl",
+        "sha256",
+        "publishedat",
+    )
+)
+LEGACY_MANIFEST_CORE_FIELDS = frozenset(
+    (
+        "latestversion",
+        "minsupportedversion",
+        "forceupdate",
+        "rollout",
+        "releasenotesurl",
+        "publishedat",
+    )
+)
+LEGACY_MANIFEST_PARSER_PATTERN = re.compile(
+    r"(?i)(?:parse|validate|decode|deserialize|load|read|fetch)"
+    r"[A-Za-z0-9_-]{0,32}(?:update|static)[A-Za-z0-9_-]{0,24}"
+    r"(?:manifest|config)|"
+    r"(?:update|static)[A-Za-z0-9_-]{0,24}(?:manifest|config)"
+    r"[A-Za-z0-9_-]{0,24}(?:parser|validator|decode)"
+)
+LEGACY_MANIFEST_TYPE_PATTERN = re.compile(
+    r"(?i)\b(?:interface|type|class|struct|record)\s+"
+    r"[A-Za-z0-9_-]*(?:update|static)[A-Za-z0-9_-]*(?:manifest|config)"
+)
+ROLLOUT_SUPPORT_PATTERN = re.compile(
+    r"(?i)(?:bucket|hash|digest|percentage|percent|modulo|crc|fnv|sha(?:1|256)?|%\s*100)"
+)
+INSTALL_IDENTITY_PATTERN = re.compile(
+    r"(?i)(?:install[_-]?id|installation[_-]?id|device[_-]?id|machine[_-]?id)"
+)
+
+APPLICATION_VERSION_RESPONSE_FIELDS = frozenset(
+    (
+        "update",
+        "downloadurl",
+        "promptcontent",
+        "forcedupdate",
+        "promptupdate",
+        "stopupdate",
+        "updatecontent",
+    )
+)
+APPLICATION_VERSION_ROUTE_SEGMENT_PATTERN = re.compile(
+    r'''(?i)/versions(?:/|["'`])'''
+)
+HTTP_REQUEST_CALL_PATTERN = re.compile(
+    r"(?i)(?:\bfetch\s*\(|\baxios\s*\.\s*get\s*\(|"
+    r"\brequests?\s*\.\s*get\s*\(|\b(?:http_?|web_?)?client\s*\.\s*get\s*\(|"
+    r"\breqwest\s*::|\bureq\s*::\s*get\s*\()"
+)
+STRICT_OBJECT_KEYS_PATTERN = re.compile(
+    r"(?i)(?:Object\s*\.\s*keys|\.keys\s*\(|expected[_-]?keys|response[_-]?keys|"
+    r"deny_unknown_fields|additionalProperties\s*[:=]\s*false|unknown[_ -]?fields?)"
+)
+STRICT_OBJECT_REJECTION_PATTERN = re.compile(
+    r"(?i)(?:hasOwn|every\s*\(|set\s*\(|length\s*[!=]==?|len\s*\(|"
+    r"exact(?:ly)?[_ -]?(?:seven|7|keys?|fields?)|reject|forbid)"
+)
+DECISION_FLOW_PATTERN = re.compile(
+    r"(?i)(?:decide[A-Za-z0-9_-]*(?:version|update)|"
+    r"if\s*\([^)]*(?:stop[_-]?update|forced[_-]?update|prompt[_-]?update)|"
+    r"\b(?:stopped|required|optional|up[_-]?to[_-]?date)\b)"
+)
 APP_ID_DECLARATION_PATTERN = re.compile(
     r"(?:\b(?i:APP_ID)\b|[\"']?(?i:app[_-]?id)[\"']?)\s*[:=]\s*"
     r"(?P<quote>[\"'`])(?P<app_id>[^\"'`\r\n]{1,100})(?P=quote)"
@@ -170,6 +300,172 @@ ACTIVE_LEGACY_USAGE_PATTERN = re.compile(
 )
 
 
+def _normalized_identifier_locations(text: str) -> dict[str, int]:
+    locations: dict[str, int] = {}
+    for match in IDENTIFIER_PATTERN.finditer(text):
+        normalized = re.sub(r"[_-]+", "", match.group(0).casefold())
+        locations.setdefault(normalized, match.start())
+    return locations
+
+
+def _line_number_at(text: str, offset: int) -> int:
+    return text.count("\n", 0, max(0, offset)) + 1
+
+
+def _detect_legacy_static_file_markers(text: str) -> list[tuple[str, int]]:
+    """Return high-confidence legacy-update markers without returning source text."""
+
+    identifiers = _normalized_identifier_locations(text)
+    field_locations = {
+        field: identifiers[field]
+        for field in LEGACY_MANIFEST_FIELDS
+        if field in identifiers
+    }
+    core_fields = LEGACY_MANIFEST_CORE_FIELDS.intersection(field_locations)
+    markers: dict[str, int] = {}
+
+    update_base_locations = [
+        offset
+        for name, offset in identifiers.items()
+        if name in UPDATE_BASE_URL_IDENTIFIERS
+        or (name.endswith("updatebaseurl") and "applicationversion" not in name)
+    ]
+    if update_base_locations:
+        markers["legacy_update_base_url"] = min(update_base_locations)
+
+    # A relative or assembled updates/<app>/<platform>.json path can avoid the
+    # old literal /updates detector. Require both path construction and manifest
+    # context so a generic "updates" label does not block migration.
+    direct_static_path = STATIC_UPDATE_BASE_PATTERN.search(text)
+    relative_manifest = RELATIVE_UPDATE_MANIFEST_PATTERN.search(text)
+    update_segment = UPDATE_SEGMENT_PATTERN.search(text)
+    if direct_static_path is None and (
+        relative_manifest is not None
+        or (
+            update_segment is not None
+            and PATH_ASSEMBLY_PATTERN.search(text) is not None
+            and JSON_PATH_CONTEXT_PATTERN.search(text) is not None
+        )
+    ):
+        evidence = relative_manifest or update_segment
+        assert evidence is not None
+        markers["dynamic_static_update_path"] = evidence.start()
+
+    parser = LEGACY_MANIFEST_PARSER_PATTERN.search(text)
+    if parser is not None and len(field_locations) >= 3 and len(core_fields) >= 2:
+        markers["legacy_manifest_parser"] = parser.start()
+
+    manifest_type = LEGACY_MANIFEST_TYPE_PATTERN.search(text)
+    if (
+        manifest_type is not None
+        and len(field_locations) >= 5
+        and len(core_fields) >= 2
+    ):
+        markers["legacy_manifest_type"] = manifest_type.start()
+
+    if len(field_locations) >= 7 and len(core_fields) >= 3:
+        markers["legacy_manifest_field_contract"] = min(field_locations.values())
+
+    rollout_locations = [
+        offset for name, offset in identifiers.items() if "rollout" in name
+    ]
+    if (
+        rollout_locations
+        and ROLLOUT_SUPPORT_PATTERN.search(text) is not None
+        and INSTALL_IDENTITY_PATTERN.search(text) is not None
+    ):
+        markers["legacy_rollout_algorithm"] = min(rollout_locations)
+
+    compatibility_locations = []
+    for name, offset in identifiers.items():
+        has_update_context = "update" in name and any(
+            token in name for token in ("legacy", "static", "manifest")
+        )
+        has_switch_semantics = any(
+            token in name
+            for token in ("fallback", "compat", "enable", "disable", "useold")
+        )
+        if has_update_context and has_switch_semantics:
+            compatibility_locations.append(offset)
+        elif "manifest" in name and "fallback" in name and (
+            field_locations or direct_static_path or relative_manifest
+        ):
+            compatibility_locations.append(offset)
+    has_split_compatibility_identifiers = any(
+        "updateprotocol" in name or "updatechecker" in name for name in identifiers
+    ) and any(
+        ("legacy" in name or "static" in name or "manifest" in name)
+        and ("fallback" in name or "compat" in name)
+        for name in identifiers
+    )
+    if compatibility_locations or has_split_compatibility_identifiers:
+        markers["legacy_update_compatibility"] = (
+            min(compatibility_locations)
+            if compatibility_locations
+            else min(
+                offset
+                for name, offset in identifiers.items()
+                if "fallback" in name or "compat" in name
+            )
+        )
+
+    return sorted(
+        (
+            (marker, _line_number_at(text, offset))
+            for marker, offset in markers.items()
+        ),
+        key=lambda item: (item[1], item[0]),
+    )
+
+
+def _detect_application_version_file_markers(text: str) -> list[tuple[str, int]]:
+    """Find behavioral client evidence, not just endpoint/header string markers."""
+
+    identifiers = _normalized_identifier_locations(text)
+    markers: dict[str, int] = {}
+    route = APPLICATION_VERSION_ROUTE_SEGMENT_PATTERN.search(text)
+    request_call = HTTP_REQUEST_CALL_PATTERN.search(text)
+    if route is not None and request_call is not None:
+        markers["application_version_request_construction"] = min(
+            route.start(), request_call.start()
+        )
+
+    response_field_locations = {
+        field: identifiers[field]
+        for field in APPLICATION_VERSION_RESPONSE_FIELDS
+        if field in identifiers
+    }
+    exact_keys = STRICT_OBJECT_KEYS_PATTERN.search(text)
+    exact_rejection = STRICT_OBJECT_REJECTION_PATTERN.search(text)
+    if (
+        len(response_field_locations) == len(APPLICATION_VERSION_RESPONSE_FIELDS)
+        and exact_keys is not None
+        and exact_rejection is not None
+    ):
+        markers["strict_seven_field_response_parser"] = min(
+            min(response_field_locations.values()),
+            exact_keys.start(),
+            exact_rejection.start(),
+        )
+
+    decision = DECISION_FLOW_PATTERN.search(text)
+    if (
+        decision is not None
+        and {"update", "forcedupdate", "promptupdate", "stopupdate"}.issubset(
+            response_field_locations
+        )
+    ):
+        markers["application_version_decision"] = decision.start()
+
+    return sorted(
+        (
+            (marker, _line_number_at(text, offset))
+            for marker, offset in markers.items()
+        ),
+        key=lambda item: (item[1], item[0]),
+    )
+
+
 def scan_project(root: Path) -> dict[str, Any]:
     """Scan a local tree without executing code, changing files, or using a network."""
 
@@ -181,6 +477,9 @@ def scan_project(root: Path) -> dict[str, Any]:
     non_runtime_hits: list[dict[str, Any]] = []
     modern_track_hits: list[dict[str, Any]] = []
     update_manifest_hits: list[dict[str, Any]] = []
+    legacy_static_update_hits: list[dict[str, Any]] = []
+    application_version_api_hits: list[dict[str, Any]] = []
+    invalid_application_version_api_hits: list[dict[str, Any]] = []
     app_id_candidates: list[dict[str, Any]] = []
     invalid_app_id_evidence: list[dict[str, Any]] = []
     unresolved_app_id_evidence: list[dict[str, Any]] = []
@@ -252,6 +551,57 @@ def scan_project(root: Path) -> dict[str, Any]:
                     invalid_app_id_evidence,
                     runtime_app_ids,
                 )
+            static_update_markers: set[str] = set()
+            if STATIC_UPDATE_BASE_PATTERN.search(line):
+                static_update_markers.add("static_update_base")
+            if UPDATE_MANIFEST_PATTERN.search(line):
+                static_update_markers.add("static_update_manifest")
+            for marker in sorted(static_update_markers):
+                legacy_static_update_hits.append(
+                    {
+                        "kind": evidence_kind,
+                        "line": line_number,
+                        "marker": marker,
+                        "path": relative_path,
+                    }
+                )
+
+            if APPLICATION_VERSION_DOUBLE_V1_PATTERN.search(line):
+                invalid_application_version_api_hits.append(
+                    {
+                        "kind": evidence_kind,
+                        "line": line_number,
+                        "marker": "duplicate_v1_path",
+                        "path": relative_path,
+                    }
+                )
+            else:
+                route_marker = None
+                if APPLICATION_VERSION_CHECK_PATTERN.search(line):
+                    route_marker = "version_check_path"
+                elif APPLICATION_VERSION_ADS_SHOW_PATTERN.search(line):
+                    route_marker = "ads_show_path"
+                elif APPLICATION_VERSION_BASE_PATTERN.search(line):
+                    route_marker = "application_version_base"
+                if route_marker is not None:
+                    application_version_api_hits.append(
+                        {
+                            "kind": evidence_kind,
+                            "line": line_number,
+                            "marker": route_marker,
+                            "path": relative_path,
+                        }
+                    )
+            for marker, pattern in APPLICATION_VERSION_HEADER_PATTERNS.items():
+                if pattern.search(line):
+                    application_version_api_hits.append(
+                        {
+                            "kind": evidence_kind,
+                            "line": line_number,
+                            "marker": marker,
+                            "path": relative_path,
+                        }
+                    )
             literal_declarations = list(APP_ID_DECLARATION_PATTERN.finditer(line))
             for match in literal_declarations:
                 _record_app_id_evidence(
@@ -338,6 +688,25 @@ def scan_project(root: Path) -> dict[str, Any]:
                     if build_configuration:
                         configured_architectures.add(normalized_architecture)
 
+        for marker, line_number in _detect_legacy_static_file_markers(text):
+            legacy_static_update_hits.append(
+                {
+                    "kind": evidence_kind,
+                    "line": line_number,
+                    "marker": marker,
+                    "path": relative_path,
+                }
+            )
+        for marker, line_number in _detect_application_version_file_markers(text):
+            application_version_api_hits.append(
+                {
+                    "kind": evidence_kind,
+                    "line": line_number,
+                    "marker": marker,
+                    "path": relative_path,
+                }
+            )
+
     runtime_hits.sort(key=_hit_sort_key)
     non_runtime_hits.sort(key=_hit_sort_key)
     app_id_candidates = _deduplicate_and_sort_evidence(app_id_candidates)
@@ -349,6 +718,15 @@ def scan_project(root: Path) -> dict[str, Any]:
     )
     modern_track_hits = _deduplicate_and_sort_evidence(modern_track_hits)
     update_manifest_hits = _deduplicate_and_sort_evidence(update_manifest_hits)
+    legacy_static_update_hits = _deduplicate_and_sort_evidence(
+        legacy_static_update_hits
+    )
+    application_version_api_hits = _deduplicate_and_sort_evidence(
+        application_version_api_hits
+    )
+    invalid_application_version_api_hits = _deduplicate_and_sort_evidence(
+        invalid_application_version_api_hits
+    )
     unresolved_app_id_evidence = _deduplicate_and_sort_evidence(
         unresolved_app_id_evidence
     )
@@ -374,10 +752,90 @@ def scan_project(root: Path) -> dict[str, Any]:
         legacy_track_status = "not_found"
         migration_gate = "clear"
 
-    return {
+    runtime_static_update_hits = [
+        hit for hit in legacy_static_update_hits if hit["kind"] == "runtime"
+    ]
+    if runtime_static_update_hits:
+        legacy_update_status = "detected"
+        legacy_update_removal_gate = "blocked"
+    elif legacy_static_update_hits:
+        legacy_update_status = "detected"
+        legacy_update_removal_gate = "blocked" if scan_incomplete else "review"
+    elif scan_incomplete:
+        legacy_update_status = None
+        legacy_update_removal_gate = "blocked"
+    else:
+        legacy_update_status = "not_found"
+        legacy_update_removal_gate = "clear"
+
+    runtime_application_hits = [
+        hit for hit in application_version_api_hits if hit["kind"] == "runtime"
+    ]
+    runtime_invalid_application_hits = [
+        hit
+        for hit in invalid_application_version_api_hits
+        if hit["kind"] == "runtime"
+    ]
+    runtime_application_markers = {
+        hit["marker"] for hit in runtime_application_hits
+    }
+    application_markers_by_path: dict[str, set[str]] = {}
+    for hit in runtime_application_hits:
+        application_markers_by_path.setdefault(hit["path"], set()).add(
+            hit["marker"]
+        )
+    authenticated_request_paths = {
+        path
+        for path, markers in application_markers_by_path.items()
+        if {
+            "application_version_request_construction",
+            "x_app_key_header",
+            "x_app_secret_header",
+        }.issubset(markers)
+    }
+    strict_decision_paths = {
+        path
+        for path, markers in application_markers_by_path.items()
+        if {
+            "strict_seven_field_response_parser",
+            "application_version_decision",
+        }.issubset(markers)
+    }
+    has_behavioral_client_evidence = bool(
+        authenticated_request_paths and strict_decision_paths
+    )
+    primitive_markers = {
+        "application_version_base",
+        "version_check_path",
+        "ads_show_path",
+        "x_app_key_header",
+        "x_app_secret_header",
+    }
+    if runtime_invalid_application_hits:
+        application_version_api_status = "invalid"
+    elif scan_incomplete:
+        # A skipped source/config file can contain either a second protocol or
+        # the missing half of the new client. Do not certify a partial tree.
+        application_version_api_status = "unknown"
+    elif has_behavioral_client_evidence:
+        application_version_api_status = "detected"
+    elif runtime_application_hits:
+        application_version_api_status = (
+            "marker-only"
+            if runtime_application_markers.issubset(primitive_markers)
+            else "partial"
+        )
+    elif application_version_api_hits or invalid_application_version_api_hits:
+        application_version_api_status = "non_runtime_only"
+    else:
+        application_version_api_status = "not_found"
+
+    result = {
         "classification": classification,
         "app_id_candidates": app_id_candidates,
         "architecture_candidates": architecture_candidates,
+        "application_version_api_hits": application_version_api_hits,
+        "application_version_api_status": application_version_api_status,
         "detected_app_ids": sorted(runtime_app_ids),
         "detected_architectures": [
             architecture
@@ -385,18 +843,39 @@ def scan_project(root: Path) -> dict[str, Any]:
             if architecture in configured_architectures
         ],
         "invalid_app_id_evidence": invalid_app_id_evidence,
+        "invalid_application_version_api_hits": invalid_application_version_api_hits,
         "legacy_track_status": legacy_track_status,
+        "legacy_static_update_hits": legacy_static_update_hits,
+        "legacy_update_removal_gate": legacy_update_removal_gate,
         "migration_gate": migration_gate,
         "modern_track_hits": modern_track_hits,
         "non_runtime_hits": non_runtime_hits,
         "runtime_hits": runtime_hits,
         "scan_incomplete": scan_incomplete,
-        "scan_version": 2,
+        "scan_version": 3,
         "scanned_files": scanned_files,
         "skipped_files": skipped_files,
         "update_manifest_hits": update_manifest_hits,
         "unresolved_app_id_evidence": unresolved_app_id_evidence,
     }
+    if legacy_update_status is not None:
+        result["legacy_update_status"] = legacy_update_status
+    return result
+
+
+def _link_or_reparse_kind(path: Path) -> str | None:
+    """Classify links and Windows reparse points without requiring Python 3.12."""
+
+    if path.is_symlink():
+        return "symlink"
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and is_junction():
+        return "junction"
+    attributes = getattr(path.lstat(), "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    if attributes & reparse_flag:
+        return "reparse"
+    return None
 
 
 def _iter_text_files(root: Path, skipped_files: list[dict[str, str]]):
@@ -419,11 +898,21 @@ def _iter_text_files(root: Path, skipped_files: list[dict[str, str]]):
             candidate = Path(current_root) / name
             if name.casefold() in SKIPPED_DIRECTORIES:
                 continue
-            if candidate.is_symlink():
+            try:
+                unsafe_kind = _link_or_reparse_kind(candidate)
+            except OSError:
                 skipped_files.append(
                     {
                         "path": candidate.relative_to(root).as_posix(),
-                        "reason": "symlink_directory",
+                        "reason": "unreadable_directory",
+                    }
+                )
+                continue
+            if unsafe_kind is not None:
+                skipped_files.append(
+                    {
+                        "path": candidate.relative_to(root).as_posix(),
+                        "reason": f"{unsafe_kind}_directory",
                     }
                 )
                 continue
@@ -431,15 +920,25 @@ def _iter_text_files(root: Path, skipped_files: list[dict[str, str]]):
         directory_names[:] = kept_directories
         for file_name in sorted(file_names, key=str.casefold):
             path = Path(current_root) / file_name
-            if not _is_text_candidate(path):
-                continue
-            if path.is_symlink():
+            try:
+                unsafe_kind = _link_or_reparse_kind(path)
+            except OSError:
                 skipped_files.append(
                     {
                         "path": path.relative_to(root).as_posix(),
-                        "reason": "symlink_file",
+                        "reason": "unreadable",
                     }
                 )
+                continue
+            if unsafe_kind is not None:
+                skipped_files.append(
+                    {
+                        "path": path.relative_to(root).as_posix(),
+                        "reason": f"{unsafe_kind}_file",
+                    }
+                )
+                continue
+            if not _is_text_candidate(path):
                 continue
             yield path
 

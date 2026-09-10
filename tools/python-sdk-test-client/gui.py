@@ -21,7 +21,7 @@ import threading
 import time
 import uuid
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
@@ -52,17 +52,18 @@ DATABASE_PATH = (
 )
 DEFAULT_STATE_ROOT = Path(tempfile.gettempdir()) / "bifang-cloudbase-validator"
 LIVE_TELEMETRY_ENDPOINT_DEFAULT = ""
-LIVE_UPDATE_URL_DEFAULT = ""
+LIVE_VERSION_BASE_URL_DEFAULT = ""
 
 EXAMPLE_APPLICATION_ID = "bifang-tools"
+EXAMPLE_APPLICATION_CODE = "bifang-tools-windows-x64"
 EXAMPLE_CURRENT_VERSION = "0.1.0"
 EXAMPLE_TELEMETRY_URL = (
     "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
     "ap-shanghai.app.tcloudbase.com/apps/bifang-tools/v1/track"
 )
-EXAMPLE_UPDATE_URL = (
+EXAMPLE_VERSION_BASE_URL = (
     "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
-    "ap-shanghai.app.tcloudbase.com/updates/bifang-tools/windows.json"
+    "ap-shanghai.app.tcloudbase.com/tools/version-control/v1"
 )
 
 STEP_TITLES = (
@@ -90,8 +91,8 @@ RESOURCE_GUIDE: Tuple[Tuple[str, str], ...] = (
         "允许应用编号只填当前工具一个值，并核对独立数据表与独立通道。",
     ),
     (
-        "更新 JSON",
-        "每个工具单独发布为 updates/<应用编号>/windows.json。",
+        "application-version API v1",
+        "共享函数与 /tools/version-control/v1 路由；每个发布流使用独立 code 和凭据绑定。",
     ),
 )
 
@@ -110,9 +111,8 @@ PROGRESS_STAGES = (
 )
 UPDATE_DOWNLOAD_ERROR = "没有打开下载页面，请检查默认浏览器。"
 
-# All ordinary static copy is assembled from these Chinese product concepts.
-# Necessary CloudBase names live only in RESOURCE_GUIDE, directly beside an
-# explanation. Protocol fields remain in the collapsed troubleshooting area.
+# User-visible copy keeps each CloudBase/API term beside a plain-language
+# explanation. Secret values are never part of this constant or diagnostics.
 PRIMARY_UI_TEXT = "\n".join(
     (
         WINDOW_TITLE,
@@ -120,9 +120,12 @@ PRIMARY_UI_TEXT = "\n".join(
         "打开飞书新手部署文档",
         "打开 CloudBase 控制台",
         "应用编号",
+        "发布流 code",
         "当前版本",
         "数据接收地址",
-        "更新文件地址",
+        "版本 API Base URL",
+        "x-app-key",
+        "x-app-secret",
         "载入本项目示例",
         "发送 1 条启动使用测试到 CloudBase",
         "模拟 10 台设备使用",
@@ -143,12 +146,17 @@ PRIMARY_UI_TEXT = "\n".join(
 )
 
 APP_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$")
+APPLICATION_CODE_PATTERN = re.compile(
+    r"^(?!\.{1,2}$)[^\s\\/?#\x00-\x1f\x7f-\x9f\u00ad\u061c\u180e"
+    r"\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]{1,100}$"
+)
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
     r"(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
+APPLICATION_VERSION_PATTERN = re.compile(r"^[0-9]+(?:\.[0-9]+)*$")
 
 
 def telemetry_collection_name(app_id: str) -> str:
@@ -173,18 +181,24 @@ def database_path_for_app(app_id: str) -> str:
 @dataclass(frozen=True)
 class ConnectionSettings:
     application_id: str
+    application_code: str
     current_version: str
     telemetry_url: str
-    update_url: str
+    version_base_url: str
+    app_key: str = field(repr=False)
+    app_secret: str = field(repr=False)
     platform: str = "windows"
     architecture: str = "x64"
 
     def normalized(self) -> "ConnectionSettings":
         return ConnectionSettings(
             application_id=self.application_id.strip(),
+            application_code=self.application_code.strip(),
             current_version=self.current_version.strip(),
             telemetry_url=self.telemetry_url.strip(),
-            update_url=self.update_url.strip(),
+            version_base_url=self.version_base_url.strip(),
+            app_key=self.app_key,
+            app_secret=self.app_secret,
             platform=self.platform,
             architecture=self.architecture,
         )
@@ -195,6 +209,15 @@ class ConnectionSettings:
             "app_version": self.current_version,
             "platform": self.platform,
             "arch": self.architecture,
+        }
+
+    def application_version_fields(self) -> Dict[str, Any]:
+        return {
+            "application_code": self.application_code,
+            "current_version": self.current_version,
+            "version_base_url": self.version_base_url,
+            "app_key": self.app_key,
+            "app_secret": self.app_secret,
         }
 
 
@@ -255,8 +278,8 @@ class UpdateFeedback:
     detail: str
     tone: str
     current_version: str
-    latest_version: Optional[str] = None
     remote_message: Optional[str] = None
+    update_content: Optional[str] = None
     download_url: Optional[str] = None
     dialog_mode: Optional[str] = None
     primary_button: Optional[str] = None
@@ -289,16 +312,24 @@ def validate_settings(
     settings: ConnectionSettings,
     *,
     require_telemetry: bool,
-    require_update: bool,
+    require_version: bool,
 ) -> Optional[str]:
     value = settings.normalized()
-    if not APP_ID_PATTERN.fullmatch(value.application_id):
+    if require_telemetry and not APP_ID_PATTERN.fullmatch(value.application_id):
         return (
             "请检查“应用编号”：长度应为 1–50，只能使用小写字母、数字或短横线，"
             "并以小写字母或数字开头和结尾。每个工具必须使用唯一编号。"
         )
-    if not SEMVER_PATTERN.fullmatch(value.current_version):
-        return "请把“当前版本”填写成类似 1.2.3 的完整版本号。"
+    if require_telemetry and not SEMVER_PATTERN.fullmatch(value.current_version):
+        return "请把 telemetry 的“当前版本”填写成类似 1.2.3 的完整版本号。"
+    if (
+        require_version
+        and (
+            len(value.current_version) > 50
+            or not APPLICATION_VERSION_PATTERN.fullmatch(value.current_version)
+        )
+    ):
+        return "请把版本 API 的“当前版本”填写成数字点分格式，例如 1、1.2 或 1.2.3.4。"
     if require_telemetry and not complete_https_url(value.telemetry_url):
         return (
             "请填写以 https:// 开头的完整“数据接收地址”，并使用当前工具的 "
@@ -313,14 +344,37 @@ def validate_settings(
             "“数据接收地址”必须使用当前工具的独立通道，并以 "
             f"{expected_track_path} 结尾。不要使用历史共享 /v1/track 或其他工具的地址。"
         )
-    if require_update and not complete_https_url(value.update_url):
-        return "请填写以 https:// 开头的完整“更新文件地址”。"
-    expected_update_path = f"/updates/{value.application_id}/windows.json"
-    if require_update and urlparse(value.update_url).path != expected_update_path:
+    if require_version and not APPLICATION_CODE_PATTERN.fullmatch(
+        value.application_code
+    ):
         return (
-            "“更新文件地址”必须指向当前工具的独立文件，并以 "
-            f"{expected_update_path} 结尾。"
+            "请检查“发布流 code”：长度应为 1–100，不能使用空白、斜杠、反斜杠、"
+            "问号、井号或控制字符。"
         )
+    if require_version and not complete_https_url(value.version_base_url):
+        return "请填写以 https:// 开头的完整“版本 API Base URL”。"
+    if require_version:
+        parsed_version_url = urlparse(value.version_base_url)
+        if (
+            parsed_version_url.path != "/tools/version-control/v1"
+            or parsed_version_url.query
+            or parsed_version_url.fragment
+        ):
+            return (
+                "“版本 API Base URL”必须精确以 /tools/version-control/v1 结尾；"
+                "v1 只能出现一次，且不能带查询参数或片段。"
+            )
+        for label, credential in (
+            ("x-app-key", value.app_key),
+            ("x-app-secret", value.app_secret),
+        ):
+            if (
+                not credential
+                or credential != credential.strip()
+                or len(credential) > 512
+                or any(ord(character) < 32 or ord(character) == 127 for character in credential)
+            ):
+                return f"请在本机填写有效的“{label}”；值不会保存或写入日志。"
     return None
 
 
@@ -405,29 +459,33 @@ def friendly_error(error: Any) -> str:
     return "这一步没有完成。请先核对填写内容和 CloudBase 部署状态，再重试。"
 
 
-def friendly_update_error(error: Any) -> str:
-    """Translate update-file failures without suggesting telemetry fixes."""
+def friendly_application_version_error(error: Any) -> str:
+    """Translate application-version API failures without exposing credentials."""
     code, message, status, server_error = _error_parts(error)
     lowered = f"{code} {message} {server_error or ''}".lower()
+    if status == 400:
+        return "版本 API 拒绝了请求格式（400）。请核对发布流 code 和当前版本。"
+    if status == 401 or "auth.invalid" in lowered or "unauthorized" in lowered:
+        return "版本 API 凭据无效（401）。请重新输入 x-app-key 和 x-app-secret。"
     if status == 404 or "not_found" in lowered:
         return (
-            "静态托管中没有找到这个更新文件（404）。请确认已发布到"
-            " updates/<应用编号>/windows.json，并重新复制完整更新文件地址。"
+            "版本 API 没有找到这个发布流（404）。请核对 code 是否已经登记并有版本记录。"
         )
     if status == 403 or "forbidden" in lowered:
         return (
-            "更新文件当前不能公开读取（403）。请检查 CloudBase 静态托管权限，"
-            "确认无需登录也能在浏览器中打开。"
+            "当前凭据无权访问这个发布流（403）。请核对凭据绑定的 code 与读取权限。"
         )
+    if status == 429 or "rate" in lowered:
+        return "版本检查过于频繁（429）。请按 Retry-After 等待后再试。"
     if status is not None and status >= 500:
         return (
-            f"CloudBase 静态托管暂时不可用（{status}）。请在控制台确认服务状态，"
+            f"版本 API 暂时不可用（{status}）。请在控制台确认函数和路由状态，"
             "稍后再检查。"
         )
-    if "unsafe" in lowered or "invalid_url" in lowered:
+    if "unsafe" in lowered or "invalid" in lowered and "config" in lowered:
         return (
-            "更新文件地址不正确。请填写以 https:// 开头、以"
-            " /<应用编号>/windows.json 结尾的完整地址。"
+            "版本 API 配置不正确。Base URL 必须精确以"
+            " /tools/version-control/v1 结尾，v1 只出现一次。"
         )
     if "bridge" in lowered or "closed" in lowered:
         return "本地检查组件没有准备好。请关闭本窗口后重新打开再试。"
@@ -438,10 +496,11 @@ def friendly_update_error(error: Any) -> str:
         or "unavailable" in lowered
     ):
         return (
-            "暂时无法读取更新文件。请核对完整更新文件地址能否在浏览器中打开，"
-            "并检查本机网络。"
+            "暂时无法访问版本 API。请核对函数、路由、本机网络和脱敏后的请求诊断。"
         )
-    return "没有读到可用的云端更新文件。请按新手部署文档重新核对并发布。"
+    if "response" in lowered:
+        return "版本 API 返回内容不符合裸七字段契约，请检查服务端记录。"
+    return "没有取得可用的版本决策。请按新手部署文档核对 API 和凭据绑定。"
 
 
 def _delivery_success(item: Dict[str, Any]) -> bool:
@@ -667,14 +726,6 @@ def failed_simulation_feedback(error: Any) -> SimulationFeedback:
     )
 
 
-def _update_config(result: Dict[str, Any], decision: Dict[str, Any]) -> Dict[str, Any]:
-    direct = result.get("config")
-    if isinstance(direct, dict):
-        return direct
-    nested = decision.get("config")
-    return nested if isinstance(nested, dict) else {}
-
-
 def build_update_feedback(
     result: Any, current_version: str
 ) -> UpdateFeedback:
@@ -682,7 +733,7 @@ def build_update_feedback(
         return UpdateFeedback(
             state="error",
             summary="暂时无法检查更新",
-            detail=friendly_update_error(result),
+            detail=friendly_application_version_error(result),
             tone="error",
             current_version=current_version,
             advanced=result,
@@ -690,52 +741,68 @@ def build_update_feedback(
     decision = result.get("decision")
     if not isinstance(decision, dict):
         decision = {}
-    config = _update_config(result, decision)
-    latest = config.get("latest_version")
-    latest_version = latest if isinstance(latest, str) else None
-    remote_message = config.get("message")
+    data = decision.get("data")
+    if not isinstance(data, dict):
+        data = {}
+    remote_message = data.get("promptContent")
     if not isinstance(remote_message, str):
         remote_message = None
-    download_url = config.get("download_url")
+    update_content = data.get("updateContent")
+    if not isinstance(update_content, str):
+        update_content = None
+    download_url = data.get("downloadUrl")
     if not isinstance(download_url, str):
         download_url = None
 
     kind = decision.get("kind")
-    if kind == "optional" and latest_version:
+    if kind == "optional":
         return UpdateFeedback(
             state="optional_update",
-            summary=f"发现新版本 {latest_version}",
+            summary="发现新版本",
             detail=(
-                f"这是普通更新。当前版本 {current_version}，"
-                f"最新版本 {latest_version}。"
+                f"这是普通更新。当前版本 {current_version}。"
                 + (f"\n{remote_message}" if remote_message else "")
             ),
             tone="update",
             current_version=current_version,
-            latest_version=latest_version,
             remote_message=remote_message,
+            update_content=update_content,
             download_url=download_url,
             dialog_mode="optional",
             primary_button="立即更新",
             secondary_button="稍后提醒",
             advanced=result,
         )
-    if kind == "required" and latest_version:
+    if kind == "required":
         return UpdateFeedback(
             state="required_update",
             summary="当前版本已停止支持，请升级后继续使用",
             detail=(
-                f"当前版本 {current_version}，可升级到 {latest_version}。"
+                f"当前版本是 {current_version}。"
                 + (f"\n{remote_message}" if remote_message else "")
             ),
             tone="error",
             current_version=current_version,
-            latest_version=latest_version,
             remote_message=remote_message,
+            update_content=update_content,
             download_url=download_url,
             dialog_mode="required",
             primary_button="立即更新",
             secondary_button="退出软件",
+            advanced=result,
+        )
+    if kind == "stopped":
+        return UpdateFeedback(
+            state="stopped",
+            summary="云端已暂停分发更新",
+            detail=(
+                "stopUpdate 只表示暂停本次更新分发，不会退出或禁止启动软件。"
+                + (f"\n{remote_message}" if remote_message else "")
+            ),
+            tone="warning",
+            current_version=current_version,
+            remote_message=remote_message,
+            update_content=update_content,
             advanced=result,
         )
 
@@ -744,69 +811,30 @@ def build_update_feedback(
         return UpdateFeedback(
             state="up_to_date",
             summary="你现在已经是最新版",
-            detail=(
-                f"当前版本是 {current_version}"
-                + (
-                    f"，云端最新版本是 {latest_version}。"
-                    if latest_version
-                    else "。"
-                )
-            ),
+            detail=f"当前版本是 {current_version}。",
             tone="success",
             current_version=current_version,
-            latest_version=latest_version,
-            remote_message=remote_message,
             advanced=result,
         )
     if reason == "disabled":
         return UpdateFeedback(
             state="paused",
-            summary="云端已暂停这次更新",
-            detail=(
-                f"当前版本是 {current_version}"
-                + (
-                    f"，云端文件中的最新版本是 {latest_version}。"
-                    if latest_version
-                    else "。"
-                )
-                + "当前不会提示用户升级。重新启用云端更新文件后，再点击检查。"
-            ),
+            summary="本地已关闭版本检查",
+            detail=f"当前版本是 {current_version}；本次没有访问版本 API。",
             tone="warning",
             current_version=current_version,
-            latest_version=latest_version,
-            remote_message=remote_message,
             advanced=result,
         )
-    if reason == "rollout":
+    if reason in {"invalid_config", "invalid_response"}:
         return UpdateFeedback(
-            state="not_selected",
-            summary="云端已有新版，但这台电脑暂时不在本次发布范围内",
+            state="invalid_response",
+            summary="版本 API 配置或响应需要检查",
             detail=(
-                f"当前版本 {current_version}"
-                + (
-                    f"，云端版本 {latest_version}。"
-                    if latest_version
-                    else "。"
-                )
-                + "这是正常的分批发布结果。"
-            ),
-            tone="warning",
-            current_version=current_version,
-            latest_version=latest_version,
-            remote_message=remote_message,
-            advanced=result,
-        )
-    if reason == "invalid_config":
-        return UpdateFeedback(
-            state="invalid_file",
-            summary="云端更新文件内容需要检查",
-            detail=(
-                "文件可能缺少必填内容，或应用编号、系统、版本号不匹配。"
-                "请按新手部署文档逐项核对。"
+                "请核对单一 /tools/version-control/v1 Base URL、发布流 code、凭据，"
+                "以及服务端是否返回严格的裸七字段对象。"
             ),
             tone="error",
             current_version=current_version,
-            latest_version=latest_version,
             advanced=result,
         )
 
@@ -814,10 +842,9 @@ def build_update_feedback(
     return UpdateFeedback(
         state="error",
         summary="暂时无法检查更新",
-        detail=friendly_update_error(diagnostic),
+        detail=friendly_application_version_error(diagnostic),
         tone="error",
         current_version=current_version,
-        latest_version=latest_version,
         advanced=result,
     )
 
@@ -1015,7 +1042,7 @@ class CloudBaseWizardController:
         settings = raw_settings.normalized()
         self.on_progress(PROGRESS_STAGES[0], 25)
         input_error = validate_settings(
-            settings, require_telemetry=True, require_update=False
+            settings, require_telemetry=True, require_version=False
         )
         if input_error:
             self.on_message("error", "请先修正填写内容", input_error)
@@ -1082,7 +1109,7 @@ class CloudBaseWizardController:
         settings = raw_settings.normalized()
         self.on_progress(PROGRESS_STAGES[0], 25)
         input_error = validate_settings(
-            settings, require_telemetry=True, require_update=False
+            settings, require_telemetry=True, require_version=False
         )
         if input_error:
             self.on_message("error", "请先修正填写内容", input_error)
@@ -1150,7 +1177,7 @@ class CloudBaseWizardController:
     def check_for_updates(self, raw_settings: ConnectionSettings) -> bool:
         settings = raw_settings.normalized()
         input_error = validate_settings(
-            settings, require_telemetry=False, require_update=True
+            settings, require_telemetry=False, require_version=True
         )
         if input_error:
             self.on_message("error", "请先修正填写内容", input_error)
@@ -1159,13 +1186,11 @@ class CloudBaseWizardController:
             return False
         self.on_message(
             "info",
-            "正在重新读取云端更新文件",
-            "每次点击都会重新请求，不会复用上一次结果。",
+            "正在请求 application-version API",
+            "每次点击都会重新发送 GET，不会复用上一次结果；凭据值不会写入诊断。",
         )
         payload = {
-            **settings.bridge_fields(),
-            "update_url": settings.update_url,
-            "state_dir": str(self.state_root / "update-check-identity"),
+            **settings.application_version_fields(),
             "allow_network": True,
             "confirmation": "GET",
         }
@@ -1179,7 +1204,7 @@ class CloudBaseWizardController:
             feedback = UpdateFeedback(
                 state="error",
                 summary="暂时无法检查更新",
-                detail=friendly_update_error(error),
+                detail=friendly_application_version_error(error),
                 tone="error",
                 current_version=settings.current_version,
                 advanced=_safe_error(error),
@@ -1188,8 +1213,8 @@ class CloudBaseWizardController:
             self.on_debug("版本检查失败的高级信息", _safe_error(error))
 
         return self._submit(
-            "正在重新读取云端更新文件",
-            "check_update_url",
+            "正在请求 application-version API",
+            "check_application_version",
             payload,
             success,
             failure,
@@ -1202,7 +1227,7 @@ class CloudBaseWizardController:
             self.on_message(
                 "error",
                 "下载页面地址不可用",
-                "请检查云端更新文件中的下载页面地址是否为完整 https:// 地址。",
+                "请检查版本 API 返回的 downloadUrl 是否为完整 https:// 地址。",
             )
             return False
         try:
@@ -1539,9 +1564,12 @@ class CloudBaseWizardApplication:
 
     def _create_variables(self) -> None:
         self.application_id_var = tk.StringVar(value="")
+        self.application_code_var = tk.StringVar(value="")
         self.current_version_var = tk.StringVar(value="")
         self.telemetry_url_var = tk.StringVar(value=LIVE_TELEMETRY_ENDPOINT_DEFAULT)
-        self.update_url_var = tk.StringVar(value=LIVE_UPDATE_URL_DEFAULT)
+        self.version_base_url_var = tk.StringVar(value=LIVE_VERSION_BASE_URL_DEFAULT)
+        self.app_key_var = tk.StringVar(value="")
+        self.app_secret_var = tk.StringVar(value="")
         self.helper_status_var = tk.StringVar(value="正在准备本地检查组件…")
         self.message_title_var = tk.StringVar(value="按四步完成验证")
         self.message_detail_var = tk.StringVar(
@@ -1560,7 +1588,7 @@ class CloudBaseWizardApplication:
         )
         self.update_summary_var = tk.StringVar(value="尚未检查版本")
         self.update_detail_var = tk.StringVar(
-            value="修改并发布云端更新文件后，点击按钮查看真实响应。"
+            value="准备好版本记录和只读运行时凭据后，点击按钮查看真实响应。"
         )
 
     def _build_ui(self) -> None:
@@ -1666,7 +1694,7 @@ class CloudBaseWizardApplication:
         step_two = self._step(
             row,
             STEP_TITLES[1],
-            "只需填写四项。这里不需要、也不会保存任何密钥或口令。",
+            "凭据输入不回显，只保存在当前进程内；不会写文件、复制到高级信息或日志。",
         )
         row += 1
         fields = (
@@ -1674,32 +1702,58 @@ class CloudBaseWizardApplication:
                 "应用编号",
                 self.application_id_var,
                 "从当前工具独立云函数复制唯一允许值，例如 bifang-tools；不要复用其他工具编号。",
+                False,
+            ),
+            (
+                "发布流 code",
+                self.application_code_var,
+                "版本 API 用这个 code 选择唯一平台/架构发布流，例如 bifang-tools-windows-x64。",
+                False,
             ),
             (
                 "当前版本",
                 self.current_version_var,
                 "填写正在验证的软件版本，例如 1.2.3。",
+                False,
             ),
             (
                 "数据接收地址",
                 self.telemetry_url_var,
                 "必须使用当前工具的独立地址：https://.../apps/<同一应用编号>/v1/track。",
+                False,
             ),
             (
-                "更新文件地址",
-                self.update_url_var,
-                "必须使用当前工具的独立地址：https://.../updates/<同一应用编号>/windows.json。",
+                "版本 API Base URL",
+                self.version_base_url_var,
+                "必须精确到 https://<host>/tools/version-control/v1；不要再拼第二个 /v1。",
+                False,
+            ),
+            (
+                "x-app-key",
+                self.app_key_var,
+                "填写只读运行时凭据；只允许访问绑定的发布流。",
+                True,
+            ),
+            (
+                "x-app-secret",
+                self.app_secret_var,
+                "输入不回显，关闭窗口即从内存清除。不要粘贴到日志或截图。",
+                True,
             ),
         )
         field_row = 2
-        for label, variable, help_text in fields:
+        for label, variable, help_text, is_secret in fields:
             ttk.Label(
                 step_two,
                 text=label,
                 font=("Microsoft YaHei UI", 10, "bold"),
             ).grid(row=field_row, column=0, sticky="w", pady=(8, 2))
             field_row += 1
-            ttk.Entry(step_two, textvariable=variable).grid(
+            ttk.Entry(
+                step_two,
+                textvariable=variable,
+                show="●" if is_secret else "",
+            ).grid(
                 row=field_row, column=0, sticky="ew"
             )
             field_row += 1
@@ -1836,7 +1890,7 @@ class CloudBaseWizardApplication:
         step_four = self._step(
             row,
             STEP_TITLES[3],
-            "修改并发布云端更新文件后再点击。每次都会重新请求，不复用旧结果。",
+            "每次都会请求 /tools/version-control/v1/versions/{code}/{version}，不复用旧结果。",
         )
         row += 1
         self.update_button = ttk.Button(
@@ -1900,9 +1954,12 @@ class CloudBaseWizardApplication:
     def _settings(self) -> ConnectionSettings:
         return ConnectionSettings(
             application_id=self.application_id_var.get(),
+            application_code=self.application_code_var.get(),
             current_version=self.current_version_var.get(),
             telemetry_url=self.telemetry_url_var.get(),
-            update_url=self.update_url_var.get(),
+            version_base_url=self.version_base_url_var.get(),
+            app_key=self.app_key_var.get(),
+            app_secret=self.app_secret_var.get(),
             platform=detect_sdk_platform(),
             architecture=detect_sdk_architecture(),
         )
@@ -1912,13 +1969,16 @@ class CloudBaseWizardApplication:
 
     def _load_project_example(self) -> None:
         self.application_id_var.set(EXAMPLE_APPLICATION_ID)
+        self.application_code_var.set(EXAMPLE_APPLICATION_CODE)
         self.current_version_var.set(EXAMPLE_CURRENT_VERSION)
         self.telemetry_url_var.set(EXAMPLE_TELEMETRY_URL)
-        self.update_url_var.set(EXAMPLE_UPDATE_URL)
+        self.version_base_url_var.set(EXAMPLE_VERSION_BASE_URL)
+        self.app_key_var.set("")
+        self.app_secret_var.set("")
         self._show_message(
             "info",
             "已载入本项目示例",
-            "这些地址现在才被填入；尚未联网。独立路由和更新文件必须先按新手文档部署，"
+            "这些非敏感示例现在才被填入；尚未联网。凭据必须在本机另行输入，"
             "点击发送或检查后才会访问云端。",
         )
 
@@ -2214,6 +2274,8 @@ class CloudBaseWizardApplication:
         if self._closing:
             return
         self._closing = True
+        self.app_key_var.set("")
+        self.app_secret_var.set("")
         if self._confirmation is not None:
             self._confirmation.cancel()
         if self._poll_after_id is not None:
@@ -2256,11 +2318,6 @@ def _tone_style(tone: str) -> str:
         "update": "Success.TLabel",
         "info": "Success.TLabel",
     }.get(tone, "Success.TLabel")
-
-
-# Compatibility for code that imported the Task13 class name. The visible
-# product and its workflow no longer expose the old developer workbench.
-SdkGuiApplication = CloudBaseWizardApplication
 
 
 def parse_gui_arguments(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:

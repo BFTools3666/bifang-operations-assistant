@@ -18,6 +18,9 @@ const listFiles = async (relativeDirectory) => {
   const files = [];
   for (const entry of entries) {
     const relativePath = path.posix.join(relativeDirectory, entry.name);
+    if (entry.name === "__pycache__" || entry.name.endsWith(".pyc")) {
+      continue;
+    }
     if (entry.isDirectory()) {
       files.push(...(await listFiles(relativePath)));
     } else if (entry.isFile()) {
@@ -39,14 +42,17 @@ const requiredGuideFiles = [
   "examples/host-integration.ts",
   "cloudbase/apps.json",
   "cloudbase/generate-cloudbaserc.mjs",
+  "bifang-onboarding.json",
   "skills/bifang-public-services-onboarding/SKILL.md",
   "skills/bifang-public-services-onboarding/agents/openai.yaml",
+  "tools/bootstrap_bifang_onboarding.py",
   "tools/build_cloudbase_guide_docx.py",
   "tools/docx-requirements.txt",
   "tests/guide-git-contract.test.mjs",
 ];
 
 const requiredApplicationVersionFiles = [
+  "cloudbase/deploy-application-version-api.mjs",
   "cloudbase/plan-application-version-api-deployment.mjs",
   "cloudbase/functions/application-version-api/package.json",
   "cloudbase/functions/application-version-api/index.js",
@@ -113,9 +119,16 @@ test("the complete onboarding guide has tracked human and AI entrypoints", async
     beginnerGuide,
     /cloudbase\/updates\/bifang-tools(?:\/|`)/,
   );
-  assert.match(onboardingGuide, /历史首次检查示例：毕方录屏助手/);
   assert.match(
     onboardingGuide,
-    /cloudbase-bifang-screen-recorder-20260905\.md/,
+    /https:\/\/gitlab\.kuajingvs\.com\/qiuyang\/bifang-operations-assistant\.git 帮我接入/,
   );
+  assert.match(onboardingGuide, /基础设施：`3\.0\.0`/);
+
+  const trackedLegacyUpdateFiles = await execFileAsync(
+    "git",
+    ["ls-files", "--", "cloudbase/updates"],
+    { cwd: repositoryRoot, windowsHide: true },
+  );
+  assert.equal(trackedLegacyUpdateFiles.stdout.trim(), "");
 });

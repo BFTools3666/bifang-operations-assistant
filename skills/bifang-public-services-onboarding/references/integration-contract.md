@@ -1,93 +1,118 @@
-# 接入契约与档案
+# 接入契约与 Profile v2
 
-仅在完善档案、生成资源预览、登记应用或实施客户端接入时读取。这里提供决策边界，不替代运营精灵权威源码。
+仅在阶段 1、2、5 或生成资源预览时读取。精确 API 以权威仓库的 OpenAPI、Schema、fixtures 和函数源码为准。
 
 ## 权威版本
 
-- 基础设施版本：`2.1.0`
-- Skill 版本：`1.0.0`
-- `2.1.0` 功能源码提交：`704da8d702c9991c80ba079910936c275349fabb`
-- `2.0.0` 多工具协议审查基线/升级起点：`01f42449bf0f80a2660e7ee0899eef1176aca934`
-- 协议权威：运营精灵的 `docs/telemetry-and-update.md`
-- 隔离与命名权威：`docs/multi-tool-isolation.md`、`cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`
-- 客户端 API 权威：`packages/telemetry-update-sdk`、`examples/host-integration.ts`
+- 基础设施：`3.0.0`
+- Skill：`2.0.0`
+- Application-version 契约：`1.0.0`
+- Application-version 实现基线：`92b0c599a42c3a094c99787e6928c30c2d2ea3af`
+- 规范来源：`https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git`
 
-`704da8d702c9991c80ba079910936c275349fabb` 是 `2.1.0` 向导功能源码提交；上述基线提交不是 `2.1.0` 的来源提交。每次使用都读取当前权威文件及其实际提交；若它们与本参考冲突，以当前权威文件为准，报告漂移并阻止未经复核的实施。
+每次使用都记录权威仓库实际 HEAD。版本不一致时停止混用；先更新 Skill 或复核权威源码。
 
-## 运行时契约摘要
+## 现行运行时
 
-- 统计含义是软件**启动使用**：固定事件 `daily_active`，同一匿名 `install_id` 在北京时间同一天最多尝试一次；不是安装量。
-- 客户端必须在联网前原子领取/落盘当日标记。失败当天不重试、不排离线队列，以保护免费网关。
-- 每个应用传自己的 APP_ID、SemVer、平台、架构和独立 AppConfig 目录。不得读取账号、主机名、MAC、硬盘号、CPU 序列号或指纹。
-- 统计仅走目标应用的公网 HTTPS 路由。来源 IP 只由服务端可信上下文补充；客户端不得发送 IP。
-- 更新检查读取 `/updates/<app_id>/<platform>.json`，应在主窗口显示完成后异步运行，不阻塞启动。SDK 只作决策，不自动下载或安装。
-- 更新标题和正文是不可信纯文本。外部下载/发布说明地址必须经安全 HTTPS 校验；完整退出、签名、哈希和回滚由宿主负责。
+### Telemetry
 
-具体 payload、14 字段清单、超时和判定顺序不得从本摘要猜测；实施前回到权威源码。
+- 固定事件 `daily_active`，同一匿名安装在北京时间当天最多尝试一次。
+- 联网前原子落盘；失败当天不重试、不排队。
+- 每个应用使用自己的 APP_ID、AppConfig、本地身份、函数、路由和集合。
+- 客户端不发送 IP，不采集账号或硬件指纹。
 
-## APP_ID 与资源派生
+### Application-version API
 
-正式基础设施 APP_ID 必须全局唯一，长度 1–50，只含小写字母、数字和短横线，首尾为字母或数字。建议格式为 `bifang-<product-key>`；建议值必须先让用户确认。
+Base URL 固定：
 
-对确认后的 APP_ID，派生规则固定为：
+```text
+https://<平台默认域名>/tools/version-control/v1
+```
 
-| 资源     | 规则                                   |
-| -------- | -------------------------------------- |
-| 云函数   | `telemetry-<app_id>`                   |
-| 集合     | `telemetry_<app_id 中每个 - 替换为 _>` |
-| 统计路由 | `/apps/<app_id>/v1/track`              |
-| 更新目录 | `/updates/<app_id>`                    |
-| 平台清单 | `/updates/<app_id>/<platform>.json`    |
+`v1` 只出现一次。客户端版本检查固定：
 
-不得手工猜名称。使用 `derive_resources.py`，并在用户确认 APP_ID 前把全部映射作为预览显示。
+```http
+GET /versions/{code}/{currentVersion}
+x-app-key: <runtime key>
+x-app-secret: <runtime secret>
+```
 
-派生出某平台路径不等于该平台已经受基础设施支持。当前权威登记/清单生成流程自动创建并校验 `windows.json` 与 `macos.json`，登记表会显式保存每个应用的平台集合；Linux 仍只能作为计划平台记录和预览，必须把清单 Schema、生成器、制品签名与平台 E2E 缺口列为门禁。macOS 清单没有架构字段；当前单一 `macos.json` 只适合一个明确的 Apple Silicon/通用下载入口，不能伪装成 Intel 与 Apple Silicon 双制品选择协议。
+响应是冻结的裸七字段 JSON 对象。客户端映射：
 
-## 档案规则
+- `update=false`：无更新；
+- `update=true, force=false, stop=false`：提示更新；
+- `update=true, force=true, stop=false`：强制更新；
+- `stop=true`：停止更新/服务端暂停，按契约固定优先级处理。
 
-档案路径固定为目标项目根目录的 `.bifang/public-services-profile.json`。Schema 位于 Skill 的 `references/public-services-profile.schema.json`，以 `validate_profile.py` 结果为准。
+广告读取只在产品已有广告 UI 时启用：`GET /app/{code}/ads/show`。管理端点不属于业务客户端。
 
-`profile_schema_version` 固定为 `1`，是唯一始终必填字段；其余字段可随问答逐步补齐。字段缺失表示未知，不得为了通过校验写入空字符串、猜测值或 `false`。
+## 完全删除旧版本协议
 
-允许保存的内容只限非敏感接入事实，包括：产品名/用途/关键词、APP_ID、负责人、平台/架构、框架、当前版本与版本来源、AppConfig 策略、启动入口、主窗口 ready hook、外链与退出 handler、CloudBase 环境 ID/默认 HTTPS origin、统计 endpoint、更新 base URL、基础设施版本/来源提交、登记/历史路由状态、部署门禁、隐私说明和当前阶段。Node/Electron 项目还可保存固定 SDK 分发类型、项目相对来源、SDK 版本与产物 SHA-256；私有包另可保存项目相对人工证据路径和 `sha256:`/`git:` 不可变引用。不得保存本机绝对路径或环境变量展开路径。
+基础设施 3.0 不承认旧静态更新为有效 transport。迁移时删除：
 
-绝不保存或回显：SecretId、SecretKey、Token、Cookie、Authorization、数据库凭据、用户账号、硬件 ID 或任何从这些值派生的内容。`cloudbase_env_id` 和不含凭据的公网 `cloudbase_origin` 可保存；带用户名、密码、查询凭据或片段的 URL 不可保存。
+- 静态更新 Base URL 和平台 manifest URL；
+- 14 字段 manifest types/parser/schema；
+- rollout、min-supported、旧 force-update 决策；
+- fallback、dual-read、兼容开关；
+- 旧协议专用源码、夹具、测试和现行文档。
 
-`infrastructure_source_commit` 要记录实际读取且对应当前基础设施版本的权威提交；不能把上述 `2.0.0` 协议审查基线冒充为 `2.1.0` 来源提交。
+不要删除可复用的严格 SemVer、安全公网 HTTPS URL、纯文本 UI、主窗口异步时序、外链或完整退出逻辑。
 
-### 恢复与写入
+## APP_ID、集合与 code
 
-1. 先验证已有档案；验证失败时展示确定性错误，不覆盖。
-2. 将档案值与当前代码重新比对。代码已变更的字段标为冲突，不把旧值当现状。
-3. 自动检测值先展示证据；用户提供值标为已确认。只写用户确认过的非敏感值。
-4. 用户必须明确进入阶段 1，且确认待写变更；否则保持只读。
-5. 写后重新运行验证和资源派生。任何失败都不升级 `current_stage` 或门禁。
+APP_ID 长度 1–50，只含小写字母、数字、短横线，首尾为字母或数字。对 APP_ID 派生：
 
-Node/Electron 的阶段 5/6 还要运行 `verify_sdk_distribution.py`。固定 tarball 必须是真实 npm tgz 且包名/版本/hash 一致；受控复制或 workspace 用 `bifang-relative-content-v1` 树哈希；私有包只验证负责人签认的不可变证据，并明确 `artifact_bytes_verified=false`。制品不存在、hash 不符或证据不完整时，`sdk_distribution_ready` 不得为真。
+| 资源           | 规则                            |
+| -------------- | ------------------------------- |
+| telemetry 函数 | `telemetry-<app_id>`            |
+| telemetry 集合 | `telemetry_<normalized_app_id>` |
+| telemetry 路由 | `/apps/<app_id>/v1/track`       |
+| versions 集合  | `versions_<normalized_app_id>`  |
+| ads 集合       | `ads_<normalized_app_id>`       |
+| audit 集合     | `audit_<normalized_app_id>`     |
 
-`registration_status` 使用 `unknown | not_registered | registered | verified`；`legacy_track_status` 使用 `unknown | not_found | found | migration_required | retained`；`current_stage` 是 `1..8`。`deployment_gates` 中缺失的键表示 `unknown`，不是 `false` 更不是已通过。线上状态必须来自当前线上只读证据或负责人明确陈述，并注明证据级别；本地文件不能证明已经部署。
+Application-version 函数和路由全环境唯一共享。每个 `(platform, architecture, channel)` 必须有一个唯一 code；code 同样使用小写字母、数字和短横线且不超过 50。请求没有平台字段，不得靠 User-Agent 猜测。
 
-## 项目专属预览
+## Profile v2
 
-信息足以派生后，以紧凑表格显示：
+路径固定为 `.bifang/public-services-profile.json`。`profile_schema_version` 只能是 `2`。旧 Profile v1 是待迁移输入，不是有效完成状态；检测到后报告明确错误并在已授权阶段 1 生成 v2，不保留兼容字段。
 
-- 中文产品名、当前版本、版本来源与版本提升建议；
-- 正式 APP_ID 及函数、集合、路由、更新目录；
-- 每个目标平台的清单路径；
-- 若有默认 HTTPS origin，显示完整 telemetry endpoint；更新 base URL 只到 `/updates`；
-- 登记、部署、隐私、测试、发布和迁移门禁中尚未满足的项。
+Profile 只保存非敏感事实：
 
-接入统计与更新属于功能扩展，已有正式基线通常建议提升 minor；但必须从项目自己的唯一版本来源判断并展示建议，不能直接改版本。运营精灵基础设施从 `2.0.0` 提升至 `2.1.0`；SDK 公共 API 未变化时保持 `2.0.0`。
+- 产品名、用途、负责人、APP_ID；
+- 平台、架构、框架、当前 SemVer 与唯一版本来源；
+- AppConfig、启动入口、ready hook、外链与退出 handler；
+- 现有免费环境 ID、平台默认 HTTPS origin、telemetry endpoint；
+- `update_transport=application-version-api-v1`；
+- `application_version_contract_version=1.0.0`；
+- 单层 `application_version_base_url`；
+- `release_streams[]` 的 platform、architecture、channel、code；
+- 非敏感 `version_api_auth_binding_id` 与状态；
+- 基础设施版本/来源提交、登记状态、门禁、隐私说明、当前阶段；
+- `legacy_update_status=detected | not_found | removed`。完成接入必须为 `removed`。
 
-## 八阶段状态
+绝不保存或回显 Key、Secret、Token、Cookie、Authorization、数据库凭据、账号、硬件 ID、凭据摘要、本机绝对路径或带用户信息/查询凭据的 URL。
 
-1. 完善接入档案。
-2. 在运营精灵登记新应用。
-3. 生成并审查 CloudBase 资源配置。
-4. 部署独立资源并完成线上 E2E。
-5. 在业务客户端实施接入。
-6. 构建、安装和真实客户端 E2E。
-7. 发布与迁移观察。
-8. 经负责人确认后清理旧资源。
+## Profile 写入
 
-计划可一次展示八阶段，但执行一次只能选一阶段。阶段状态使用“未开始 / 进行中 / 有证据完成 / 阻塞”；不得因文件存在或用户口头期望把后续阶段标成完成。
+1. 先只读解析现有 Profile；重复字段、非法 JSON 或敏感值立即停止，不覆盖。
+2. 用当前代码证据重新核对已有事实；冲突必须展示。
+3. 规范 URL 一句话已经授权阶段 1，可写确定性的 v2 非敏感档案；仍无法确认的产品事实最多问三个短问题。
+4. 写后运行 `validate_profile.py` 和 `derive_resources.py`。
+5. 只有生产代码/配置和活跃测试均无旧静态协议且扫描完整，才写 `legacy_update_status=removed` 与相应 gate。
+
+## 凭据
+
+客户端凭据只能绑定准确 APP_ID/code，并且只给 `versions:check`。桌面二进制中的值可被提取，因此它是可轮换的低权限客户端令牌，不是假装不可提取的长期秘密。
+
+管理凭据与客户端凭据分开；管理读取固定为 `versions:read + ads:read`，管理写入固定为另一份 `versions:write + ads:write`。服务部署配置必须覆盖每条登记发布流，并全局准备一份不可导出的 `contract-ads-*` 凭据执行 `ads:show` 契约测试。原值只通过项目既有本地忽略/构建注入来源提供；不进 Git、Profile、命令行参数、普通日志、测试输出或截图。没有真实凭据时本地测试注入假 transport，真实云端状态保持 `Unverified`。
+
+## 阶段门禁
+
+- 阶段 2：APP_ID 和全部 code 已确认；运营精灵登记表无冲突。
+- 阶段 3：生成配置包含全部已登记应用；版本集合、凭据 binding、路由和费用计划已审查。
+- 阶段 4：最新远端只读预检、费用为零、写入目标精确，等待明确“继续”。
+- 阶段 5：服务端契约可本地测试；在当前客户端替换/删除旧实现并通过本地测试。
+- 阶段 6：服务公网已验证、运行凭据已就绪，使用准确新构建制品做真实 GUI E2E。
+- 阶段 7：隐私、签名、制品、下载地址、回滚均就绪，发布/推送前再次确认。
+- 阶段 8：两个客户端新协议 E2E 完成，最新枚举证明旧云资源可删，展示精确目标后再次确认。

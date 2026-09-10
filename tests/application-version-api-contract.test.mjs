@@ -342,13 +342,13 @@ test("the source error wrapper and target-only repository boundary remain explic
     "#/$defs/ErrorItem",
   );
 
-  assert.match(rootReadme, /应用版本 API v1 服务端（本地实现完成，尚未部署）/);
+  assert.match(rootReadme, /Application-version API v1/);
   assert.match(rootReadme, /contracts\/application-version-api-v1/);
-  assert.match(contractReadme, /本地实现与测试已完成；尚未部署或经原程序验证/);
-  assert.match(report, /不建设长期双协议兼容层/);
-  assert.match(report, /真实原程序请求观测/);
+  assert.match(contractReadme, /尚未部署或经两个毕方真实客户端验证/);
+  assert.match(report, /旧静态更新协议、清单、fallback 和双轨设计全部删除/);
+  assert.match(report, /两个实际客户端的测试域名 E2E 门禁/);
   assert.match(report, /鼠标精灵、录屏助手或第三方程序修改/);
-  assert.equal(sdkPackage.version, "2.0.0");
+  assert.equal(sdkPackage.version, "3.0.0");
 });
 
 function collectRefs(value, refs = []) {

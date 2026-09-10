@@ -12,6 +12,14 @@ const ALLOWED_SCOPES = new Set([
   "ads:read",
   "ads:write",
 ]);
+const SCOPE_BUNDLES = Object.freeze({
+  runtime: [
+    new Set(["versions:check"]),
+    new Set(["versions:check", "ads:show"]),
+  ],
+  managementRead: [new Set(["versions:read", "ads:read"])],
+  managementWrite: [new Set(["versions:write", "ads:write"])],
+});
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const APP_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const MAX_CREDENTIAL_CONFIGURATION_BASE64_BYTES = 4_096;
@@ -89,12 +97,16 @@ function parseCredentials(value, registeredAppIds) {
     } catch {
       return null;
     }
+    const scopes = new Set(value.scopes);
+    const role = classifyScopeBundle(scopes);
     if (
       new Set(codes).size !== codes.length ||
       value.scopes.some(
         (scope) => typeof scope !== "string" || !ALLOWED_SCOPES.has(scope),
       ) ||
-      new Set(value.scopes).size !== value.scopes.length
+      new Set(value.scopes).size !== value.scopes.length ||
+      role === null ||
+      (role === "runtime" && codes.length !== 1)
     ) {
       return null;
     }
@@ -102,7 +114,7 @@ function parseCredentials(value, registeredAppIds) {
       appId: value.app_id,
       codes: new Set(codes),
       keyHash: Buffer.from(value.key_sha256, "hex"),
-      scopes: new Set(value.scopes),
+      scopes,
       secretHashes: value.secret_sha256.map((hash) => Buffer.from(hash, "hex")),
       fingerprint: value.credential_id,
     });
@@ -116,6 +128,20 @@ function parseCredentials(value, registeredAppIds) {
     return null;
   }
   return credentials;
+}
+
+function classifyScopeBundle(scopes) {
+  for (const [role, bundles] of Object.entries(SCOPE_BUNDLES)) {
+    if (bundles.some((bundle) => hasExactScopes(scopes, bundle))) return role;
+  }
+  return null;
+}
+
+function hasExactScopes(actual, expected) {
+  return (
+    actual.size === expected.size &&
+    [...expected].every((scope) => actual.has(scope))
+  );
 }
 
 function authenticate(headers, credentials) {

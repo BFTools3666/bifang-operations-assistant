@@ -1,151 +1,210 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { access, readFile, readdir } from "node:fs/promises";
+import { createRequire } from "node:module";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
 import {
-  decideUpdate,
-  isValidSemVer,
-  parseUpdateConfig,
+  MemoryIdentityStorage,
+  SDK_VERSION,
+  TelemetryClient,
 } from "@bifang/telemetry-update-sdk";
-import { DISABLED_UPDATE_MANIFEST_ORIGIN } from "../cloudbase/add-app.mjs";
+
+import {
+  createCloudBaseConfig,
+  validateRegistry,
+} from "../cloudbase/generate-cloudbaserc.mjs";
+
+const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
+const {
+  validateAndSanitizePayload,
+} = require("../cloudbase/functions/telemetry/src/validation.js");
+const {
+  createVersionSortKey: createApiVersionSortKey,
+} = require("../cloudbase/functions/application-version-api/src/version.js");
+const {
+  createVersionSortKey: createDashboardVersionSortKey,
+} = require("../cloudbase/functions/operations-dashboard/src/version-reader.js");
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 
 const readJson = async (relativePath) =>
   JSON.parse(
     await readFile(new URL(`../${relativePath}`, import.meta.url), "utf8"),
   );
 
-const UPDATE_MANIFEST_KEYS = [
-  "schema_version",
-  "app_id",
-  "platform",
-  "enabled",
-  "latest_version",
-  "min_supported_version",
-  "force_update",
-  "rollout",
-  "title",
-  "message",
-  "download_url",
-  "release_notes_url",
-  "sha256",
-  "published_at",
-].sort();
+test("apps.json v3 is the non-sensitive app and release-stream authority", async () => {
+  const registry = await readJson("cloudbase/apps.json");
+  const applications = validateRegistry(registry);
 
-test("the checked-in update template matches the v1 schema contract", async () => {
-  const schema = await readJson("cloudbase/updates/update.schema.json");
-  const manifest = await readJson(
-    "cloudbase/updates/bifang-screen-recorder/windows.json",
+  assert.equal(registry.schema_version, 3);
+  assert.equal(applications.length, 2);
+  assert.deepEqual(
+    applications.flatMap(({ appId, releaseStreams }) =>
+      releaseStreams.map((releaseStream) => ({ appId, ...releaseStream })),
+    ),
+    [
+      {
+        appId: "bifang-screen-recorder",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-windows-x64",
+      },
+      {
+        appId: "bifang-screen-recorder",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-screen-recorder-macos-arm64",
+      },
+      {
+        appId: "bifang-mouse-clicker",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-mouse-clicker",
+      },
+    ],
   );
+});
 
-  assert.equal(schema.additionalProperties, false);
-  assert.deepEqual([...schema.required].sort(), UPDATE_MANIFEST_KEYS);
-  assert.deepEqual(Object.keys(schema.properties).sort(), UPDATE_MANIFEST_KEYS);
-  assert.ok(
-    Object.values(schema.properties).every(
-      (property) =>
-        typeof property.description === "string" &&
-        /[\u3400-\u9fff]/u.test(property.description),
+test("application API and independently deployed dashboard share the exact version sort key", () => {
+  for (const version of [
+    "0",
+    "1",
+    "1.0",
+    "01.002.000",
+    "1.10",
+    "99999999999999999999999999999999999999999999999999",
+  ]) {
+    assert.equal(
+      createDashboardVersionSortKey(version),
+      createApiVersionSortKey(version),
+      version,
+    );
+  }
+});
+
+test("the repository has no static-update source files or deploy topology", async () => {
+  const registry = await readJson("cloudbase/apps.json");
+  const config = createCloudBaseConfig(registry);
+  const generatedSource = await readFile(
+    new URL("../cloudbase/generate-cloudbaserc.mjs", import.meta.url),
+    "utf8",
+  );
+  const registrationSources = await Promise.all(
+    ["add-app.mjs", "add-release-stream.mjs", "plan-app-deployment.mjs"].map(
+      (name) =>
+        readFile(new URL(`../cloudbase/${name}`, import.meta.url), "utf8"),
     ),
   );
-  assert.deepEqual(Object.keys(manifest).sort(), UPDATE_MANIFEST_KEYS);
-  const schemaSemVer = new RegExp(schema.$defs.semver.pattern);
-  for (const version of ["0.1.0", "1.10.0", "1.0.0-beta.11+build.7"]) {
-    assert.equal(schemaSemVer.test(version), isValidSemVer(version), version);
-  }
-  for (const version of ["01.0.0", "1.0", "1.0.0-01", "v1.0.0"]) {
-    assert.equal(schemaSemVer.test(version), isValidSemVer(version), version);
-  }
-  assert.equal(manifest.schema_version, 1);
-  assert.equal(manifest.app_id, "bifang-screen-recorder");
-  assert.equal(manifest.platform, "windows");
-  assert.equal(manifest.latest_version, "0.0.0");
-  assert.equal(manifest.min_supported_version, "0.0.0");
-  assert.equal(manifest.enabled, false);
-  assert.equal(manifest.force_update, false);
-  assert.equal(manifest.rollout, 0);
-  assert.equal(schema.properties.title.type, "string");
-  assert.equal(schema.properties.title.minLength, 1);
-  assert.equal(schema.properties.title.maxLength, 120);
-  assert.equal(schema.properties.message.type, "string");
-  assert.equal(schema.properties.message.minLength, 1);
-  assert.equal(schema.properties.message.maxLength, 1_000);
-  assert.equal(schema.properties.sha256.type, "string");
-  assert.equal(schema.properties.published_at.type, "string");
-  assert.equal(schema.properties.published_at.format, "date-time");
-  assert.equal(schema.properties.published_at.maxLength, 35);
-  assert.match(
-    manifest.title,
-    new RegExp(schema.properties.title.pattern, "u"),
-  );
-  assert.match(
-    manifest.message,
-    new RegExp(schema.properties.message.pattern, "u"),
-  );
-  assert.doesNotMatch(
-    "safe\u202etxt.exe",
-    new RegExp(schema.properties.title.pattern, "u"),
-  );
-  assert.doesNotMatch(
-    "\u200b",
-    new RegExp(schema.properties.message.pattern, "u"),
-  );
-  assert.match(manifest.sha256, new RegExp(schema.properties.sha256.pattern));
-  assert.match(
-    manifest.published_at,
-    new RegExp(schema.properties.published_at.pattern),
-  );
-  assert.equal(schema.properties.download_url.maxLength, 2_048);
-  assert.equal(schema.properties.release_notes_url.maxLength, 2_048);
+  const updateEntries = await readdir(
+    new URL("../cloudbase/updates", import.meta.url),
+    { recursive: true, withFileTypes: true },
+  ).catch((error) => {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  });
 
-  const parsed = parseUpdateConfig(
-    manifest,
-    "bifang-screen-recorder",
-    "windows",
+  assert.equal(
+    updateEntries.some((entry) => entry.isFile()),
+    false,
   );
-  assert.deepEqual(parsed, manifest);
-  assert.deepEqual(
-    decideUpdate("0.1.0", "33333333-3333-4333-8333-333333333333", parsed),
-    { kind: "none", reason: "disabled" },
+  assert.equal("hosting" in config, false);
+  assert.equal(
+    config.gateway.routes.some(({ path }) => path === "/updates"),
+    false,
   );
-
-  for (const key of ["download_url", "release_notes_url"]) {
-    const url = new URL(manifest[key]);
-    assert.equal(url.protocol, "https:");
-    assert.equal(url.origin, DISABLED_UPDATE_MANIFEST_ORIGIN);
-    assert.equal(
-      url.pathname.startsWith("/updates/bifang-screen-recorder/not-published/"),
-      true,
-    );
+  assert.equal(
+    JSON.stringify(config).includes("DASHBOARD_UPDATES_BASE_URL"),
+    false,
+  );
+  assert.doesNotMatch(generatedSource, /cloudbase\/updates|hosting:updates/);
+  for (const source of registrationSources) {
+    assert.doesNotMatch(source, /cloudbase\/updates|hosting\s+deploy/i);
+    assert.doesNotMatch(source, /manifest/i);
   }
 });
 
-test("every registered platform has one strict manifest accepted by the SDK", async () => {
-  const registry = await readJson("cloudbase/apps.json");
-  const schema = await readJson("cloudbase/updates/update.schema.json");
-
-  assert.equal(registry.schema_version, 2);
-  for (const application of registry.apps) {
-    assert.ok(application.platforms.length > 0);
-    assert.equal(
-      new Set(application.platforms).size,
-      application.platforms.length,
+test("active runtime and current operator surfaces cannot reintroduce the retired static protocol", async () => {
+  const activeRoots = [
+    ".env.example",
+    "cloudbaserc.example.json",
+    "apps/operations-dashboard/app",
+    "apps/operations-dashboard/components",
+    "apps/operations-dashboard/lib",
+    "apps/operations-dashboard/README.md",
+    "cloudbase/functions/application-version-api",
+    "cloudbase/functions/operations-dashboard",
+    "cloudbase/generate-cloudbaserc.mjs",
+    "cloudbase/add-app.mjs",
+    "cloudbase/add-release-stream.mjs",
+    "cloudbase/deploy-application-version-api.mjs",
+    "cloudbase/plan-app-deployment.mjs",
+    "examples",
+    "packages/telemetry-update-sdk/src",
+    "tools/python-sdk-test-client",
+  ];
+  const tracked = await execFileAsync(
+    "git",
+    [
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "--",
+      ...activeRoots,
+    ],
+    {
+      cwd: repositoryRoot,
+      windowsHide: true,
+    },
+  );
+  const trackedActiveFiles = tracked.stdout
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .filter(
+      (relativePath) =>
+        !/(?:^|\/)(?:test|tests)(?:\/|$)/u.test(relativePath) &&
+        !/\.test\.[cm]?[jt]sx?$/u.test(relativePath) &&
+        !relativePath.endsWith("package-lock.json"),
     );
-    for (const platform of application.platforms) {
-      assert.equal(schema.properties.platform.enum.includes(platform), true);
-      const manifest = await readJson(
-        `cloudbase/updates/${application.app_id}/${platform}.json`,
-      );
-      assert.deepEqual(Object.keys(manifest).sort(), UPDATE_MANIFEST_KEYS);
-      assert.equal(manifest.app_id, application.app_id);
-      assert.equal(manifest.platform, platform);
-      assert.deepEqual(
-        parseUpdateConfig(manifest, application.app_id, platform),
-        manifest,
-      );
+  const activeFiles = [];
+  for (const relativePath of trackedActiveFiles) {
+    try {
+      await access(path.join(repositoryRoot, relativePath));
+      activeFiles.push(relativePath);
+    } catch (error) {
+      if (error?.code !== "ENOENT") {
+        throw error;
+      }
     }
   }
+  const retiredMarkers =
+    /DASHBOARD_UPDATES_BASE_URL|\/updates\/|update_base_url|updateBaseUrl|\brollout\b|min_supported_version|minSupportedVersion|manifestUrl|manifest-reader|update\.schema|WINDOWS_JSON_FIELDS|add-app-platform/u;
+
+  assert.ok(activeFiles.length > 0);
+  for (const relativePath of activeFiles) {
+    const source = await readFile(
+      path.join(repositoryRoot, relativePath),
+      "utf8",
+    );
+    assert.doesNotMatch(
+      source,
+      retiredMarkers,
+      `${relativePath} contains a retired static-update marker`,
+    );
+  }
 });
 
-test("the curl example is the minimal daily-active ingestion envelope", async () => {
+test("the curl example remains the minimal daily-active ingestion envelope", async () => {
   const source = await readFile(
     new URL("../examples/telemetry-event.json", import.meta.url),
     "utf8",
@@ -154,8 +213,8 @@ test("the curl example is the minimal daily-active ingestion envelope", async ()
 
   assert.ok(Buffer.byteLength(source, "utf8") <= 4_096);
   assert.equal(event.schema_version, 2);
-  assert.equal(event.sdk_version, "2.0.0");
   assert.equal(event.event, "daily_active");
+  assert.equal(event.sdk_version, SDK_VERSION);
   assert.deepEqual(Object.keys(event).sort(), [
     "app_id",
     "app_version",
@@ -189,55 +248,57 @@ test("the curl example is the minimal daily-active ingestion envelope", async ()
   }
 });
 
-test("the host example keeps update network and UI work out of startup", async () => {
-  const source = await readFile(
-    new URL("../examples/host-integration.ts", import.meta.url),
-    "utf8",
-  );
-  const initializeStart = source.indexOf(
-    "export async function initializePublicServices",
-  );
-  const backgroundWorkStart = source.indexOf("async function checkForUpdates");
-  assert.ok(initializeStart >= 0);
-  assert.ok(backgroundWorkStart > initializeStart);
+test("the telemetry function accepts the exact daily_active event emitted by SDK 3.0", async () => {
+  const emitted = [];
+  const client = await TelemetryClient.init({
+    appId: "bifang-tools",
+    appVersion: "0.1.0",
+    platform: "windows",
+    arch: "x64",
+    endpoint: "https://telemetry.example.com/apps/bifang-tools/v1/track",
+    enabled: true,
+    identityStorage: new MemoryIdentityStorage(),
+    transport: {
+      async send(_endpoint, event) {
+        emitted.push(structuredClone(event));
+      },
+    },
+    scheduler: (task) => task(),
+    now: () => new Date("2026-09-10T04:00:00.000Z"),
+  });
 
-  const initializeSource = source.slice(initializeStart, backgroundWorkStart);
-  assert.match(source, /checkForUpdatesInBackground\(\): void/);
-  assert.match(initializeSource, /checkForUpdatesInBackground\(\) \{/);
-  assert.match(initializeSource, /setTimeout\(\(\) => \{/);
-  assert.match(initializeSource, /void checkForUpdates\(options, telemetry\)/);
-  assert.match(initializeSource, /\.catch\(\(\) => undefined\)/);
-  assert.match(
-    initializeSource,
-    /new NodeFileIdentityStorage\(options\.appConfigDirectory, \{\s*appId: release\.APP_ID,\s*\}\)/,
-  );
-  assert.doesNotMatch(initializeSource, /new UpdateChecker/);
-  assert.doesNotMatch(initializeSource, /runUpdateHostHooks/);
-  assert.doesNotMatch(source, /CHANNEL\??:/);
-  assert.doesNotMatch(source, /\btrack(?:Update\w+)?\s*\(/);
+  await client.drain();
 
-  const optionalHook = source.slice(
-    source.indexOf("onOptionalUpdate:"),
-    source.indexOf("onRequiredUpdate:"),
-  );
-  const requiredHook = source.slice(source.indexOf("onRequiredUpdate:"));
-  assert.match(optionalHook, /await options\.ui\.showOptionalUpdate/);
-  assert.match(requiredHook, /await options\.ui\.showRequiredUpdate/);
+  assert.equal(SDK_VERSION, "3.0.0");
+  assert.equal(emitted.length, 1);
+  assert.deepEqual(validateAndSanitizePayload(emitted[0]), {
+    ok: true,
+    value: emitted[0],
+  });
 });
 
-test("the CloudBase template keeps the Event-function deployment boundary", async () => {
-  const config = await readJson("cloudbaserc.json.example");
-  const functionPackage = await readJson(
+test("the generated template preserves telemetry and application-version boundaries", async () => {
+  const config = await readJson("cloudbaserc.example.json");
+  const telemetryFunctionPackage = await readJson(
     "cloudbase/functions/telemetry/package.json",
   );
   const applicationVersionFunctionPackage = await readJson(
     "cloudbase/functions/application-version-api/package.json",
+  );
+  const telemetrySdkPackage = await readJson(
+    "packages/telemetry-update-sdk/package.json",
   );
   const telemetryFunction = config.functions.find(
     (candidate) => candidate.name === "telemetry-bifang-screen-recorder",
   );
   const telemetryRoute = config.gateway.routes.find(
     (candidate) => candidate.path === "/apps/bifang-screen-recorder/v1/track",
+  );
+  const versionFunction = config.functions.find(
+    (candidate) => candidate.name === "application-version-api",
+  );
+  const versionRoute = config.gateway.routes.find(
+    (candidate) => candidate.path === "/tools/version-control/v1",
   );
 
   assert.equal(config.version, "2.1");
@@ -256,8 +317,15 @@ test("the CloudBase template keeps the Event-function deployment boundary", asyn
   assert.equal(telemetryRoute.protocol, "HTTP_TO_HTTPS");
   assert.equal(telemetryRoute.enablePathTransmission, true);
   assert.equal(telemetryRoute.enableAuth, false);
-  assert.equal(functionPackage.dependencies["@cloudbase/js-sdk"], "3.8.2");
-  assert.equal("@cloudbase/node-sdk" in functionPackage.dependencies, false);
+  assert.equal(telemetryFunctionPackage.version, "3.0.0");
+  assert.equal(telemetryFunctionPackage.version, telemetrySdkPackage.version);
+  assert.equal(versionFunction.type, "Event");
+  assert.equal(versionRoute.target, "function:application-version-api");
+  assert.equal(versionRoute.enablePathTransmission, true);
+  assert.equal(
+    telemetryFunctionPackage.dependencies["@cloudbase/js-sdk"],
+    "3.8.2",
+  );
   assert.equal(
     applicationVersionFunctionPackage.dependencies["@cloudbase/js-sdk"],
     "3.8.2",

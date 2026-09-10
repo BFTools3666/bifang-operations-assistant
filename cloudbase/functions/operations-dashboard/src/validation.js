@@ -1,6 +1,6 @@
 "use strict";
 
-// Keep aligned with the deployed telemetry v2 and update-manifest v1 contracts.
+// Keep aligned with the deployed telemetry v2 and application-version v1 contracts.
 // This function is deployed independently, so it cannot import sibling workspaces.
 const SEMVER =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
@@ -11,29 +11,13 @@ function isSemVer(value) {
   return typeof value === "string" && value.length <= 64 && SEMVER.test(value);
 }
 
-function compareSemVer(left, right) {
-  const a = SEMVER.exec(left);
-  const b = SEMVER.exec(right);
-  for (let i = 1; i <= 3; i += 1) {
-    if (BigInt(a[i]) !== BigInt(b[i]))
-      return BigInt(a[i]) > BigInt(b[i]) ? 1 : -1;
-  }
-  if (a[4] === b[4]) return 0;
-  if (!a[4]) return 1;
-  if (!b[4]) return -1;
-  const ap = a[4].split(".");
-  const bp = b[4].split(".");
-  for (let i = 0; i < Math.max(ap.length, bp.length); i += 1) {
-    if (ap[i] === undefined) return -1;
-    if (bp[i] === undefined) return 1;
-    if (ap[i] === bp[i]) continue;
-    const an = /^\d+$/.test(ap[i]);
-    const bn = /^\d+$/.test(bp[i]);
-    if (an && bn) return BigInt(ap[i]) > BigInt(bp[i]) ? 1 : -1;
-    if (an !== bn) return an ? -1 : 1;
-    return ap[i] > bp[i] ? 1 : -1;
-  }
-  return 0;
+function isDottedVersion(value) {
+  return (
+    typeof value === "string" &&
+    value.length >= 1 &&
+    value.length <= 50 &&
+    /^[0-9]+(?:\.[0-9]+)*$/.test(value)
+  );
 }
 
 function isRfc3339(value) {
@@ -69,38 +53,10 @@ function isCalendarDate(value) {
   );
 }
 
-function isHttpsUrl(value) {
-  if (typeof value !== "string" || !value || value.length > 2048) return false;
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      !url.username &&
-      !url.password &&
-      !!url.hostname
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isDisplayText(value, maxLength) {
-  return (
-    typeof value === "string" &&
-    Array.from(value).length <= maxLength &&
-    /[^\s\u200c\u200d\ufe00-\ufe0f]/u.test(value) &&
-    !/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u.test(
-      value,
-    )
-  );
-}
-
 module.exports = {
   UUID_V4,
-  compareSemVer,
   isCalendarDate,
-  isDisplayText,
-  isHttpsUrl,
+  isDottedVersion,
   isRfc3339,
   isSemVer,
 };

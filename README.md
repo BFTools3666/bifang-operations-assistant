@@ -1,58 +1,87 @@
-# 毕方每日启动统计与更新基础设施
+# 毕方运营精灵基础设施 3.0
 
-这是一个供多个小工具复用的 Phase 1 轻量基础设施仓库。所有工具共用一个免费 CloudBase 环境和平台默认 HTTPS 域名，但每个工具使用独立的 `app_id`、云函数、HTTP 路由、数据库集合、本地状态目录和更新清单，避免统计与版本发布互相串用。仓库只包含：
+这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，版本与广告服务统一使用 application-version API v1。旧静态更新清单协议已经退出 3.0 设计，不再提供双轨、回退开关或长期兼容层。
 
-- 腾讯云 CloudBase“每日首次启动”HTTP 云函数源码；
-- 静态更新清单及 JSON Schema；
-- 框架无关的 TypeScript SDK；
-- 自动化测试、宿主接入片段和维护文档。
+所有工具共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离：
 
-本仓库不是小工具业务客户端，不包含 Tauri、Electron、自动下载或自动安装逻辑。独立的只读运营看板位于 `apps/operations-dashboard`；它只消费聚合数据，不改变各工具的上报协议或客户端行为。
+- telemetry 使用独立 `app_id`、函数、路由、集合和本地状态；
+- application-version 使用共享函数和单一 `/tools/version-control/v1` 路由，凭据绑定准确 `app_id + codes + scopes`；
+- 每个应用使用独立 `versions_*`、`ads_*`、`audit_*` 集合；
+- 每个 `(platform, architecture, channel)` 使用独立 `code`，不依赖 User-Agent 猜平台。
 
-## 给开发者和 AI 的权威入口
+本仓库不是鼠标精灵或录屏助手的业务源码。两个客户端必须各自在自己的 Codex Task 中接入，运营精灵不能从这里主动扫描或修改它们。
 
-本 Git 仓库是指南、协议、Skill 和可维护源码的权威来源；飞书文件夹是方便分享的副本。其他 AI 接手时先读仓库级 [`AGENTS.md`](AGENTS.md)，再按其中顺序阅读[完整分步接入指南](docs/毕方小工具公共服务分步接入指南.md)及协议文件。CloudBase 新手版的 [Markdown 源文档](docs/cloudbase-quickstart.md)、[真实截图](docs/images/cloudbase)、[可分享 Word 版](docs/CloudBase免费额度内部署新手图文版.docx)和[生成脚本](tools/build_cloudbase_guide_docx.py)也全部由本仓库管理；不要把飞书导入文档或临时 Skill 压缩包当成较新的权威源码。
+## 一句话接入
 
-运营看板已接入生产 CloudBase 的独立只读聚合函数，私有 Sites 仅本人可见。页面不再提供演示数据：读取失败明确显示不可用，真实零值按零显示。完整口径见[运营看板说明](docs/operations-dashboard.md)，部署版本、真实数据库对账和浏览器测试见[交付回执](docs/operations-dashboard-e2e-20260907.md)。
+在任意客户端项目中只需发送：
 
-第一期只回答“今天有多少台设备实际启动使用过”：同一个匿名 `install_id` 按北京时间（`Asia/Shanghai`）每天首次启动最多上报一次固定事件 `daily_active`。**不统计安装动作**，也不再统计渠道、功能点击、任务开始/成功/失败、更新提示或更新点击。客户端只提供匿名 `install_id`、`platform`、`arch`、`app_id` 和 `app_version`；服务端补充 `active_date`、`received_at` 和来源 `source_ip`。
+```text
+https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接入
+```
 
-一台当天启动设备可近似理解为一位使用者，但它不是账号人数：同一人多台设备会多计，重装或清除本地数据也可能产生新 `install_id`。IP 不能用来去重人数；同一公司/家庭可共用公网 IP，移动网络也可能变化。IP 属于个人信息，接入前必须向用户说明用途，只做必要的最短保留，对外截图和导出时遮挡。
+根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitLab 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 在当前客户端内迁移非敏感 Profile、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。
 
-## 最短上手
+这句话不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送或购买。上述外部或扩大范围的动作仍按门禁单独执行。
+
+## 权威入口
+
+本 Git 仓库是协议、Skill、脚本和可维护源码的唯一权威；分享文档不得反向覆盖。开发者和 AI 先读 [`AGENTS.md`](AGENTS.md)，再按顺序阅读：
+
+- [完整分步接入指南](docs/毕方小工具公共服务分步接入指南.md)
+- [多工具隔离](docs/multi-tool-isolation.md)
+- [遥测与 application-version v1](docs/telemetry-and-update.md)
+- [应用版本 API 契约与可行性报告](docs/application-version-api-zero-code-contract.md)
+- [机器契约](contracts/application-version-api-v1)
+
+当前登记应用以 [`cloudbase/apps.json`](cloudbase/apps.json) 为唯一权威。文档里的产品名、code 和资源名只作规则说明或时间点证据。
+
+## 协议摘要
+
+### 每日启动遥测
+
+同一个匿名 `install_id` 按北京时间每天首次正常启动最多尝试一次固定事件 `daily_active`。客户端联网前先原子落盘当日门禁；失败当天不重试、不排离线队列。它近似表示活跃安装，不是安装量、账号人数或功能使用次数。客户端不得采集账号、主机名、MAC、硬盘号或其他硬件指纹；来源 IP 只由服务端可信上下文补充。
+
+### Application-version API v1
+
+规范 Base URL：
+
+```text
+https://<平台默认域名>/tools/version-control/v1
+```
+
+`v1` 只出现一次，不存在 `/v1/v1` 别名。运行时客户端只持有最小权限凭据并调用：
+
+```text
+GET /versions/{code}/{currentVersion}
+GET /app/{code}/ads/show    # 当前仅由服务端契约测试凭据验证
+```
+
+管理端点、精确响应、错误码和验证向量以 [`contracts/application-version-api-v1`](contracts/application-version-api-v1) 为准。每份客户端运行凭据只绑定一个发布流 code，且只给 `versions:check`；管理读取与管理写入使用两份独立凭据，绝不进入客户端。部署配置必须覆盖每条登记发布流，并全局保留一份不可导出到客户端的 `contract-ads-*` 广告契约测试凭据。任何 Key/Secret 原值都不得进入 Git、Profile、普通日志、命令行参数或截图证据。
+
+## 本地验证
 
 ```powershell
 npm ci
 npm run check
 ```
 
-新增工具时不要复用其他应用的编号。例如工具编号为 `bifang-pdf-tool`，对应资源为：
+仓库将 CloudBase CLI 固定为 `@cloudbase/cli@3.8.1`；部署包装器只调用仓库内这份 CLI。完整检查还会用该固定 CLI 离线解析 `cloudbaserc.example.json`，避免配置扩展名、Schema 或 QPS 下限在真正部署时才暴露。
 
-```text
-函数：telemetry-bifang-pdf-tool
-路由：/apps/bifang-pdf-tool/v1/track
-集合：telemetry_bifang_pdf_tool
-更新：/updates/bifang-pdf-tool/<platform>.json
+每次生成可执行的 application-version 计划前，必须紧接着按锁文件重新执行一次 `npm ci`；从这次 `npm ci` 到生成计划之间，不得修改 `package-lock.json`、`package.json` 或 `node_modules/@cloudbase/cli`。
+
+CloudBase 只读计划：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/application-version-credentials.ps1 -Mode generate
+npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --origin https://<平台默认域名> --credentials-b64-file cloudbase/application-version-credentials.b64
 ```
 
-各工具的数据、更新开关和版本号完全分开；它们只共享免费环境、默认域名和免费额度。登记表显式记录每个工具的 Windows/macOS 平台清单，缺失或多余文件都会使配置检查失败。完整命名规则与新增步骤见[多工具隔离指南](docs/multi-tool-isolation.md)。
+第一条命令只需执行一次：摘要配置写入 Git 忽略文件，Key/Secret 原值由当前用户 DPAPI 加密保存在本机。计划命令只读取本地配置和凭据摘要，不执行部署或删除，也不回显 Secret。线上写入前必须展示最新远端状态、精确资源、费用、差异、回滚与删除目标，再等待负责人明确“继续”。不创建第二个环境，不购买域名、证书、套餐或资源包，不开启按量超限、自动续费或超限扣费。
 
-首次部署后，可使用面向普通用户的 [CloudBase 功能验证助手](tools/python-sdk-test-client/README.md)。Windows 图形界面基于标准库 Tkinter/ttk，用中文向导发送 `daily_active` 样例、模拟最多十台匿名设备，并真实读取完整更新文件地址。模拟十台设备最多产生 10 次 POST；它们在同一电脑测试时通常显示同一个公网 IP。启动与填写内容不会联网，只有用户点击发送或检查按钮后才会访问填写的地址。
+## 当前实施状态
 
-为保护免费网关，客户端会在联网前先把“今天已经尝试上报”写入本地；即使随后网络失败，当天也不重试。此设计宁可少计一次，也不让反复启动冲击免费额度。
+application-version API v1 的十个端点、鉴权、隔离存储、事务与本地 HTTP E2E 已在仓库实现。它仍需在现有免费环境完成最新只读预检、明确确认后的部署与公网 HTTP E2E；本地测试不能冒充线上结果。
 
-当前登记应用以 [`cloudbase/apps.json`](cloudbase/apps.json) 为唯一权威，不在 README 复制一份容易过期的名单。未发布清单保持关闭，并把下载与发布说明地址指向现有免费 CloudBase 默认 HTTPS 域名下明确不存在的 `not-published` 路径；这样严格客户端仍能解析出 `disabled`，误点或误开地址也只会得到 404。正式发布前仍须先上传真实制品与发布说明，再替换地址、文案、哈希与发布时间并单独启用。现有 [历史部署回执](docs/cloudbase-deployment.md) 只记录 `example-tool` 的历史 v1 验收；新应用证据见各自独立回执。14 个更新字段见 [中文说明](cloudbase/updates/WINDOWS_JSON_FIELDS.zh-CN.md)，完整架构、API 和维护流程见 [长期文档](docs/telemetry-and-update.md)。
+鼠标精灵与录屏助手是实际客户端验收对象。它们的旧版本未公开发布，因此各自迁移时直接删除静态更新实现。Windows 真实客户端 E2E 必须绑定本次构建的准确 EXE、SHA-256、进程/窗口和实际请求；录屏助手 macOS 结果必须在真实 Mac 上单独验证，Windows 证据不能替代。
 
-这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
-
-## 应用版本 API v1 服务端（本地实现完成，尚未部署）
-
-仓库已实现一套面向现有第三方小工具的[零代码接入契约](docs/application-version-api-zero-code-contract.md)：目标是让既有程序只修改服务地址、TLS/证书信任和凭据配置，不修改程序代码，即可改用毕方运营精灵提供的版本检查与广告展示服务。规范 Base URL 是 `https://<host>/tools/version-control/v1`，`v1` 只出现一次。机器契约位于 [`contracts/application-version-api-v1`](contracts/application-version-api-v1)，CloudBase Event 函数位于 [`cloudbase/functions/application-version-api`](cloudbase/functions/application-version-api)。
-
-服务端已通过本地单元、CloudBase 数据库适配器和 localhost HTTP E2E，但尚未登录、部署或进行原程序测试域名 E2E，因此不是当前线上协议。现有 SDK、`/updates/<app_id>/<platform>.json`、线上 CloudBase 资源和两个业务客户端均未因此改变；下一步必须先完成云端只读预检并再次确认，才能在既有免费环境中部署测试。原程序验证通过后，鼠标精灵和录屏助手再分别进入第二阶段升级，不为尚未公开发布的旧毕方更新协议建设长期兼容层。
-
-## 跨项目接入向导 Skill
-
-基础设施根版本 `2.1.0` 新增显式调用的 `$bifang-public-services-onboarding`，权威源码位于 [`skills/bifang-public-services-onboarding`](skills/bifang-public-services-onboarding)。它会先检查目标项目和已有 `.bifang/public-services-profile.json`，只分批询问无法从代码确认的信息，再给出独立资源映射、未满足门禁和八阶段接入任务；没有用户明确选择的阶段不会修改对应范围。
-
-SDK 公共 API 没有因新增向导而变化，因此 `@bifang/telemetry-update-sdk` 继续保持 `2.0.0`。安装或更新 Skill 时使用其 [`install_skill.py`](skills/bifang-public-services-onboarding/scripts/install_skill.py)；脚本会拒绝覆盖来源不明的同名 Skill。完整新手流程及“毕方录屏助手”示例见[毕方小工具公共服务分步接入指南](docs/毕方小工具公共服务分步接入指南.md)。
+独立只读运营看板位于 `apps/operations-dashboard`。看板只消费服务端聚合数据，失败显示“生产数据暂时不可用”，真实零值按零显示；现行说明见 [运营看板规范](docs/operations-dashboard.md)。旧静态协议时期的回执和截图已从 3.0 工作树删除，完成新服务部署与真实 Edge E2E 后再生成新回执。

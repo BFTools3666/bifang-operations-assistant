@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
-import { InstallIdentity, isUuidV4, rolloutBucket } from "../dist/index.js";
+import { InstallIdentity, isUuidV4 } from "../dist/index.js";
 import { NodeFileIdentityStorage } from "../dist/node.js";
 
 const execFileAsync = promisify(execFile);
@@ -210,10 +210,6 @@ test("Node file adapter recovers a stable identity without replacing corruption"
       new NodeFileIdentityStorage(appConfigDirectory),
     ).initialize();
     assert.equal(restarted.installId, identities[0].installId);
-    assert.equal(
-      rolloutBucket(restarted.installId, "1.2.3"),
-      rolloutBucket(identities[0].installId, "1.2.3"),
-    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

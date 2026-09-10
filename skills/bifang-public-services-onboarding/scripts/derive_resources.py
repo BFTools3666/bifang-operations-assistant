@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -13,7 +14,12 @@ from validate_profile import APP_ID_PATTERN, read_json_file, validate_profile
 
 
 SUPPORTED_PLATFORMS = frozenset(("windows", "macos", "linux"))
-READY_MANIFEST_PLATFORMS = frozenset(("windows", "macos"))
+APPLICATION_VERSION_CONTRACT_VERSION = "1.0.0"
+APPLICATION_VERSION_API_ROUTE = "/tools/version-control/v1"
+APPLICATION_VERSION_FUNCTION_NAME = "application-version-api"
+RELEASE_CODE_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$"
+)
 
 
 def derive_resources(
@@ -21,6 +27,9 @@ def derive_resources(
     platforms: Iterable[str] = (),
     *,
     cloudbase_origin: str | None = None,
+    application_version_base_url: str | None = None,
+    release_streams: Iterable[dict[str, Any]] = (),
+    legacy_update_status: str | None = None,
 ) -> dict[str, Any]:
     """Return the complete collision-free resource mapping for an app id."""
 
@@ -37,47 +46,134 @@ def derive_resources(
             )
 
     telemetry_route = f"/apps/{app_id}/v1/track"
-    update_directory = f"/updates/{app_id}"
-    update_manifests = {
-        platform: f"{update_directory}/{platform}.json"
-        for platform in platform_list
-    }
+    normalized_app_id = app_id.replace("-", "_")
+    normalized_streams = _normalize_release_streams(release_streams)
+    stream_platforms = {stream["platform"] for stream in normalized_streams}
     platform_gates = {
         platform: {
-            "status": (
-                "ready" if platform in READY_MANIFEST_PLATFORMS else "pending"
-            ),
+            "status": "ready" if platform in stream_platforms else "pending",
             "reason": (
-                f"authoritative infrastructure generates and validates {platform}.json"
-                if platform in READY_MANIFEST_PLATFORMS
-                else f"authoritative infrastructure does not generate or validate {platform}.json"
+                "application-version API release stream code is declared"
+                if platform in stream_platforms
+                else "application-version API release stream code is not yet declared"
             ),
         }
         for platform in platform_list
     }
     resources: dict[str, Any] = {
         "app_id": app_id,
-        "collection_name": f"telemetry_{app_id.replace('-', '_')}",
+        "collection_name": f"telemetry_{normalized_app_id}",
         "function_name": f"telemetry-{app_id}",
         "platform_gates": platform_gates,
         "telemetry_route": telemetry_route,
-        "update_directory": update_directory,
-        "update_manifests": update_manifests,
+        "application_version_contract_version": APPLICATION_VERSION_CONTRACT_VERSION,
+        "application_version_function_name": APPLICATION_VERSION_FUNCTION_NAME,
+        "application_version_route": APPLICATION_VERSION_API_ROUTE,
+        "version_collection_name": f"versions_{normalized_app_id}",
+        "ad_collection_name": f"ads_{normalized_app_id}",
+        "audit_collection_name": f"audit_{normalized_app_id}",
+        "release_streams": [
+            {
+                **stream,
+                "version_check_path_template": (
+                    f"{APPLICATION_VERSION_API_ROUTE}/versions/{stream['code']}/{{version}}"
+                ),
+                "ads_show_path": (
+                    f"{APPLICATION_VERSION_API_ROUTE}/app/{stream['code']}/ads/show"
+                ),
+            }
+            for stream in normalized_streams
+        ],
     }
+
+    if legacy_update_status is not None:
+        resources["legacy_update_status"] = legacy_update_status
 
     if cloudbase_origin is not None:
         origin = cloudbase_origin.rstrip("/")
+        expected_version_base = f"{origin}{APPLICATION_VERSION_API_ROUTE}"
+        if (
+            application_version_base_url is not None
+            and application_version_base_url != expected_version_base
+        ):
+            raise ValueError(
+                "application_version_base_url must equal cloudbase_origin plus "
+                "/tools/version-control/v1 with one v1 segment"
+            )
+        version_base = application_version_base_url or expected_version_base
         resources.update(
             {
                 "telemetry_endpoint": f"{origin}{telemetry_route}",
-                "update_base_url": f"{origin}/updates",
-                "update_manifest_urls": {
-                    platform: f"{origin}{path}"
-                    for platform, path in update_manifests.items()
-                },
+                "application_version_base_url": version_base,
             }
         )
+        for stream in resources["release_streams"]:
+            stream["version_check_url_template"] = (
+                f"{version_base}/versions/{stream['code']}/{{version}}"
+            )
+            stream["ads_show_url"] = (
+                f"{version_base}/app/{stream['code']}/ads/show"
+            )
     return resources
+
+
+def _normalize_release_streams(
+    release_streams: Iterable[dict[str, Any]],
+) -> list[dict[str, str]]:
+    normalized: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    seen_targets: set[tuple[str, str, str]] = set()
+    for stream in release_streams:
+        if not isinstance(stream, dict):
+            raise ValueError("release_streams entries must be objects")
+        if set(stream) != {"platform", "architecture", "channel", "code"}:
+            raise ValueError(
+                "release_streams entries require only platform, architecture, channel, and code"
+            )
+        platform = stream.get("platform")
+        architecture = stream.get("architecture")
+        channel = stream.get("channel")
+        code = stream.get("code")
+        if platform not in SUPPORTED_PLATFORMS:
+            raise ValueError(
+                "release stream platform must be windows, macos, or linux"
+            )
+        if architecture not in {"x64", "arm64", "ia32"}:
+            raise ValueError("release stream architecture must be x64, arm64, or ia32")
+        if not isinstance(channel, str) or not re.fullmatch(
+            r"[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?", channel
+        ):
+            raise ValueError("release stream channel is invalid")
+        if not isinstance(code, str) or RELEASE_CODE_PATTERN.fullmatch(code) is None:
+            raise ValueError(
+                "release stream code must be globally unique, URL-safe, and 1-50 characters"
+            )
+        target = (platform, architecture, channel)
+        if code in seen_codes:
+            raise ValueError(f"duplicate release stream code: {code}")
+        if target in seen_targets:
+            raise ValueError(
+                "duplicate release stream platform/architecture/channel mapping"
+            )
+        seen_codes.add(code)
+        seen_targets.add(target)
+        normalized.append(
+            {
+                "platform": platform,
+                "architecture": architecture,
+                "channel": channel,
+                "code": code,
+            }
+        )
+    return sorted(
+        normalized,
+        key=lambda stream: (
+            stream["platform"],
+            stream["architecture"],
+            stream["channel"],
+            stream["code"],
+        ),
+    )
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -95,7 +191,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--platform",
         action="append",
         default=[],
-        help="platform manifest to derive; repeat for more than one platform",
+        help="release-stream platform to derive; repeat for more than one platform",
     )
     return parser.parse_args(argv)
 
@@ -118,20 +214,36 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.profile is not None:
             profile = _load_profile(args.profile)
+            if profile.get("profile_schema_version") != 2:
+                raise ValueError(
+                    "legacy profile schema v1 was recognized read-only; explicitly migrate "
+                    "it to profile_schema_version 2 before deriving application-version API resources"
+                )
             app_id = profile.get("app_id")
             if not isinstance(app_id, str):
                 raise ValueError("profile does not yet contain a confirmed app_id")
             platforms = args.platform or profile.get("platforms", [])
             cloudbase_origin = profile.get("cloudbase_origin")
+            application_version_base_url = profile.get(
+                "application_version_base_url"
+            )
+            release_streams = profile.get("release_streams", [])
+            legacy_update_status = profile.get("legacy_update_status")
         else:
             app_id = args.app_id
             platforms = args.platform
             cloudbase_origin = None
+            application_version_base_url = None
+            release_streams = []
+            legacy_update_status = None
 
         resources = derive_resources(
             app_id,
             platforms,
             cloudbase_origin=cloudbase_origin,
+            application_version_base_url=application_version_base_url,
+            release_streams=release_streams,
+            legacy_update_status=legacy_update_status,
         )
     except (OSError, ValueError) as error:
         print(f"resource derivation failed: {error}", file=sys.stderr)

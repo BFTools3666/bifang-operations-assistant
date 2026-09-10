@@ -20,17 +20,24 @@ const APP_ID = "bifang-mouse-clicker";
 const OTHER_APP_ID = "bifang-screen-recorder";
 const CODE = "original-tool";
 const OTHER_CODE = "another-tool";
-const MANAGEMENT_KEY = "management-key-with-high-entropy";
-const MANAGEMENT_SECRET = "management-secret-with-high-entropy";
-const MANAGEMENT_NEXT_SECRET = "management-next-secret-with-high-entropy";
+const MANAGEMENT_READ_KEY = "management-read-key-with-high-entropy";
+const MANAGEMENT_READ_SECRET = "management-read-secret-with-high-entropy";
+const MANAGEMENT_READ_NEXT_SECRET =
+  "management-read-next-secret-with-high-entropy";
+const MANAGEMENT_WRITE_KEY = "management-write-key-with-high-entropy";
+const MANAGEMENT_WRITE_SECRET = "management-write-secret-with-high-entropy";
 const RUNTIME_KEY = "runtime-key-with-high-entropy";
 const RUNTIME_SECRET = "runtime-secret-with-high-entropy";
 const OTHER_KEY = "other-app-key-with-high-entropy";
 const OTHER_SECRET = "other-app-secret-with-high-entropy";
-const OTHER_MANAGEMENT_KEY = "other-app-management-key-with-high-entropy";
-const OTHER_MANAGEMENT_SECRET = "other-app-management-secret-with-high-entropy";
-const LIMITED_MANAGEMENT_KEY = "limited-management-key-with-high-entropy";
-const LIMITED_MANAGEMENT_SECRET = "limited-management-secret-with-high-entropy";
+const OTHER_MANAGEMENT_READ_KEY =
+  "other-app-management-read-key-with-high-entropy";
+const OTHER_MANAGEMENT_READ_SECRET =
+  "other-app-management-read-secret-with-high-entropy";
+const LIMITED_MANAGEMENT_WRITE_KEY =
+  "limited-management-write-key-with-high-entropy";
+const LIMITED_MANAGEMENT_WRITE_SECRET =
+  "limited-management-write-secret-with-high-entropy";
 
 const APPLICATIONS = [
   {
@@ -51,19 +58,20 @@ const CREDENTIAL_CONFIG = {
   schema_version: 1,
   credentials: [
     credential({
-      credentialId: "manage-mouse-2026-09",
-      key: MANAGEMENT_KEY,
-      secrets: [MANAGEMENT_SECRET, MANAGEMENT_NEXT_SECRET],
+      credentialId: "manage-read-mouse-2026-09",
+      key: MANAGEMENT_READ_KEY,
+      secrets: [MANAGEMENT_READ_SECRET, MANAGEMENT_READ_NEXT_SECRET],
       appId: APP_ID,
       codes: [CODE, OTHER_CODE],
-      scopes: [
-        "versions:check",
-        "versions:read",
-        "versions:write",
-        "ads:show",
-        "ads:read",
-        "ads:write",
-      ],
+      scopes: ["versions:read", "ads:read"],
+    }),
+    credential({
+      credentialId: "manage-write-mouse-2026-09",
+      key: MANAGEMENT_WRITE_KEY,
+      secrets: [MANAGEMENT_WRITE_SECRET],
+      appId: APP_ID,
+      codes: [CODE, OTHER_CODE],
+      scopes: ["versions:write", "ads:write"],
     }),
     credential({
       credentialId: "runtime-mouse-2026-09",
@@ -82,20 +90,20 @@ const CREDENTIAL_CONFIG = {
       scopes: ["versions:check", "ads:show"],
     }),
     credential({
-      credentialId: "manage-recorder-2026-09",
-      key: OTHER_MANAGEMENT_KEY,
-      secrets: [OTHER_MANAGEMENT_SECRET],
+      credentialId: "manage-read-recorder-2026-09",
+      key: OTHER_MANAGEMENT_READ_KEY,
+      secrets: [OTHER_MANAGEMENT_READ_SECRET],
       appId: OTHER_APP_ID,
       codes: [CODE],
-      scopes: ["ads:read"],
+      scopes: ["versions:read", "ads:read"],
     }),
     credential({
-      credentialId: "limited-manage-mouse-2026-09",
-      key: LIMITED_MANAGEMENT_KEY,
-      secrets: [LIMITED_MANAGEMENT_SECRET],
+      credentialId: "limited-manage-write-mouse-2026-09",
+      key: LIMITED_MANAGEMENT_WRITE_KEY,
+      secrets: [LIMITED_MANAGEMENT_WRITE_SECRET],
       appId: APP_ID,
       codes: [CODE],
-      scopes: ["versions:read", "versions:write"],
+      scopes: ["versions:write", "ads:write"],
     }),
   ],
 };
@@ -133,9 +141,13 @@ function createFixture(options = {}) {
 }
 
 async function invoke(handler, method, path, options = {}) {
-  const key = options.key === undefined ? MANAGEMENT_KEY : options.key;
-  const secret =
-    options.secret === undefined ? MANAGEMENT_SECRET : options.secret;
+  const isWrite = ["POST", "PUT", "DELETE"].includes(method);
+  const defaultKey = isWrite ? MANAGEMENT_WRITE_KEY : MANAGEMENT_READ_KEY;
+  const defaultSecret = isWrite
+    ? MANAGEMENT_WRITE_SECRET
+    : MANAGEMENT_READ_SECRET;
+  const key = options.key === undefined ? defaultKey : options.key;
+  const secret = options.secret === undefined ? defaultSecret : options.secret;
   const headers = {
     ...(key === null ? {} : { "x-app-key": key }),
     ...(secret === null ? {} : { "x-app-secret": secret }),
@@ -210,9 +222,9 @@ test("both exact headers are required and rotated secret hashes are accepted", a
   const { handler } = createFixture();
   for (const [key, secret] of [
     [null, null],
-    [MANAGEMENT_KEY, null],
-    [null, MANAGEMENT_SECRET],
-    [MANAGEMENT_KEY, "wrong-secret"],
+    [MANAGEMENT_READ_KEY, null],
+    [null, MANAGEMENT_READ_SECRET],
+    [MANAGEMENT_READ_KEY, "wrong-secret"],
   ]) {
     const response = await invoke(handler, "GET", `${BASE_PATH}/versions`, {
       key,
@@ -224,7 +236,7 @@ test("both exact headers are required and rotated secret hashes are accepted", a
   }
 
   const rotated = await invoke(handler, "GET", `${BASE_PATH}/versions`, {
-    secret: MANAGEMENT_NEXT_SECRET,
+    secret: MANAGEMENT_READ_NEXT_SECRET,
   });
   assert.equal(rotated.statusCode, 200);
 });
@@ -235,8 +247,9 @@ test("credential config is versioned, base64 encoded, exact, and app bound", () 
     "utf8",
   ).toString("base64");
   const parsed = parseCredentials(encoded, [APP_ID, OTHER_APP_ID]);
-  assert.equal(parsed.length, 5);
+  assert.equal(parsed.length, 6);
   assert.equal(parsed[0].appId, APP_ID);
+  assert.equal(parsed[0].codes.size, 2);
   assert.equal(parsed[0].secretHashes.length, 2);
 
   assert.equal(parseCredentials("not-base64", [APP_ID]), null);
@@ -247,6 +260,79 @@ test("credential config is versioned, base64 encoded, exact, and app bound", () 
     null,
   );
   assert.equal(parseCredentials(CREDENTIAL_CONFIG, [APP_ID]), null);
+});
+
+test("credentials accept only exact role bundles and runtime binds one code", () => {
+  const parseSingle = (scopes, codes = [CODE]) =>
+    parseCredentials(
+      {
+        schema_version: 1,
+        credentials: [
+          credential({
+            credentialId: "exact-role-bundle",
+            key: MANAGEMENT_READ_KEY,
+            secrets: [MANAGEMENT_READ_SECRET],
+            appId: APP_ID,
+            codes,
+            scopes,
+          }),
+        ],
+      },
+      [APP_ID],
+    );
+
+  for (const scopes of [["versions:check"], ["versions:check", "ads:show"]]) {
+    assert.equal(parseSingle(scopes)?.length, 1);
+    assert.equal(parseSingle(scopes, [CODE, OTHER_CODE]), null);
+  }
+
+  for (const scopes of [
+    ["versions:read", "ads:read"],
+    ["versions:write", "ads:write"],
+  ]) {
+    const parsed = parseSingle(scopes, [CODE, OTHER_CODE]);
+    assert.equal(parsed?.length, 1);
+    assert.equal(parsed[0].codes.size, 2);
+  }
+
+  for (const scopes of [
+    ["ads:show"],
+    ["versions:check", "versions:read"],
+    ["versions:read"],
+    ["ads:read"],
+    ["versions:read", "versions:write"],
+    ["versions:read", "ads:read", "versions:check"],
+    ["versions:read", "ads:read", "ads:read"],
+    ["versions:write"],
+    ["ads:write"],
+    ["versions:write", "ads:write", "ads:show"],
+    [
+      "versions:check",
+      "versions:read",
+      "versions:write",
+      "ads:show",
+      "ads:read",
+      "ads:write",
+    ],
+  ]) {
+    assert.equal(parseSingle(scopes), null, scopes.join(","));
+  }
+});
+
+test("management read and write credentials cannot cross roles", async () => {
+  const { handler } = createFixture();
+  const deniedWrite = await invoke(handler, "POST", `${BASE_PATH}/versions`, {
+    key: MANAGEMENT_READ_KEY,
+    secret: MANAGEMENT_READ_SECRET,
+    body: versionWrite(),
+  });
+  assert.equal(deniedWrite.statusCode, 403);
+
+  const deniedRead = await invoke(handler, "GET", `${BASE_PATH}/versions`, {
+    key: MANAGEMENT_WRITE_KEY,
+    secret: MANAGEMENT_WRITE_SECRET,
+  });
+  assert.equal(deniedRead.statusCode, 403);
 });
 
 test("runtime credentials cannot write or cross their code boundary", async () => {
@@ -403,8 +489,8 @@ test("version update authorizes both the stored code and the replacement code", 
   const id = body(listed).result.datas[0].id;
 
   const denied = await invoke(handler, "PUT", `${BASE_PATH}/versions/${id}`, {
-    key: LIMITED_MANAGEMENT_KEY,
-    secret: LIMITED_MANAGEMENT_SECRET,
+    key: LIMITED_MANAGEMENT_WRITE_KEY,
+    secret: LIMITED_MANAGEMENT_WRITE_SECRET,
     body: versionWrite({ code: CODE }),
   });
   assert.equal(denied.statusCode, 403);
@@ -664,8 +750,8 @@ test("ad detail authorizes the stored code and app before returning data", async
   assert.equal(denied.statusCode, 403);
 
   const isolated = await invoke(handler, "GET", `${BASE_PATH}/app/ads/${id}`, {
-    key: OTHER_MANAGEMENT_KEY,
-    secret: OTHER_MANAGEMENT_SECRET,
+    key: OTHER_MANAGEMENT_READ_KEY,
+    secret: OTHER_MANAGEMENT_READ_SECRET,
   });
   assert.equal(isolated.statusCode, 404);
 });
@@ -703,6 +789,7 @@ test("the warm-instance limiter returns the frozen error wrapper and Retry-After
     handler,
     "GET",
     `${BASE_PATH}/app/${CODE}/ads/show`,
+    { key: RUNTIME_KEY, secret: RUNTIME_SECRET },
   );
   assert.equal(independentEndpoint.statusCode, 200);
 
@@ -715,7 +802,7 @@ test("unexpected repository failures do not log bodies, headers, or secrets", as
   const logs = [];
   const repository = createMemoryRepository();
   repository.listVersions = async () => {
-    const error = new Error(`database failed ${MANAGEMENT_SECRET}`);
+    const error = new Error(`database failed ${MANAGEMENT_READ_SECRET}`);
     error.code = "DATABASE_TIMEOUT";
     throw error;
   };
@@ -728,7 +815,7 @@ test("unexpected repository failures do not log bodies, headers, or secrets", as
   assert.equal(body(response).errors.datas[0].code, "server.error");
   const serialized = JSON.stringify(logs);
   assert.match(serialized, /DATABASE_TIMEOUT/);
-  assert.doesNotMatch(serialized, new RegExp(MANAGEMENT_SECRET));
+  assert.doesNotMatch(serialized, new RegExp(MANAGEMENT_READ_SECRET));
   assert.doesNotMatch(serialized, /x-app-secret|downloads\.example/);
 });
 

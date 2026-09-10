@@ -1,85 +1,99 @@
-# CloudBase 门禁与外部变更边界
+# CloudBase 与真实 E2E 门禁
 
-在阶段 2–4、6–8，或识别到历史 `/v1/track` 时读取。以当前运营精灵 `docs/multi-tool-isolation.md`、`docs/telemetry-and-update.md` 和生成器为权威。
+在阶段 2–4、6–8 读取。只复用负责人确认的现有免费环境和平台默认 HTTPS 域名。
 
-## 固定部署形态
+## 费用红线
 
-- 复用负责人指定的一个现有免费 CloudBase 环境；不创建第二环境。
-- 使用平台默认 HTTPS 域名。本方案公网配置必须 HTTPS，但不需要购买自有域名或证书。
-- 每个应用独立 APP_ID、Event 云函数、HTTP 路由、文档型数据库集合、更新目录/文件和客户端本地状态。
-- 环境、默认域名、静态托管入口、免费额度和故障域仍共享。隔离业务数据与发布配置，不隔离额度、账单或平台故障。
+不创建第二环境，不购买域名、证书、套餐或资源包，不开启按量超限、超限扣费或自动续费。控制台、API 或 CLI 一旦出现非零金额、升级、连续包月、资源包、自定义域名、证书购买或 EdgeOne 提示，立即停止并保留只读证据。
 
-任何页面或命令预览出现非零金额、套餐升级、连续包月、自动续费、超限按量、超限扣费、资源包、自定义域名、证书购买或 EdgeOne，立即停止，保留只读证据并提醒负责人。不得用“很便宜”代替授权。
+## 固定资源
 
-如果产品需求明确必须使用自定义域名，该需求已经离开当前批准的轻量免费路径：不得购买、绑定或用它阻塞默认域名下的本地方案；将其列为负责人另行决策的门禁。平台默认域名提供的 HTTPS 才是本阶段标准路径。
+Telemetry 每个应用独立：
 
-## 分阶段门禁
+- `telemetry-<app_id>`
+- `/apps/<app_id>/v1/track`
+- `telemetry_<normalized_app_id>`，`ADMINONLY`
 
-### 阶段 2：登记
+Application-version 全环境共享：
 
-- APP_ID 已由用户明确确认，并通过派生脚本校验；产品名、负责人和目标平台已确认。
-- 在运营精灵当前 `cloudbase/apps.json` 中检查全局唯一性；不要只搜索业务仓库。
-- 使用权威仓库的 `npm run cloudbase:app:add -- <app_id>` 安全追加命令，不手工拼一个只含新应用的临时配置。
-- 新清单保持 `enabled=false`、`rollout=0`、空哈希，并使用已批准默认 HTTPS 域名下明确不存在的 `not-published` 路径；直到真实制品、签名和哈希就绪前不得替换或启用。
-- 本阶段只改变运营精灵本地登记/生成文件，不部署。
+- 函数 `application-version-api`
+- 路由 `/tools/version-control/v1`
+- 每 APP_ID 独立 `versions_*`、`ads_*`、`audit_*`，均 `ADMINONLY`
+- 凭据绑定 `app_id + codes + scopes`
 
-### 阶段 3：本地配置审查
+不存在静态更新 hosting 或现行 `/updates` 路由。旧静态资源只作为待精确退役的线上候选，不得重新生成或部署。
 
-- 登记表、所有已有应用和生成的 `cloudbaserc.json.example` 一致；孤儿目录、重复 APP_ID、非法名称和清单 Schema 均被检查。
-- 目标函数环境变量精确为一个 APP_ID 及其派生集合/路由；集合权限目标为 `ADMINONLY`。
-- 当前权威登记生成器自动建立和校验 `windows.json` 与 `macos.json`，并要求 `cloudbase/apps.json` 为每个应用显式声明平台。缺失、多余、错平台和符号链接清单都会失败；Linux 仍标为未满足门禁，不能凭一个手写 JSON 宣称支持或部署。
-- 本地完整测试通过；`tcb validate` 与 `tcb deploy --dry-run` 只在已有安全 CLI 会话下运行。
-- dry-run 必须同时保留所有已有应用资源，无删除项、陌生资源或收费项。若顶层 dry-run 还计划创建或改动非目标应用，不得执行顶层 deploy；改用 `npm run cloudbase:app:deploy:plan -- <app_id> --env-id <现有免费环境ID> --origin <平台默认HTTPS源>` 生成只读目标计划。本阶段不执行真实部署。
+## 阶段 2：登记
 
-### 阶段 4：部署与线上 E2E
+- APP_ID 与每个 `(platform, architecture, channel)` 的 code 已由负责人确认；code 唯一且长度不超过 50。
+- `cloudbase/apps.json` 是非敏感拓扑唯一权威；凭据原值不写入登记表。
+- 使用受测登记命令，一次只新增一个应用或一个发布流；不并发写文件。
+- 本阶段只修改运营精灵本地登记与生成配置，不部署。
 
-用户说“进入阶段 4”仍需在真实写入前展示环境 ID（非密钥）、APP_ID、函数、集合、路由、更新文件、dry-run 差异、费用结果和回滚/保留项，并等待明确“继续”。
+## 阶段 3：本地计划
 
-- 环境必须是负责人确认的现有免费环境；集合已手工创建且权限为 `ADMINONLY`。
-- 只允许执行阶段 3 已审查的目标计划：单个函数、单条路由、逐个平台单文件上传。禁止顶层 `tcb deploy`、`--all`、`--force`、`--prune`、目录级 `/updates` 上传及任何删除命令。
-- 先部署并验收目标工具的新资源，绝不先删除历史资源。
-- 在线 E2E 需证明目标路由、目标函数、目标集合和目标清单一致：OPTIONS、合法 POST、当日幂等、非法/未知请求零写入、清单 200 与精确 Schema。
-- 本地 mock、静态扫描或旧部署回执不能冒充新的公网验收；为新结果保留独立回执。
-- 出错时停止，不自行重试有副作用的部署；先核对当前云端状态和费用边界。
+- `npm run cloudbase:config:check` 和完整测试通过；生成配置包含全部已登记 telemetry、共享 version 函数/路由和看板，无旧静态 hosting/route/env。
+- Version 部署计划输入完整只读 live-state。没有 live-state 时不得生成写步骤。
+- 计划区分首次创建、已有兼容资源更新与冲突阻塞；不得用“存在”一概覆盖，也不得删除非空数据、未知索引、陌生凭据或其他应用。
+- 每份客户端运行凭据只绑定一个 code 且仅有 `versions:check`；管理读取固定为独立 `versions:read + ads:read`，管理写入固定为独立 `versions:write + ads:write`。每条发布流必须有三类覆盖，全局还需恰好一份不可导出的 `contract-ads-*` 凭据执行 `ads:show` 契约测试；只显示 credential ID/fingerprint/scopes，不回显原值或摘要配置。
+- dry-run/计划不得包含 `--all`、`--force`、`--prune`、顶层 deploy 或删除命令。
 
-### 阶段 6：安装后真实客户端 E2E
+## 阶段 4：部署与公网 HTTP E2E
 
-- 阶段 4 有当前证据，阶段 5 客户端改造已通过本地测试。
-- 使用本次构建的准确制品和干净测试数据，验证真实启动、主窗口、后台更新检查、完整退出及每天只尝试一次。
-- 分别验证目标集合/清单没有串到其他应用。构建成功不等于真实客户端 E2E。
+即使用户说“进入阶段 4”，真实写入前仍要展示：
 
-### 阶段 7：发布与观察
+- 环境 ID、确认的免费状态和平台默认域名；
+- 函数、路由、六个业务集合、权限和索引；
+- 三条发布流 code 与凭据绑定摘要；
+- 当前 live-state、精确 create/update/preserve diff；
+- 费用、回滚与明确排除项。
 
-发布前再次展示版本、制品哈希/签名、下载 URL、更新清单、灰度、迁移期、回滚方式和费用状态，并等待明确发布授权。`privacy_notice_ready` 必须已有负责人确认；否则不得开启 telemetry，也不得发布含该功能的客户端。先上传可验证制品，再启用清单；不得用 `.example.invalid`、空哈希或未签名制品上线。
+随后等待负责人明确“继续”。只执行已审查的精确步骤；失败后先重新读状态，不自动重试有副作用写入。
 
-观察期间区分新旧集合的口径，记录 400/403/429/500 与免费额度。更新异常时先把目标应用清单 `enabled=false`；不要影响其他应用。
+公网 E2E 覆盖十个端点、两个认证头、scope、跨 APP/code 拒绝、无/提示/强制/停止更新、空/单广告、列表/详情/写入、数字点分比较、内容消毒、429、事务和审计。测试记录不得包含 Key/Secret。
 
-### 阶段 8：旧资源清理
+## 阶段 5：客户端本地迁移
 
-这是破坏性阶段。仅在负责人明确确认、迁移观察结束、仍使用旧客户端的影响已评估、历史数据已有保留/备份方案时进行。删除前再次列出每个准确目标并等待明确继续；不批量推断孤儿资源，不删除其他应用，不改写历史回执。
+规范 URL 一句话授权当前客户端完成 Profile v2、替换/删除旧静态版本协议和本地测试，不授权访问真实 CloudBase。使用注入 transport 和假凭据，真实服务状态仍标 `Unverified`。
 
-## 历史 `/v1/track` 迁移识别
+## 阶段 6：真实客户端 E2E
 
-先运行确定性只读扫描器：
+- 阶段 4 有当前公网证据，运行凭据已安全准备，阶段 5 已通过。
+- 构建与安装使用准确版本；记录 EXE/APP 和安装包 SHA-256、路径、进程与窗口。
+- 网络观测证明单层 v1 URL、正确 code、两个认证头存在且值遮挡，并证明不再访问旧静态版本协议。
+- 验证无更新、提示、强制、停止、错误/超时、安全外链和完整退出；telemetry 无回归。
+- 鼠标精灵只需 Windows x64；录屏助手 Windows 与 macOS 分开，真实 Mac 未运行时保持 `Unverified`。
+- DOM、mock、单元测试、编译或 HTTP 请求不能冒充原生 GUI E2E。
 
-```text
-python <skill-root>/scripts/scan_project.py <project-root>
-```
+## 阶段 7：发布与推送
 
-扫描器必须保持零网络、零写入，并把现代 `/apps/<app_id>/v1/track` 与共享旧 `/v1/track` 分开，将运行时代码/配置与 docs、tests、fixtures 以及运行时代码中的纯警告文案（`runtime_text`）分开。`architecture_candidates` 只是带路径/行号的候选；只有构建/打包配置证据进入 `detected_architectures`，仍需与发布配置人工核对。随后人工审查 `runtime_hits` 和 `non_runtime_hits`，区分三类证据：
+展示版本、制品哈希/签名、下载 URL、发布说明、隐私、回滚、远端状态和费用，再等待明确授权。不要因 E2E 通过自动推送或发布。
 
-1. **运行时代码/发布配置仍引用**：门禁阻塞，视为活跃旧客户端，必须双轨迁移。
-2. **仅测试夹具或明确历史文档引用**：记录但不误报为活跃运行时。
-3. **找不到**：只能说“本地未发现”，不能证明云端没有历史资源。
+## 阶段 8：线上旧静态资源退役
 
-若候选配置因超大、非 UTF-8、不可读或符号链接而跳过，扫描器必须返回 `scan_incomplete=true` 和 `skipped_files`。此时 `legacy_track_status=unknown`，迁移/阶段 8 清理门禁保持阻塞；不得把不完整扫描降格成 `not_found`。APP_ID 只从合法的小写字符串字面量、严格 `.env*` 声明或资源路径提取；变量引用不猜值，大小写/格式非法的值单列为冲突。
+客户端 Profile 中 `legacy_client_update_removed=true` 不授权也不证明这里的线上删除。只有本节全部门禁完成并执行精确退役后，才可记录 `legacy_cloud_resources_removed=true`。
 
-安全迁移顺序固定为：保留旧资源和历史数据 → 部署并验收新独立链路 → 发布切换后的客户端 → 观察明确迁移期 → 负责人批准后清理。若前置不足，输出零部署结果。
+前置条件：新服务公网 E2E、两个 Windows 实际客户端新协议 E2E、最新线上完整枚举、归属判断和恢复证据均完成。
 
-## 权限边界
+候选必须逐项来自 live inventory 与受审计 allowlist，例如：
 
-- 阶段 1–3 和 5 不能部署、发布、推送或删除云端资源。
-- 阶段 4 只处理已确认目标应用的独立资源；不自动购买或创建环境。
-- 阶段 7 不因测试通过自动发布或推送。
-- 阶段 8 不因“未见流量”自动删除。
-- 任一阶段均不得把 SecretId、SecretKey、Token、Cookie、Authorization 或数据库凭据写入档案、源码、命令行、日志或回复。
+- 网关精确路由 `/updates`；
+- `updates/bifang-mouse-clicker/windows.json`；
+- `updates/bifang-screen-recorder/windows.json`；
+- `updates/bifang-screen-recorder/macos.json`；
+- 历史 `updates/example-tool/windows.json`；
+- 历史 `updates/update.schema.json`；
+- live inventory 中其他对象必须先人工确认归属，未知项阻塞。
+
+计划只输出 preview，不生成删除命令。展示每个精确对象/路由、当前哈希/元数据、为何可删、恢复材料及排除的 telemetry/version/dashboard 资源，再等待负责人明确“继续”。不使用通配符、目录级删除、`--force` 或 `--prune`，也不因配置里名为 `updates` 就删除整个 hosting 服务。
+
+删除后重新验证：新 version API、两个 telemetry 路由和运营看板正常；旧路由不存在，已列对象返回 404。任何超出精确 allowlist 的数据删除需要新授权。
+
+## 绝不删除
+
+- `telemetry-bifang-mouse-clicker`、`telemetry-bifang-screen-recorder`；
+- 两条 `/apps/<app_id>/v1/track`；
+- 两个 `telemetry_*` 集合及历史 daily-active 数据；
+- `application-version-api`、单层 v1 路由、六个 versions/ads/audit 集合；
+- `operations-dashboard-api` 与 `/admin/v1/metrics`；
+- 其他应用或未知归属资源。

@@ -277,15 +277,23 @@ body {
     @apply bg-[#5d706b];
   }
 
-  .manifest-on {
+  .release-normal {
     @apply inline-flex items-center gap-1.5 rounded-full bg-[#e8f8f2] px-2.5 py-1 text-xs font-semibold text-[#0d8668];
   }
-  .manifest-off {
+  .release-stopped {
     @apply inline-flex items-center gap-1.5 rounded-full bg-[#edf1ef] px-2.5 py-1 text-xs font-semibold text-[#63726e];
   }
 
-  .manifest-unknown {
+  .release-empty {
     @apply inline-flex items-center gap-1.5 rounded-full bg-[#fff4dc] px-2.5 py-1 text-xs font-semibold text-[#9a6412];
+  }
+
+  .release-prompt {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-[#edf4ff] px-2.5 py-1 text-xs font-semibold text-[#4169a6];
+  }
+
+  .release-forced {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-[#fff0ed] px-2.5 py-1 text-xs font-semibold text-[#b54f3b];
   }
 
   .alert-warning {

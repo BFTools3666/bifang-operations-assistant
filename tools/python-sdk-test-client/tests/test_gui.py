@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,9 +43,12 @@ finally:
 
 VALID_SETTINGS = GUI.ConnectionSettings(
     application_id="bifang-tools",
+    application_code="bifang-tools-windows-x64",
     current_version="0.1.0",
     telemetry_url="https://cloud.example.com/apps/bifang-tools/v1/track",
-    update_url="https://cloud.example.com/updates/bifang-tools/windows.json",
+    version_base_url="https://cloud.example.com/tools/version-control/v1",
+    app_key="runtime-key",
+    app_secret="runtime-secret",
     platform="windows",
     architecture="x64",
 )
@@ -93,35 +97,28 @@ def batch_result(*, failures=None, reverse=False):
     }
 
 
-def update_config(**overrides):
+def application_version_data(**overrides):
     value = {
-        "schema_version": 1,
-        "app_id": "bifang-tools",
-        "platform": "windows",
-        "enabled": True,
-        "latest_version": "0.2.0",
-        "min_supported_version": "0.1.0",
-        "force_update": False,
-        "rollout": 100,
-        "title": "Bifang Tools 0.2.0",
-        "message": "A tested update is available.",
-        "download_url": "https://downloads.example.com/bifang-tools-0.2.0.exe",
-        "release_notes_url": "https://releases.example.com/bifang-tools/0.2.0",
-        "sha256": "",
-        "published_at": "2026-09-03T00:00:00Z",
+        "update": True,
+        "downloadUrl": "https://downloads.example.com/bifang-tools-0.2.0.exe",
+        "promptContent": "A tested update is available.",
+        "forcedUpdate": False,
+        "promptUpdate": True,
+        "stopUpdate": False,
+        "updateContent": "<p>Tested release notes</p>",
     }
     value.update(overrides)
     return value
 
 
-def update_result(kind="optional", *, reason=None, config=None, diagnostic=None):
-    config = update_config() if config is None else config
+def update_result(kind="optional", *, reason=None, data=None, diagnostic=None):
+    data = application_version_data() if data is None else data
     decision = {"kind": kind}
-    if kind in {"optional", "required"}:
-        decision["config"] = config
+    if kind in {"optional", "required", "stopped"}:
+        decision["data"] = data
     elif reason is not None:
         decision["reason"] = reason
-    value = {"decision": decision, "config": config}
+    value = {"decision": decision}
     if diagnostic is not None:
         value["fetch_diagnostic"] = diagnostic
     return value
@@ -185,10 +182,10 @@ class FakeBridge:
         self.block_started = threading.Event()
         self.block_release = threading.Event()
         self.responses = {
-            "ping": {"sdk_version": "2.0.0", "network_performed": False},
+            "ping": {"sdk_version": "3.0.0", "network_performed": False},
             "send_daily_active": batch_result(),
             "simulate_devices": simulation_result(),
-            "check_update_url": update_result(),
+            "check_application_version": update_result(),
         }
 
     def request(self, action, timeout=15, **payload):
@@ -283,7 +280,7 @@ class ImportAndCopyTests(unittest.TestCase):
         )
 
         self.assertEqual(GUI.LIVE_TELEMETRY_ENDPOINT_DEFAULT, "")
-        self.assertEqual(GUI.LIVE_UPDATE_URL_DEFAULT, "")
+        self.assertEqual(GUI.LIVE_VERSION_BASE_URL_DEFAULT, "")
         self.assertEqual(harness.bridge.calls, [])
         self.assertEqual(confirmations, [])
         self.assertEqual(opened_urls, [])
@@ -343,14 +340,14 @@ class ImportAndCopyTests(unittest.TestCase):
                 "POST /apps/<应用编号>/v1/track",
                 "telemetry_<规范化应用编号>",
                 "三个独立函数参数",
-                "更新 JSON",
+                "application-version API v1",
             ],
         )
         for name, explanation in GUI.RESOURCE_GUIDE:
             self.assertTrue(name.strip())
             self.assertGreater(len(explanation.strip()), 10)
 
-    def test_primary_copy_uses_novice_terms_and_hides_protocol_vocabulary(self):
+    def test_primary_copy_explains_the_new_api_without_old_protocol_vocabulary(self):
         primary = GUI.PRIMARY_UI_TEXT.lower()
         for forbidden in (
             "capture",
@@ -365,31 +362,33 @@ class ImportAndCopyTests(unittest.TestCase):
             "endpoint",
             "event_id",
             "app_id",
-            "rollout",
-            "force_update",
         ):
             self.assertNotIn(forbidden, primary)
         for expected in (
             "打开飞书新手部署文档",
             "应用编号",
+            "发布流 code",
             "当前版本",
             "数据接收地址",
-            "更新文件地址",
+            "版本 api base url",
+            "x-app-key",
+            "x-app-secret",
             "发送 1 条启动使用测试到 cloudbase",
             "复制数据库查询条件",
         ):
             self.assertIn(expected, primary)
 
-    def test_visible_settings_are_credential_free_and_examples_are_explicit(self):
+    def test_examples_are_non_sensitive_and_live_credentials_default_empty(self):
         self.assertNotEqual(GUI.EXAMPLE_TELEMETRY_URL, "")
-        self.assertNotEqual(GUI.EXAMPLE_UPDATE_URL, "")
+        self.assertNotEqual(GUI.EXAMPLE_VERSION_BASE_URL, "")
         self.assertIn("/apps/bifang-tools/v1/track", GUI.EXAMPLE_TELEMETRY_URL)
-        self.assertIn("/updates/bifang-tools/windows.json", GUI.EXAMPLE_UPDATE_URL)
+        self.assertTrue(
+            GUI.EXAMPLE_VERSION_BASE_URL.endswith("/tools/version-control/v1")
+        )
         self.assertEqual(GUI.LIVE_TELEMETRY_ENDPOINT_DEFAULT, "")
-        self.assertEqual(GUI.LIVE_UPDATE_URL_DEFAULT, "")
-        primary = GUI.PRIMARY_UI_TEXT.lower()
-        for forbidden in ("secret", "token", "password", "密钥输入", "口令输入"):
-            self.assertNotIn(forbidden, primary)
+        self.assertEqual(GUI.LIVE_VERSION_BASE_URL_DEFAULT, "")
+        self.assertNotIn("runtime-key", GUI.PRIMARY_UI_TEXT)
+        self.assertNotIn("runtime-secret", GUI.PRIMARY_UI_TEXT)
 
 
 class SettingsAndErrorTests(unittest.TestCase):
@@ -405,12 +404,15 @@ class SettingsAndErrorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             GUI.telemetry_collection_name("bifang_tools_pdf")
 
-    def test_settings_are_trimmed_and_bridge_fields_do_not_contain_urls_or_credentials(self):
+    def test_settings_are_trimmed_and_telemetry_fields_exclude_urls_and_credentials(self):
         settings = GUI.ConnectionSettings(
-            " bifang-tools ",
-            " 0.1.0 ",
-            " https://cloud.example.com/apps/bifang-tools/v1/track ",
-            " https://cloud.example.com/updates/bifang-tools/windows.json ",
+            application_id=" bifang-tools ",
+            application_code=" bifang-tools-windows-x64 ",
+            current_version=" 0.1.0 ",
+            telemetry_url=" https://cloud.example.com/apps/bifang-tools/v1/track ",
+            version_base_url=" https://cloud.example.com/tools/version-control/v1 ",
+            app_key="runtime-key",
+            app_secret="runtime-secret",
         ).normalized()
         self.assertEqual(settings, VALID_SETTINGS)
         self.assertEqual(
@@ -422,28 +424,47 @@ class SettingsAndErrorTests(unittest.TestCase):
                 "arch": "x64",
             },
         )
+        self.assertEqual(
+            settings.application_version_fields(),
+            {
+                "application_code": "bifang-tools-windows-x64",
+                "current_version": "0.1.0",
+                "version_base_url": "https://cloud.example.com/tools/version-control/v1",
+                "app_key": "runtime-key",
+                "app_secret": "runtime-secret",
+            },
+        )
+        self.assertNotIn("runtime-key", repr(settings))
+        self.assertNotIn("runtime-secret", repr(settings))
 
     def test_validation_requires_complete_https_addresses(self):
         cases = (
-            (GUI.ConnectionSettings("Bad App", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
-            (GUI.ConnectionSettings("bad_app", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
-            (GUI.ConnectionSettings("bad.app", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
-            (GUI.ConnectionSettings("bad-", "0.1.0", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "应用编号"),
-            (GUI.ConnectionSettings("bifang-tools", "v1", VALID_SETTINGS.telemetry_url, VALID_SETTINGS.update_url), "当前版本"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "http://cloud.example.com/apps/bifang-tools/v1/track", VALID_SETTINGS.update_url), "https://"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "https://cloud.example.com/v1/track", VALID_SETTINGS.update_url), "/apps/bifang-tools/v1/track"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", "https://cloud.example.com/apps/other-tool/v1/track", VALID_SETTINGS.update_url), "/apps/bifang-tools/v1/track"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "updates/windows.json"), "https://"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "https://cloud.example.com/updates/folder"), "windows.json"),
-            (GUI.ConnectionSettings("bifang-tools", "0.1.0", VALID_SETTINGS.telemetry_url, "https://cloud.example.com/updates/other-tool/windows.json"), "/updates/bifang-tools/windows.json"),
+            (replace(VALID_SETTINGS, application_id="Bad App"), "应用编号"),
+            (replace(VALID_SETTINGS, application_id="bad_app"), "应用编号"),
+            (replace(VALID_SETTINGS, current_version="v1"), "当前版本"),
+            (replace(VALID_SETTINGS, telemetry_url="http://cloud.example.com/apps/bifang-tools/v1/track"), "https://"),
+            (replace(VALID_SETTINGS, telemetry_url="https://cloud.example.com/v1/track"), "/apps/bifang-tools/v1/track"),
+            (replace(VALID_SETTINGS, application_code="bad/code"), "发布流 code"),
+            (replace(VALID_SETTINGS, version_base_url="tools/version-control/v1"), "https://"),
+            (replace(VALID_SETTINGS, version_base_url="https://cloud.example.com/tools/version-control/v1/v1"), "v1 只能出现一次"),
+            (replace(VALID_SETTINGS, version_base_url="https://cloud.example.com/tools/version-control/v1?debug=1"), "v1 只能出现一次"),
+            (replace(VALID_SETTINGS, app_key=""), "x-app-key"),
+            (replace(VALID_SETTINGS, app_secret=" secret"), "x-app-secret"),
         )
         for settings, expected in cases:
             with self.subTest(expected=expected):
                 message = GUI.validate_settings(
-                    settings, require_telemetry=True, require_update=True
+                    settings, require_telemetry=True, require_version=True
                 )
                 self.assertIsNotNone(message)
                 self.assertIn(expected, message)
+
+        version_only = replace(VALID_SETTINGS, current_version="01.2.0.0")
+        self.assertIsNone(
+            GUI.validate_settings(
+                version_only, require_telemetry=False, require_version=True
+            )
+        )
 
     def test_friendly_errors_cover_cloudbase_400_through_500(self):
         cases = (
@@ -507,9 +528,7 @@ class ControllerDailyActiveTests(unittest.TestCase):
         harness = controller_harness(
             confirm=lambda value: confirmations.append(value) or False
         )
-        invalid = GUI.ConnectionSettings(
-            "bifang-tools", "0.1.0", "", VALID_SETTINGS.update_url
-        )
+        invalid = replace(VALID_SETTINGS, telemetry_url="")
         self.assertFalse(harness.controller.send_daily_active(invalid))
         self.assertEqual(confirmations, [])
         self.assertEqual(harness.bridge.calls, [])
@@ -776,26 +795,18 @@ class SimulationFeedbackTests(unittest.TestCase):
 
 
 class UpdateFeedbackTests(unittest.TestCase):
-    def test_update_errors_explain_static_hosting_without_telemetry_advice(self):
+    def test_version_api_errors_explain_auth_route_and_service_failures(self):
         cases = (
-            (
-                {"http_status": 404, "server_error": "not_found"},
-                ("静态托管", "windows.json"),
-            ),
-            (
-                {"http_status": 403, "server_error": "forbidden"},
-                ("公开", "权限"),
-            ),
-            ({"code": "network_error"}, ("完整更新文件地址", "网络")),
-            ({"code": "timeout"}, ("完整更新文件地址", "网络")),
-            (
-                {"http_status": 500, "server_error": "internal_error"},
-                ("静态托管暂时不可用",),
-            ),
+            ({"http_status": 401}, ("凭据无效", "x-app-key")),
+            ({"http_status": 403}, ("无权", "code")),
+            ({"http_status": 404}, ("没有找到", "发布流")),
+            ({"http_status": 429}, ("过于频繁", "Retry-After")),
+            ({"http_status": 500}, ("版本 API 暂时不可用",)),
+            ({"code": "network_error"}, ("无法访问版本 API", "网络")),
         )
         for error, expected_fragments in cases:
             with self.subTest(error=error):
-                translated = GUI.friendly_update_error(error)
+                translated = GUI.friendly_application_version_error(error)
                 for fragment in expected_fragments:
                     self.assertIn(fragment, translated)
                 self.assertNotIn("/v1/track", translated)
@@ -812,16 +823,16 @@ class UpdateFeedbackTests(unittest.TestCase):
                 self.assertNotIn("/v1/track", feedback.detail)
                 self.assertNotIn("ALLOWED_APP_IDS", feedback.detail)
 
-    def test_controller_update_failures_use_update_file_error_translation(self):
+    def test_controller_failures_use_version_api_error_translation(self):
         cases = (
-            ("not_found", "静态托管", "windows.json"),
-            ("forbidden", "公开", "权限"),
-            ("network_error", "完整更新文件地址", "网络"),
+            ("auth.invalid", "凭据无效"),
+            ("forbidden", "无权"),
+            ("network_error", "无法访问版本 API"),
         )
-        for code, first_fragment, second_fragment in cases:
+        for code, expected_fragment in cases:
             with self.subTest(code=code):
                 harness = controller_harness()
-                harness.bridge.fail_action = "check_update_url"
+                harness.bridge.fail_action = "check_application_version"
                 harness.bridge.fail_code = code
                 harness.bridge.fail_message = "controlled request failure"
 
@@ -833,19 +844,18 @@ class UpdateFeedbackTests(unittest.TestCase):
                 self.assertEqual(len(harness.callbacks.updates), 1)
                 feedback = harness.callbacks.updates[0]
                 self.assertEqual(feedback.state, "error")
-                self.assertIn(first_fragment, feedback.detail)
-                self.assertIn(second_fragment, feedback.detail)
+                self.assertIn(expected_fragment, feedback.detail)
                 self.assertNotIn("/v1/track", feedback.detail)
                 self.assertNotIn("ALLOWED_APP_IDS", feedback.detail)
 
-    def test_update_states_are_presented_in_plain_chinese(self):
+    def test_application_version_states_are_presented_in_plain_chinese(self):
         cases = (
             (update_result("optional"), "optional_update", "发现新版本", "optional"),
-            (update_result("required", config=update_config(force_update=True)), "required_update", "停止支持", "required"),
-            (update_result("none", reason="up_to_date", config=update_config(latest_version="0.1.0", min_supported_version="0.1.0")), "up_to_date", "已经是最新版", None),
-            (update_result("none", reason="disabled", config=update_config(enabled=False)), "paused", "已暂停", None),
-            (update_result("none", reason="rollout", config=update_config(rollout=0)), "not_selected", "发布范围", None),
-            (update_result("none", reason="invalid_config"), "invalid_file", "内容需要检查", None),
+            (update_result("required", data=application_version_data(forcedUpdate=True, promptUpdate=False)), "required_update", "停止支持", "required"),
+            (update_result("stopped", data=application_version_data(update=False, promptUpdate=False, stopUpdate=True)), "stopped", "暂停分发", None),
+            (update_result("none", reason="up_to_date"), "up_to_date", "已经是最新版", None),
+            (update_result("none", reason="disabled"), "paused", "本地已关闭", None),
+            (update_result("none", reason="invalid_response"), "invalid_response", "响应需要检查", None),
             (update_result("none", reason="unavailable", diagnostic={"code": "network_error"}), "error", "无法检查更新", None),
         )
         for raw, state, summary, dialog_mode in cases:
@@ -860,16 +870,32 @@ class UpdateFeedbackTests(unittest.TestCase):
     def test_available_updates_expose_download_and_required_exit_copy(self):
         optional = GUI.build_update_feedback(update_result("optional"), "0.1.0")
         required = GUI.build_update_feedback(
-            update_result("required", config=update_config(force_update=True)),
+            update_result("required", data=application_version_data(forcedUpdate=True, promptUpdate=False)),
             "0.1.0",
         )
-        self.assertEqual(optional.latest_version, "0.2.0")
         self.assertEqual(optional.primary_button, "立即更新")
         self.assertEqual(optional.secondary_button, "稍后提醒")
         self.assertTrue(optional.download_url.startswith("https://"))
-        self.assertEqual(required.latest_version, "0.2.0")
         self.assertEqual(required.primary_button, "立即更新")
         self.assertEqual(required.secondary_button, "退出软件")
+        self.assertIn("Tested release notes", optional.update_content)
+
+    def test_stop_update_never_creates_an_exit_dialog(self):
+        stopped = GUI.build_update_feedback(
+            update_result(
+                "stopped",
+                data=application_version_data(
+                    update=False,
+                    promptUpdate=False,
+                    stopUpdate=True,
+                ),
+            ),
+            "0.1.0",
+        )
+        self.assertEqual(stopped.state, "stopped")
+        self.assertIsNone(stopped.dialog_mode)
+        self.assertIsNone(stopped.primary_button)
+        self.assertIn("不会退出", stopped.detail)
 
     def test_each_update_click_makes_a_fresh_request_without_opening_download(self):
         opened = []
@@ -880,21 +906,26 @@ class UpdateFeedbackTests(unittest.TestCase):
             harness.runner.poll()
         self.assertEqual(
             [call[0] for call in harness.bridge.calls],
-            ["check_update_url", "check_update_url"],
+            ["check_application_version", "check_application_version"],
         )
         for _action, timeout, payload, _thread in harness.bridge.calls:
             self.assertEqual(timeout, 35)
-            self.assertEqual(payload["update_url"], VALID_SETTINGS.update_url)
+            self.assertEqual(
+                payload["version_base_url"], VALID_SETTINGS.version_base_url
+            )
+            self.assertEqual(
+                payload["application_code"], VALID_SETTINGS.application_code
+            )
+            self.assertEqual(payload["current_version"], "0.1.0")
+            self.assertEqual(payload["app_key"], "runtime-key")
+            self.assertEqual(payload["app_secret"], "runtime-secret")
             self.assertIs(payload["allow_network"], True)
             self.assertEqual(payload["confirmation"], "GET")
-            self.assertEqual(
-                Path(payload["state_dir"]),
-                GUI.DEFAULT_STATE_ROOT.resolve() / "update-check-identity",
-            )
+            self.assertNotIn("state_dir", payload)
         self.assertEqual(opened, [])
         self.assertEqual(len(harness.callbacks.updates), 2)
         self.assertTrue(
-            all("每次点击都会重新请求" in message[2] for message in harness.callbacks.messages)
+            all("每次点击都会重新发送 GET" in message[2] for message in harness.callbacks.messages)
         )
 
     def test_download_and_required_exit_are_explicit_injected_actions(self):
@@ -942,7 +973,7 @@ class UpdateFeedbackTests(unittest.TestCase):
 
     def test_required_update_action_keeps_window_when_download_cannot_open(self):
         feedback = GUI.build_update_feedback(
-            update_result("required", config=update_config(force_update=True)),
+            update_result("required", data=application_version_data(forcedUpdate=True, promptUpdate=False)),
             "0.1.0",
         )
         openers = (
@@ -974,7 +1005,7 @@ class UpdateFeedbackTests(unittest.TestCase):
 
     def test_required_update_primary_opens_then_exits_and_other_closes_exit(self):
         feedback = GUI.build_update_feedback(
-            update_result("required", config=update_config(force_update=True)),
+            update_result("required", data=application_version_data(forcedUpdate=True, promptUpdate=False)),
             "0.1.0",
         )
         for action, expected_opens in (

@@ -47,7 +47,7 @@ function makePayload(overrides = {}) {
     install_id: INSTALL_ID,
     platform: "windows",
     arch: "x64",
-    sdk_version: "2.0.0",
+    sdk_version: "3.0.0",
     occurred_at: "2026-09-03T16:01:58.123Z",
     ...overrides,
   };
@@ -198,8 +198,8 @@ describe("HTTP Event function handler", () => {
       { install_id: "not-a-uuid" },
       { platform: "android" },
       { arch: "mips" },
-      { sdk_version: "2.0.1" },
-      { sdk_version: "v2.0.0" },
+      { sdk_version: "2.0.0" },
+      { sdk_version: "v3.0.0" },
       { occurred_at: "2026-02-30T00:00:00Z" },
     ];
 

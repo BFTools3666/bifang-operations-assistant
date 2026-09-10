@@ -23,6 +23,7 @@ APP_ID_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$")
 TRACK_PATH_PATTERN = re.compile(
     r"^/apps/([a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?)/v1/track$"
 )
+APPLICATION_VERSION_API_PATH = "/tools/version-control/v1"
 
 SENSITIVE_KEY_MARKERS = (
     "secretid",
@@ -34,6 +35,10 @@ SENSITIVE_KEY_MARKERS = (
     "password",
     "privatekey",
     "accesskey",
+    "appkey",
+    "appsecret",
+    "xappkey",
+    "xappsecret",
     "sessionkey",
     "useraccount",
     "accountid",
@@ -50,7 +55,8 @@ SENSITIVE_KEY_MARKERS = (
 )
 SENSITIVE_ASSIGNMENT_PATTERN = re.compile(
     r"(?i)(?:\b(?:secretid|secretkey|token|cookie|authorization|password|"
-    r"private[ _-]?key|access[ _-]?key)\b|"
+    r"private[ _-]?key|access[ _-]?key|"
+    r"(?:x[ _-]?)?app[ _-]?(?:key|secret))\b|"
     r"(?:密钥|令牌|数据库凭据|用户账号|硬件(?:标识|id)))"
     r"\s*[:：=]\s*\S{4,}"
 )
@@ -75,7 +81,6 @@ PROFILE_COMPLETION_FIELDS = (
     "cloudbase_env_id",
     "cloudbase_origin",
     "telemetry_endpoint",
-    "update_base_url",
     "infrastructure_version",
     "infrastructure_source_commit",
     "registration_status",
@@ -84,6 +89,14 @@ PROFILE_COMPLETION_FIELDS = (
     "privacy_notice",
     "current_stage",
 )
+PROFILE_V2_COMPLETION_FIELDS = (
+    "update_transport",
+    "application_version_contract_version",
+    "application_version_base_url",
+    "release_streams",
+    "version_api_auth_status",
+    "legacy_update_status",
+)
 STAGE_PREREQUISITE_GATES = {
     2: (
         "profile_complete",
@@ -91,17 +104,51 @@ STAGE_PREREQUISITE_GATES = {
         "uses_existing_free_environment",
         "free_environment_confirmed",
     ),
-    3: ("app_registered",),
-    4: ("cloudbase_config_reviewed",),
-    5: ("online_e2e_passed",),
-    6: ("client_integration_complete",),
-    7: ("client_e2e_passed", "privacy_notice_ready"),
+    3: ("app_registered", "platform_code_mapping_confirmed"),
+    4: (
+        "cloudbase_config_reviewed",
+        "version_api_config_reviewed",
+        "function_deployed",
+        "collection_created",
+        "collection_admin_only",
+        "route_deployed",
+        "online_e2e_passed",
+        "version_api_service_verified",
+        "runtime_auth_ready",
+    ),
+    5: (
+        "client_integration_complete",
+        "version_api_client_integrated",
+        "legacy_client_update_removed",
+    ),
+    6: (
+        "online_e2e_passed",
+        "version_api_service_verified",
+        "runtime_auth_ready",
+        "client_integration_complete",
+        "version_api_client_integrated",
+        "client_e2e_passed",
+        "version_api_client_e2e_passed",
+    ),
+    7: (
+        "client_e2e_passed",
+        "version_api_client_e2e_passed",
+        "privacy_notice_ready",
+    ),
     8: (
         "migration_observation_complete",
         "legacy_usage_assessed",
         "owner_approved",
+        "legacy_client_update_removed",
+        "legacy_cloud_resources_removed",
     ),
 }
+
+LEGACY_V1_MIGRATION_ERROR = (
+    "$.profile_schema_version: legacy profile schema v1 is obsolete; explicitly "
+    "migrate it to profile_schema_version 2 before application-version API v1 "
+    "onboarding (the validator did not modify the file)"
+)
 
 
 class DuplicateKeyError(ValueError):
@@ -149,6 +196,9 @@ def validate_profile(
     project_root: Path | None = None,
 ) -> list[str]:
     """Return deterministic validation errors; an empty list means valid."""
+
+    if isinstance(profile, dict) and profile.get("profile_schema_version") == 1:
+        return [LEGACY_V1_MIGRATION_ERROR]
 
     active_schema = schema if schema is not None else load_schema()
     errors: list[str] = []
@@ -316,7 +366,11 @@ def _validate_profile_semantics(
         app_id = None
 
     parsed_urls: dict[str, SplitResult] = {}
-    for field in ("cloudbase_origin", "telemetry_endpoint", "update_base_url"):
+    for field in (
+        "cloudbase_origin",
+        "telemetry_endpoint",
+        "application_version_base_url",
+    ):
         value = profile.get(field)
         if isinstance(value, str):
             parsed = _validate_https_url(value, f"$.{field}", errors)
@@ -346,12 +400,23 @@ def _validate_profile_semantics(
         elif match.group(1) != app_id:
             errors.append("$.telemetry_endpoint: path does not match app_id")
 
-    update_base = parsed_urls.get("update_base_url")
-    if update_base is not None and update_base.path != "/updates":
-        errors.append("$.update_base_url: path must be exactly /updates")
+    application_version_base = parsed_urls.get("application_version_base_url")
+    if application_version_base is not None:
+        if application_version_base.path != APPLICATION_VERSION_API_PATH:
+            errors.append(
+                "$.application_version_base_url: path must be exactly "
+                "/tools/version-control/v1 with one v1 segment"
+            )
+        if "/v1/v1" in application_version_base.path:
+            errors.append(
+                "$.application_version_base_url: duplicate /v1/v1 is forbidden"
+            )
 
     if origin is not None:
-        for field in ("telemetry_endpoint", "update_base_url"):
+        for field in (
+            "telemetry_endpoint",
+            "application_version_base_url",
+        ):
             candidate = parsed_urls.get(field)
             if candidate is not None and _url_origin(candidate) != _url_origin(origin):
                 errors.append(f"$.{field}: origin does not match cloudbase_origin")
@@ -373,6 +438,9 @@ def _validate_profile_semantics(
     if gates.get("profile_complete") is True:
         _require_complete_profile(profile, errors)
 
+    _validate_release_streams(profile, errors)
+    _validate_version_api_auth(profile, gates, errors)
+    _validate_legacy_update_removal(profile, gates, errors)
     _validate_gate_dependencies(gates, errors)
 
     sdk_distribution = profile.get("sdk_distribution")
@@ -410,19 +478,21 @@ def _validate_profile_semantics(
     if isinstance(stage, int) and not isinstance(stage, bool) and 1 <= stage <= 8:
         if stage >= 2:
             _require_complete_profile(profile, errors)
-        for completed_stage in range(2, stage + 1):
-            for gate in STAGE_PREREQUISITE_GATES[completed_stage]:
-                if gates.get(gate) is not True:
-                    errors.append(
-                        f"$.deployment_gates.{gate}: must be true before stage {stage}"
-                    )
-        if stage >= 3 and registration_status not in ("registered", "verified"):
+        for gate in STAGE_PREREQUISITE_GATES.get(stage, ()):
+            if gates.get(gate) is not True:
+                errors.append(
+                    f"$.deployment_gates.{gate}: must be true before stage {stage}"
+                )
+        if stage in (3, 4, 6, 7, 8) and registration_status not in (
+            "registered",
+            "verified",
+        ):
             errors.append(
                 "$.registration_status: must be registered or verified before stage 3"
             )
         framework = profile.get("framework")
         requires_node_sdk = (
-            stage >= 5
+            stage in (5, 6, 7)
             and isinstance(framework, str)
             and re.search(
                 r"(?i)(?:^|[^a-z0-9])"
@@ -526,7 +596,8 @@ def _url_origin(parsed: SplitResult) -> tuple[str, str, int]:
 def _require_complete_profile(
     profile: dict[str, Any], errors: list[str]
 ) -> None:
-    for field in PROFILE_COMPLETION_FIELDS:
+    required_fields = [*PROFILE_COMPLETION_FIELDS, *PROFILE_V2_COMPLETION_FIELDS]
+    for field in required_fields:
         if field not in profile:
             errors.append(f"$.{field}: required for a complete onboarding profile")
     if "product_purpose" not in profile and "product_key" not in profile:
@@ -535,23 +606,51 @@ def _require_complete_profile(
         )
 
 
-def _validate_gate_dependencies(gates: dict[str, Any], errors: list[str]) -> None:
+def _validate_gate_dependencies(
+    gates: dict[str, Any], errors: list[str]
+) -> None:
     dependencies = {
         "cloudbase_config_reviewed": ("app_registered",),
         "function_deployed": ("cloudbase_config_reviewed",),
         "collection_created": ("cloudbase_config_reviewed",),
         "collection_admin_only": ("collection_created",),
         "route_deployed": ("function_deployed",),
-        "update_manifests_deployed": ("cloudbase_config_reviewed",),
         "online_e2e_passed": (
             "function_deployed",
             "collection_created",
             "collection_admin_only",
             "route_deployed",
-            "update_manifests_deployed",
         ),
         "client_e2e_passed": ("client_integration_complete",),
-        "migration_observation_complete": ("client_e2e_passed",),
+        "version_api_config_reviewed": (
+            "app_registered",
+            "platform_code_mapping_confirmed",
+        ),
+        "runtime_auth_ready": ("version_api_config_reviewed",),
+        "version_api_service_verified": (
+            "version_api_config_reviewed",
+            "runtime_auth_ready",
+        ),
+        "version_api_client_integrated": ("client_integration_complete",),
+        "version_api_client_e2e_passed": (
+            "version_api_client_integrated",
+            "version_api_service_verified",
+            "runtime_auth_ready",
+        ),
+        "migration_observation_complete": (
+            "client_e2e_passed",
+            "version_api_client_e2e_passed",
+        ),
+        "legacy_client_update_removed": (
+            "client_integration_complete",
+            "version_api_client_integrated",
+        ),
+        "legacy_cloud_resources_removed": (
+            "migration_observation_complete",
+            "legacy_usage_assessed",
+            "owner_approved",
+            "legacy_client_update_removed",
+        ),
     }
     for gate, prerequisites in dependencies.items():
         if gates.get(gate) is not True:
@@ -561,6 +660,120 @@ def _validate_gate_dependencies(gates: dict[str, Any], errors: list[str]) -> Non
                 errors.append(
                     f"$.deployment_gates.{prerequisite}: must be true when {gate} is true"
                 )
+
+
+def _validate_release_streams(profile: dict[str, Any], errors: list[str]) -> None:
+    streams = profile.get("release_streams")
+    if not isinstance(streams, list):
+        return
+    seen_codes: dict[str, int] = {}
+    seen_targets: dict[tuple[str, str, str], int] = {}
+    covered_platforms: set[str] = set()
+    covered_architectures: set[str] = set()
+    declared_platforms = set(profile.get("platforms", []))
+    declared_architectures = set(profile.get("architectures", []))
+    for index, stream in enumerate(streams):
+        if not isinstance(stream, dict):
+            continue
+        platform = stream.get("platform")
+        architecture = stream.get("architecture")
+        channel = stream.get("channel")
+        code = stream.get("code")
+        if isinstance(platform, str):
+            covered_platforms.add(platform)
+            if declared_platforms and platform not in declared_platforms:
+                errors.append(
+                    f"$.release_streams[{index}].platform: is not declared in $.platforms"
+                )
+        if isinstance(architecture, str):
+            covered_architectures.add(architecture)
+            if declared_architectures and architecture not in declared_architectures:
+                errors.append(
+                    f"$.release_streams[{index}].architecture: is not declared in $.architectures"
+                )
+        if isinstance(code, str):
+            if code in seen_codes:
+                errors.append(
+                    f"$.release_streams[{index}].code: duplicate release code also used "
+                    f"at $.release_streams[{seen_codes[code]}].code"
+                )
+            else:
+                seen_codes[code] = index
+        if all(isinstance(value, str) for value in (platform, architecture, channel)):
+            target = (platform, architecture, channel)
+            if target in seen_targets:
+                errors.append(
+                    f"$.release_streams[{index}]: duplicate platform/architecture/channel "
+                    f"mapping also used at $.release_streams[{seen_targets[target]}]"
+                )
+            else:
+                seen_targets[target] = index
+
+    if _profile_is_complete(profile):
+        for platform in sorted(declared_platforms - covered_platforms):
+            errors.append(
+                f"$.release_streams: missing a release stream for declared platform {platform!r}"
+            )
+        for architecture in sorted(declared_architectures - covered_architectures):
+            errors.append(
+                "$.release_streams: missing a release stream for declared "
+                f"architecture {architecture!r}"
+            )
+
+
+def _validate_version_api_auth(
+    profile: dict[str, Any], gates: dict[str, Any], errors: list[str]
+) -> None:
+    binding_id = profile.get("version_api_auth_binding_id")
+    status = profile.get("version_api_auth_status")
+    if binding_id is not None and status is None:
+        errors.append(
+            "$.version_api_auth_status: required when version_api_auth_binding_id is present"
+        )
+    if status in ("ready", "verified") and not isinstance(binding_id, str):
+        errors.append(
+            "$.version_api_auth_binding_id: required for ready or verified auth status"
+        )
+    if gates.get("runtime_auth_ready") is True:
+        if status != "verified":
+            errors.append(
+                "$.version_api_auth_status: must be verified when runtime_auth_ready is true"
+            )
+        if not isinstance(binding_id, str):
+            errors.append(
+                "$.version_api_auth_binding_id: required when runtime_auth_ready is true"
+            )
+
+
+def _validate_legacy_update_removal(
+    profile: dict[str, Any], gates: dict[str, Any], errors: list[str]
+) -> None:
+    status = profile.get("legacy_update_status")
+    removed_gate = gates.get("legacy_client_update_removed")
+    if removed_gate is True and status != "removed":
+        errors.append(
+            "$.legacy_update_status: must be removed when legacy_client_update_removed is true"
+        )
+    if status == "removed" and removed_gate is not True:
+        errors.append(
+            "$.deployment_gates.legacy_client_update_removed: must be true when "
+            "legacy_update_status is removed"
+        )
+    stage = profile.get("current_stage")
+    if isinstance(stage, int) and not isinstance(stage, bool) and stage == 8:
+        if gates.get("legacy_cloud_resources_removed") is not True:
+            errors.append(
+                "$.deployment_gates.legacy_cloud_resources_removed: must be true before stage 8 is complete"
+            )
+
+
+def _profile_is_complete(profile: dict[str, Any]) -> bool:
+    gates = profile.get("deployment_gates")
+    stage = profile.get("current_stage")
+    return (
+        isinstance(gates, dict)
+        and gates.get("profile_complete") is True
+    ) or (isinstance(stage, int) and not isinstance(stage, bool) and stage >= 2)
 
 
 def _is_safe_relative_sdk_source(source: str) -> bool:

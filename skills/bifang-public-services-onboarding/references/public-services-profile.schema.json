@@ -8,7 +8,8 @@
   "required": ["profile_schema_version"],
   "properties": {
     "profile_schema_version": {
-      "const": 1
+      "const": 2,
+      "description": "Profile v2 selects the application-version API v1 update transport. Legacy v1 profiles must be migrated explicitly and are not valid against this schema."
     },
     "display_name": {
       "type": "string",
@@ -90,8 +91,33 @@
     "telemetry_endpoint": {
       "$ref": "#/$defs/httpsUrl"
     },
-    "update_base_url": {
+    "update_transport": {
+      "const": "application-version-api-v1"
+    },
+    "application_version_contract_version": {
+      "const": "1.0.0"
+    },
+    "application_version_base_url": {
       "$ref": "#/$defs/httpsUrl"
+    },
+    "release_streams": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/releaseStream"
+      }
+    },
+    "version_api_auth_binding_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$",
+      "description": "Non-sensitive server-side binding identifier only; never a key or secret value."
+    },
+    "version_api_auth_status": {
+      "enum": ["unknown", "planned", "ready", "verified"]
     },
     "infrastructure_version": {
       "$ref": "#/$defs/semver"
@@ -148,6 +174,10 @@
         "retained"
       ]
     },
+    "legacy_update_status": {
+      "enum": ["detected", "not_found", "removed"],
+      "description": "Removal state for the obsolete static /updates protocol. Version 2 never treats that protocol as a supported transport."
+    },
     "deployment_gates": {
       "type": "object",
       "additionalProperties": false,
@@ -170,6 +200,18 @@
         "cloudbase_config_reviewed": {
           "type": "boolean"
         },
+        "platform_code_mapping_confirmed": {
+          "type": "boolean"
+        },
+        "version_api_config_reviewed": {
+          "type": "boolean"
+        },
+        "version_api_service_verified": {
+          "type": "boolean"
+        },
+        "runtime_auth_ready": {
+          "type": "boolean"
+        },
         "function_deployed": {
           "type": "boolean"
         },
@@ -182,9 +224,6 @@
         "route_deployed": {
           "type": "boolean"
         },
-        "update_manifests_deployed": {
-          "type": "boolean"
-        },
         "privacy_notice_ready": {
           "type": "boolean"
         },
@@ -194,10 +233,22 @@
         "client_integration_complete": {
           "type": "boolean"
         },
+        "version_api_client_integrated": {
+          "type": "boolean"
+        },
         "sdk_distribution_ready": {
           "type": "boolean"
         },
         "client_e2e_passed": {
+          "type": "boolean"
+        },
+        "version_api_client_e2e_passed": {
+          "type": "boolean"
+        },
+        "legacy_client_update_removed": {
+          "type": "boolean"
+        },
+        "legacy_cloud_resources_removed": {
           "type": "boolean"
         },
         "migration_observation_complete": {
@@ -242,6 +293,31 @@
       "type": "string",
       "pattern": "^https://[^/?#]+\\.app\\.tcloudbase\\.com(?::443)?/?$",
       "maxLength": 2048
+    },
+    "releaseStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "architecture", "channel", "code"],
+      "properties": {
+        "platform": {
+          "enum": ["windows", "macos", "linux"]
+        },
+        "architecture": {
+          "enum": ["x64", "arm64", "ia32"]
+        },
+        "channel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$"
+        }
+      }
     }
   }
 }

@@ -143,8 +143,6 @@ def add_inline(paragraph, text: str, base_dir: Path) -> None:
 
 def clean_heading(text: str) -> str:
     replacements = {
-        "CloudBase 免费资源优先部署：新手图文版": "CloudBase 免费资源优先部署新手图文版",
-        "`windows.json` 14 个字段怎么看": "Windows 更新清单的 14 个字段",
         "“载入本项目示例”按钮的边界": "载入本项目示例按钮的边界",
         "环境 ID 到底填在哪里": "环境 ID 的填写位置",
     }

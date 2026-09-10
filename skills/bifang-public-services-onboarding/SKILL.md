@@ -1,96 +1,120 @@
 ---
 name: bifang-public-services-onboarding
-description: Inspect a small-tool project and resume its staged onboarding to Bifang daily-active telemetry and update services. Use only when the user explicitly invokes $bifang-public-services-onboarding.
+description: Onboard the current small-tool repository to Bifang public services when the user provides the canonical bifang-operations-assistant GitLab URL and asks "帮我接入", or explicitly invokes $bifang-public-services-onboarding. Preserve daily-active telemetry, replace the unpublished legacy static-update protocol with application-version API v1, and keep cloud deployment, packaging, publishing, and cloud deletion behind separate gates.
 metadata:
-  version: "1.0.0"
-  infrastructure-version: "2.1.0"
-  infrastructure-source-commit: "704da8d702c9991c80ba079910936c275349fabb"
-  protocol-baseline-commit: "01f42449bf0f80a2660e7ee0899eef1176aca934"
+  version: "2.0.0"
+  infrastructure-version: "3.0.0"
+  infrastructure-source-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"
+  application-version-contract-version: "1.0.0"
+  application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"
   source-repository: "bifang-operations-assistant"
+  canonical-repository-url: "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"
 ---
 
 # 毕方公共服务接入向导
 
-以只读检查开场，逐步恢复或完善当前小工具的接入档案，再生成项目专属方案。不要把方案、云端准备、客户端改造、构建安装、发布迁移和旧资源清理合并执行。
+把当前小工具迁移到毕方基础设施 `3.0.0`：保留 `daily_active` 遥测，版本检查统一改为 application-version API v1，并删除尚未公开发布的静态 `/updates/<app_id>/<platform>.json` 客户端实现。不要建立双协议、回退开关或长期兼容层。
 
-## 先确认权威来源
+## 一句话入口
 
-先定位 `毕方运营精灵` 权威源码仓库。当前目录若不是该仓库，先通过可用的项目/工作区信息查找；无法定位时，把“权威仓库位置”作为本轮唯一问题，不要猜测或联网克隆。
+以下请求是本 Skill 的规范入口：
 
-每次开始都完整阅读权威仓库中的：
+```text
+https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接入
+```
+
+这句话明确授权在**当前客户端仓库**完成以下一个结果：获取并验证权威仓库、安装/更新本 Skill、只读扫描、创建或迁移非敏感 Profile、用 application-version API v1 替换并删除旧静态更新客户端、运行本地静态和单元验证。它不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送、购买或修改其他项目。
+
+若用户显式调用 `$bifang-public-services-onboarding`，按用户指定阶段执行；若没有指定阶段，只做只读检查与方案。规范 URL 加“帮我接入”时，不要求用户再次输入 Skill 名称或逐阶段重复授权，但仍严格遵守上一段的本地范围。
+
+## 验证权威来源
+
+先保存当前客户端根目录，再定位毕方运营精灵权威仓库。若本地没有可信副本，规范 URL 请求允许在客户端仓库之外的隔离临时目录执行只读 `git ls-remote` 和非嵌套 clone；不得把运营精灵变成客户端的子目录、submodule 或依赖源码副本。
+
+权威仓库必须满足：
+
+- `origin` 规范化后精确等于 frontmatter 中的 `canonical-repository-url`，URL 不含账号、Token、查询参数或片段；
+- checkout 是 Git top-level，整个仓库相对 HEAD 没有 index、worktree 或未跟踪漂移；必需入口与 Skill 源文件均受版本控制、无符号链接/重解析点，也不含 `.pyc` 或 `__pycache__`；
+- HEAD 精确等于 `git ls-remote --symref <canonical-url> HEAD` 实时返回的默认分支提交；
+- 根 `bifang-onboarding.json`、`tools/bootstrap_bifang_onboarding.py` 和其中声明的 Skill/脚本都存在；
+- HEAD 包含 manifest 的最低基础设施提交；frontmatter 的 `infrastructure-source-commit` 同时包含该最低提交、属于当前 HEAD 的祖先，且该提交的根 `package.json` 确实声明对应基础设施版本；
+- manifest 的基础设施、Skill 和契约版本与本 frontmatter 一致。
+
+在原客户端 cwd 中运行权威仓库的 bootstrap，并传入客户端绝对 Git 根。权威源码与目标客户端不能重叠；目标客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不能与实际安装目录 `CODEX_HOME/skills/bifang-public-services-onboarding/` 重叠。bootstrap 先完成阶段 0 只读扫描，以分支、HEAD、index、porcelain 状态和扫描范围内容摘要证明客户端未变，再隔离外部 `quick_validate` 钩子安装 Skill，最后统一输出结果。安装完成后，本轮直接完整阅读已安装 `SKILL.md`，继续客户端迁移，不要求重开会话。
+
+每次实施还要完整读取权威仓库中的：
 
 - `README.md`
+- `docs/毕方小工具公共服务分步接入指南.md`
 - `docs/multi-tool-isolation.md`
 - `docs/telemetry-and-update.md`
-- `examples/host-integration.ts`
-- `packages/telemetry-update-sdk` 下的受版本控制文件
-- `cloudbase/apps.json`
-- `cloudbase/generate-cloudbaserc.mjs`
+- `docs/application-version-api-zero-code-contract.md`
+- `contracts/application-version-api-v1/README.md`、`openapi.json`、`schema.json`
+- `cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`
+- `cloudbase/functions/application-version-api/` 下的受版本控制源码
 
-本 Skill 的目标基础设施版本是 `2.1.0`；`01f42449bf0f80a2660e7ee0899eef1176aca934` 只是既有 `2.0.0` 多工具协议的审查基线和本次升级起点，不是 `2.1.0` 的来源提交。记录实际读取的权威仓库提交；若版本或协议已漂移，优先使用刚读取的权威源码，先报告差异并把“更新/复核 Skill”列为门禁，不要套用过期规则。不要把大段权威文档复制进目标项目。
+若权威仓库版本高于本 Skill，先用权威 installer 更新；installer 仅允许当前规范版本或精确匹配权威仓库已发布树的 v1 / infrastructure 2.1 Skill 原子升级，任何修改过或来源不明的同名 Skill都停止。若权威版本低于已安装版本，也停止写入并报告，不能套用混合版本。
 
-## 每次调用的流程
+## 当前客户端迁移流程
 
-1. 确认目标项目根目录；读取并验证 `.bifang/public-services-profile.json`（若存在），恢复已确认字段与 `current_stage`。无效档案不得被静默覆盖。
-2. 在写入前只读检查项目和 Git。使用文件、配置、构建脚本与代码证据，自动识别：
-   - 框架、语言、正常启动入口；
-   - 当前 SemVer 及唯一版本来源；
-   - 应用配置目录策略；
-   - 主窗口显示完成位置、外部链接方法、完整退出方法；
-   - 支持的平台与架构；
-   - 已有统计/更新功能、历史 `/v1/track`、现有 `APP_ID`；
-   - Git 分支、HEAD 与工作区状态。
-   - 历史链路先运行 `python <skill-root>/scripts/scan_project.py <project-root>`；结合 `app_id_candidates`、非法值冲突、带路径/行号的架构候选与人工代码审查，不能用宽泛关键字命中代替运行时判断。若 `scan_incomplete=true`，先展示 `skipped_files`，迁移和清理门禁保持阻塞，不能把局部“未发现”写成已确认。
-3. 合并“有效档案 + 当前代码证据”，区分 `confirmed`、`detected`、`unknown`、`conflict`。检测到的值附文件/行号或命令证据；有冲突就展示冲突，不替用户决定。
-4. 只询问无法可靠确认的内容。每轮最多 1–3 个短问题，不展示整张问卷，也不重复询问已确认且未冲突的字段。
-5. 信息充分后，先运行确定性资源派生脚本并展示资源预览、版本建议、八阶段计划和未满足门禁；未获得所选阶段授权时停在方案。
-6. 只有用户明确说“进入/执行阶段 N”后，才修改该阶段允许的范围。一次调用只执行一个阶段；不要顺带进入下一阶段。
+1. 核对目标项目根目录、Codex Task、Git 分支、HEAD 和工作区。保留用户已有改动；脏工作区可以迁移，但必须先区分现有修改与本轮修改，不能覆盖、清理、stash、reset 或切走。
+2. 验证 `.bifang/public-services-profile.json`。Profile v1 只作为旧状态证据读取；不要原地猜测字段。规范一句话授权时，基于代码证据确定性写入 v2；冲突或无法确认的产品事实最多问 1–3 个短问题。
+3. 运行 `scripts/scan_project.py <project-root>`。把 `daily_active` telemetry 与旧静态更新分开；扫描不完整时列出 `skipped_files`，不能声称旧协议已删除。
+4. 从实际发布配置确认唯一 SemVer 来源、框架、平台、架构、主窗口 ready hook、安全外链和完整退出。不得从 README 猜运行时事实。
+5. 使用 `scripts/derive_resources.py --profile ...` 展示 APP_ID、telemetry 资源、application-version Base URL、各发布流 `code` 以及 `versions_*`、`ads_*`、`audit_*` 集合。
+6. 保留已经正确隔离的 `daily_active` 实现。删除旧 `UPDATE_BASE_URL=/updates`、静态 manifest URL、14 字段解析、旧 rollout/manifest 决策、兼容开关和相关测试；不要删除通用 SemVer、安全 HTTPS 外链或完整退出能力。
+7. 在可信宿主层实现唯一版本请求：`GET <base>/versions/{code}/{currentVersion}`，其中 `<base>` 精确以 `/tools/version-control/v1` 结束，`v1` 只出现一次。固定发送 `x-app-key`、`x-app-secret`，严格解析冻结的裸七字段 JSON 对象，并映射无更新、提示更新、强制更新和停止更新。
+8. 客户端运行凭据只允许 `versions:check`，并且必须绑定准确 `app_id + code`；`ads:show` 只由运营精灵中不可导出的专用凭据做服务端契约测试。管理凭据永不进入客户端。原值不进 Git、Profile、源码、命令行参数、普通日志或测试证据，只从项目既有安全本地注入层读取。
+9. 本地测试必须证明新单层 v1 URL、两个认证头、七字段严格解析、错误/超时安静失败、安全外链、强制更新完整退出、telemetry 无回归，以及运行时代码不再引用静态 `/updates`。不得在未授权时访问真实 CloudBase。
+10. 再次运行 Profile 校验、资源派生、旧协议扫描和项目测试。只有扫描完整且生产代码、配置和活跃测试均没有旧静态协议，才把 `legacy_update_status` 记为 `removed`。
 
-## 分步提问顺序
+## Profile 与发布流
 
-按依赖关系从仍缺失的最前一组开始，每轮最多问三项：
-
-1. 中文产品名、用途或英文功能关键词、负责人。
-2. 计划平台/架构；据用途生成 `bifang-<product-key>` 建议值。
-3. **先展示建议 APP_ID 及完整资源映射，再单独等待用户确认正式 APP_ID。** 正式 APP_ID 不可由 Codex 自行决定。
-4. 复用的现有免费 CloudBase 环境、登记状态、独立函数/集合/路由/更新文件的部署状态。
-5. 隐私说明位置、本次只生成方案还是明确进入哪个阶段。
-
-从代码或权威仓库已能确认的内容不要再问。云端状态若只有本地目标配置证据，应标为“本地已配置、线上未验证”，不能问一句后伪装为线上验收。
-
-## 接入档案与资源预览
-
-需要写档案、校验字段或展示协议时，读 [references/integration-contract.md](references/integration-contract.md)。档案固定为 `.bifang/public-services-profile.json`，只保存已确认的非敏感信息。写入前展示变更；仅在用户明确选择阶段 1 且确认内容后写入，随后运行：
+档案固定为 `.bifang/public-services-profile.json`，Schema 位于 [references/public-services-profile.schema.json](references/public-services-profile.schema.json)。只保存非敏感事实；写后运行：
 
 ```text
 python <skill-root>/scripts/validate_profile.py .bifang/public-services-profile.json
 python <skill-root>/scripts/derive_resources.py --profile .bifang/public-services-profile.json
 ```
 
-Node/Electron 在进入阶段 5 前还必须运行 `python <skill-root>/scripts/verify_sdk_distribution.py .bifang/public-services-profile.json`；只有真实本地制品哈希匹配，或私有包的不可变引用与负责人证据一致时，`sdk_distribution_ready` 才能为真。Windows 使用 `py -3 -X utf8 -B` 代替 `python`，确保中文路径和 JSON 输出不受系统代码页影响。脚本仅校验/派生/读取本地制品，不得联网或部署。资源预览至少包含中文产品名、APP_ID、函数、集合、统计路由、更新目录、各目标平台清单、版本提升建议与未满足门禁。
+Windows 使用 `py -3 -X utf8 -B`。Profile v2 的更新传输固定为 `application-version-api-v1`，契约版本固定 `1.0.0`，Base URL 固定单层 `/tools/version-control/v1`。每个 `(platform, architecture, channel)` 使用一个独立、全局唯一、长度不超过 50 的 `code`；请求没有平台字段，禁止靠 User-Agent 猜平台。
 
-## 阶段路由
+单平台产品可使用产品 APP_ID 作为稳定版 code，例如 `bifang-mouse-clicker`。多平台产品必须分流，例如：
 
-| 阶段 | 本次调用允许的范围                | 必读                                               |
-| ---- | --------------------------------- | -------------------------------------------------- |
-| 1    | 完善并验证目标项目接入档案        | `integration-contract.md`                          |
-| 2    | 在运营精灵登记一个已确认 APP_ID   | `integration-contract.md`、`cloudbase-gates.md`    |
-| 3    | 生成并审查本地 CloudBase 资源配置 | `cloudbase-gates.md`                               |
-| 4    | 部署独立资源并完成线上 E2E        | `cloudbase-gates.md`                               |
-| 5    | 在业务客户端实施接入              | `integration-contract.md`、`framework-adapters.md` |
-| 6    | 构建、安装和真实客户端 E2E        | `framework-adapters.md`、`cloudbase-gates.md`      |
-| 7    | 发布与迁移观察                    | `cloudbase-gates.md`                               |
-| 8    | 经负责人确认后清理旧资源          | `cloudbase-gates.md`                               |
+- `bifang-screen-recorder-windows-x64`
+- `bifang-screen-recorder-macos-arm64`
 
-选择阶段不等于前置门禁已通过。若门禁不足，列出缺口并保持零部署/零发布/零删除；不要伪造完成状态。不要自动创建 Codex 任务或 Worktree，除非用户另外明确要求。
+凭据档案只记录不敏感的 binding ID 与 `unknown | planned | ready | verified` 状态，不记录 Key、Secret 或摘要。
 
-## 不可越过的边界
+## 框架和安全边界
 
-- 复用一个**现有免费** CloudBase 环境和平台默认 HTTPS 域名；每个应用独立 APP_ID、函数、路由、集合、更新文件和本地状态。它们仍共享免费额度与故障域，不是无限容量。
-- 不创建第二个环境，不购买域名、证书、套餐、资源包，不开启按量超限、自动续费或超限扣费。若需求必须使用自定义域名，它已超出本轻量免费路径，保持阻塞并交回负责人决策；不要把它当作默认 HTTPS 的前置条件。出现任何非零金额或升级提示，立即停止并报告。
-- 未经明确授权，不部署 CloudBase，不修改业务客户端，不构建安装，不发布/推送，不删除/下线旧资源。阶段 4、7、8 在真实外部变更前还要展示最终参数和最新预检结果，等待明确继续。
-- 历史客户端仍在使用时保留旧路由、函数、集合、文件和历史数据；先新链路验收、再迁移观察、最后由负责人批准清理。
-- 不读取或保存 SecretId、SecretKey、Token、Cookie、Authorization、数据库凭据、用户账号或硬件标识；输出中也不得回显这些值。
-- 保留目标项目已有改动。脏工作区不是完成门禁；不要覆盖不属于本阶段的文件。
+实施客户端时读取 [references/integration-contract.md](references/integration-contract.md) 与 [references/framework-adapters.md](references/framework-adapters.md)。涉及云端或真实 E2E 时读取 [references/cloudbase-gates.md](references/cloudbase-gates.md)。
 
-完成本轮时报告：已确认/仍未知信息、当前阶段、实际修改、验证证据、未满足门禁，以及明确未执行的部署、发布、购买、推送或删除操作。
+- Tauri/Rust：凭据和 HTTP 请求留在 Rust 可信层；WebView 只接收固定更新 DTO 和固定动作，不得提交任意 URL、路径或读取凭据。
+- Node/Electron：可信主进程持有请求配置与凭据；renderer 只通过最小 IPC 接收决策。`@bifang/telemetry-update-sdk` 必须使用基础设施 3.0 对应的 application-version API，不能带回旧静态 checker。
+- 其他原生程序：以冻结 OpenAPI、Schema 和 fixtures 实现薄适配层；不得凭参考摘要猜字段。
+- 广告端点仅在产品已经明确包含广告展示能力或用户另行批准该产品功能时接入；没有广告 UI 的客户端不为“凑齐接口”新增广告产品能力。服务端广告与管理端点由运营精灵自己的契约/E2E 验收。
+
+## 阶段与授权
+
+阶段编号表示当前要交付的结果，不表示较小编号已经全部完成。校验器只检查当前阶段的硬门禁和显式依赖：阶段 5 可在没有云端写入、真实运行凭据或公网 E2E 时先完成本地替换；阶段 4/6/8 分别承担服务端、公网客户端和线上退役证据。Profile 用 `legacy_client_update_removed` 记录客户端旧实现已删，用 `legacy_cloud_resources_removed` 记录阶段 8 的线上资源退役，二者不得混用。
+
+| 阶段 | 结果                                         | 规范一句话是否授权         |
+| ---- | -------------------------------------------- | -------------------------- |
+| 0    | 验证权威来源并只读扫描当前项目               | 是                         |
+| 1    | 写入或迁移非敏感 Profile v2                  | 是                         |
+| 2    | 在运营精灵登记 APP_ID 与发布流 code          | 否，须在运营精灵任务中执行 |
+| 3    | 生成并审查 CloudBase 配置和只读计划          | 否                         |
+| 4    | 部署/写入服务并完成公网 HTTP E2E             | 否，写入前再次确认         |
+| 5    | 替换并删除当前客户端旧更新协议，运行本地验证 | 是                         |
+| 6    | 构建、安装和真实客户端 GUI E2E               | 否，需明确要求             |
+| 7    | 发布或推送                                   | 否，写入前再次确认         |
+| 8    | 删除线上旧静态更新资源                       | 否，列出精确目标后再次确认 |
+
+本 Skill 不从运营精灵仓库扫描或修改未知客户端；接入始终由目标客户端自己的 Task 发起。规范一句话不允许修改第二个客户端或运营精灵仓库。
+
+## 完成标准
+
+结束时分别报告：目标 Task/cwd/分支/HEAD、继承的用户改动、Profile v2、删除的旧更新实现、新 API 文件和请求形状、实际测试、未执行的构建/GUI/云端/发布/推送/删除。静态检查、单元测试、编译、HTTP E2E 与真实 GUI E2E 分开，不得互相冒充。
+
+若没有真实云端服务、运行凭据或已安装制品，只能把相应状态标为 `Unverified`；不能用 mock 或 localhost 声称最终 E2E 完成。

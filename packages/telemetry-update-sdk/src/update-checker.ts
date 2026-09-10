@@ -1,114 +1,86 @@
-import {
-  DEFAULT_UPDATE_TIMEOUT_MS,
-  UPDATE_SCHEMA_VERSION,
-} from "./constants.js";
-import { compareSemVer, isValidSemVer } from "./semver.js";
+import { DEFAULT_APPLICATION_VERSION_TIMEOUT_MS } from "./constants.js";
 import type {
+  ApplicationVersionCheckerConfig,
+  ApplicationVersionData,
+  ApplicationVersionDecision,
+  ApplicationVersionFetch,
+  ApplicationVersionHostHooks,
   DebugLogger,
-  NoUpdateDecision,
-  UpdateCheckerConfig,
-  UpdateConfig,
-  UpdateDecision,
-  UpdateFetch,
-  UpdateHostHooks,
+  NoApplicationVersionDecision,
 } from "./types.js";
 import {
-  isAppId,
-  isPlatform,
   isRecord,
-  isRfc3339Date,
   isSafeDisplayText,
   isSafeExternalUrl,
-  isSha256,
-  isUuidV4,
 } from "./validation.js";
 
-const UPDATE_CONFIG_KEYS = [
-  "schema_version",
-  "app_id",
-  "platform",
-  "enabled",
-  "latest_version",
-  "min_supported_version",
-  "force_update",
-  "rollout",
-  "title",
-  "message",
-  "download_url",
-  "release_notes_url",
-  "sha256",
-  "published_at",
+const BASE_PATH = "/tools/version-control/v1";
+const RESPONSE_KEYS = [
+  "update",
+  "downloadUrl",
+  "promptContent",
+  "forcedUpdate",
+  "promptUpdate",
+  "stopUpdate",
+  "updateContent",
 ] as const;
-const MAX_UPDATE_CONFIG_CHARACTERS = 16_384;
-const MAX_UPDATE_TITLE_CODE_POINTS = 120;
-const MAX_UPDATE_MESSAGE_CODE_POINTS = 1_000;
+const CODE_PATTERN =
+  /^(?!\.{1,2}$)[^\s\\/?#\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]+$/u;
+const VERSION_PATTERN = /^[0-9]+(?:\.[0-9]+)*$/;
+const UNSAFE_CONTENT_CHARACTER_PATTERN =
+  /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u;
+const MAX_RESPONSE_CHARACTERS = 16_384;
+const MAX_URL_CHARACTERS = 500;
+const MAX_PROMPT_CODE_POINTS = 100;
+const MAX_UPDATE_CONTENT_CODE_POINTS = 10_000;
+const MAX_CREDENTIAL_CHARACTERS = 512;
 
-export class UpdateChecker {
-  readonly #config: UpdateCheckerConfig;
+export class ApplicationVersionChecker {
+  readonly #config: ApplicationVersionCheckerConfig;
   readonly #timeoutMs: number;
 
-  constructor(config: UpdateCheckerConfig) {
+  constructor(config: ApplicationVersionCheckerConfig) {
     this.#config = config;
     this.#timeoutMs = normalizeTimeout(config.timeoutMs);
   }
 
-  async check(): Promise<UpdateDecision> {
+  async check(): Promise<ApplicationVersionDecision> {
     try {
-      if (this.#config.enabled === false) {
-        return none("disabled");
-      }
-      if (!isValidCheckerConfig(this.#config)) {
-        return none("invalid_config");
-      }
+      if (this.#config.enabled === false) return none("disabled");
+      if (!isValidCheckerConfig(this.#config)) return none("invalid_config");
 
-      const requestUrl = buildUpdateUrl(
+      const requestUrl = buildApplicationVersionCheckUrl(
         this.#config.baseUrl,
-        this.#config.appId,
-        this.#config.platform,
-      );
-      if (!requestUrl) {
-        return none("invalid_config");
-      }
-
-      const responseText = await this.#fetchConfig(requestUrl);
-      if (responseText === null) {
-        return none("unavailable");
-      }
-
-      let rawConfig: unknown;
-      try {
-        rawConfig = JSON.parse(responseText) as unknown;
-      } catch {
-        return none("invalid_config");
-      }
-      const updateConfig = parseUpdateConfig(
-        rawConfig,
-        this.#config.appId,
-        this.#config.platform,
-      );
-      if (!updateConfig) {
-        return none("invalid_config");
-      }
-
-      return decideUpdate(
+        this.#config.code,
         this.#config.currentVersion,
-        this.#config.installId,
-        updateConfig,
       );
+      if (!requestUrl) return none("invalid_config");
+
+      const responseText = await this.#fetchResponse(requestUrl);
+      if (responseText === null) return none("unavailable");
+
+      let raw: unknown;
+      try {
+        raw = JSON.parse(responseText) as unknown;
+      } catch {
+        return none("invalid_response");
+      }
+      const data = parseApplicationVersionData(raw);
+      return data ? decideApplicationVersion(data) : none("invalid_response");
     } catch (error) {
-      this.#debug("update_check_failed", error);
+      this.#debug("application_version_check_failed", error);
       return none("unavailable");
     }
   }
 
-  async #fetchConfig(url: string): Promise<string | null> {
+  async #fetchResponse(url: string): Promise<string | null> {
     const fetcher = this.#config.fetch ?? defaultFetch;
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timeout = setTimeout(() => {
         controller.abort();
-        reject(new Error("update_timeout"));
+        reject(new Error("application_version_timeout"));
       }, this.#timeoutMs);
     });
 
@@ -118,29 +90,22 @@ export class UpdateChecker {
           method: "GET",
           headers: {
             accept: "application/json",
+            "x-app-key": this.#config.appKey,
+            "x-app-secret": this.#config.appSecret,
           },
           signal: controller.signal,
           cache: "no-store",
         }),
         timeoutPromise,
       ]);
-      if (!response.ok) {
-        return null;
-      }
-      const responseText = await Promise.race([
-        response.text(),
-        timeoutPromise,
-      ]);
-      return responseText.length <= MAX_UPDATE_CONFIG_CHARACTERS
-        ? responseText
-        : null;
+      if (!response.ok) return null;
+      const text = await Promise.race([response.text(), timeoutPromise]);
+      return text.length <= MAX_RESPONSE_CHARACTERS ? text : null;
     } catch (error) {
-      this.#debug("update_fetch_failed", error);
+      this.#debug("application_version_fetch_failed", error);
       return null;
     } finally {
-      if (timeout !== undefined) {
-        clearTimeout(timeout);
-      }
+      if (timeout !== undefined) clearTimeout(timeout);
     }
   }
 
@@ -150,105 +115,62 @@ export class UpdateChecker {
         error: error instanceof Error ? error.name : "unknown",
       });
     } catch {
-      // Update checks remain silent even if an injected logger is broken.
+      // Checks stay silent even if an injected logger is broken. Credentials,
+      // request URLs and response bodies are never included in debug context.
     }
   }
 }
 
-export function parseUpdateConfig(
+export function parseApplicationVersionData(
   value: unknown,
-  expectedAppId?: string,
-  expectedPlatform?: UpdateConfig["platform"],
-): UpdateConfig | null {
+): ApplicationVersionData | null {
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== UPDATE_CONFIG_KEYS.length ||
-    !UPDATE_CONFIG_KEYS.every((key) => Object.hasOwn(value, key)) ||
-    value.schema_version !== UPDATE_SCHEMA_VERSION ||
-    !isAppId(value.app_id) ||
-    !isPlatform(value.platform) ||
-    typeof value.enabled !== "boolean" ||
-    !isValidSemVer(value.latest_version) ||
-    !isValidSemVer(value.min_supported_version) ||
-    typeof value.force_update !== "boolean" ||
-    typeof value.rollout !== "number" ||
-    !Number.isInteger(value.rollout) ||
-    value.rollout < 0 ||
-    value.rollout > 100 ||
-    !isSafeDisplayText(value.title, MAX_UPDATE_TITLE_CODE_POINTS) ||
-    !isSafeDisplayText(value.message, MAX_UPDATE_MESSAGE_CODE_POINTS) ||
-    !isSafeExternalUrl(value.download_url) ||
-    !isSafeExternalUrl(value.release_notes_url) ||
-    !isSha256(value.sha256) ||
-    !isRfc3339Date(value.published_at) ||
-    (expectedAppId !== undefined && value.app_id !== expectedAppId) ||
-    (expectedPlatform !== undefined && value.platform !== expectedPlatform) ||
-    compareSemVer(value.min_supported_version, value.latest_version) > 0
+    Object.keys(value).length !== RESPONSE_KEYS.length ||
+    !RESPONSE_KEYS.every((key) => Object.hasOwn(value, key)) ||
+    typeof value.update !== "boolean" ||
+    typeof value.downloadUrl !== "string" ||
+    Array.from(value.downloadUrl).length > MAX_URL_CHARACTERS ||
+    !isSafeExternalUrl(value.downloadUrl) ||
+    !isSafePromptContent(value.promptContent) ||
+    typeof value.forcedUpdate !== "boolean" ||
+    typeof value.promptUpdate !== "boolean" ||
+    typeof value.stopUpdate !== "boolean" ||
+    !isSafeUpdateContent(value.updateContent) ||
+    !isValidStateCombination(
+      value.update,
+      value.forcedUpdate,
+      value.promptUpdate,
+      value.stopUpdate,
+    )
   ) {
     return null;
   }
 
   return {
-    schema_version: 1,
-    app_id: value.app_id,
-    platform: value.platform,
-    enabled: value.enabled,
-    latest_version: value.latest_version,
-    min_supported_version: value.min_supported_version,
-    force_update: value.force_update,
-    rollout: value.rollout,
-    title: value.title,
-    message: value.message,
-    download_url: value.download_url,
-    release_notes_url: value.release_notes_url,
-    sha256: value.sha256,
-    published_at: value.published_at,
+    update: value.update,
+    downloadUrl: value.downloadUrl,
+    promptContent: value.promptContent,
+    forcedUpdate: value.forcedUpdate,
+    promptUpdate: value.promptUpdate,
+    stopUpdate: value.stopUpdate,
+    updateContent: value.updateContent,
   };
 }
 
-export function decideUpdate(
-  currentVersion: string,
-  installId: string,
-  config: UpdateConfig,
-): UpdateDecision {
-  if (!isValidSemVer(currentVersion) || !isUuidV4(installId)) {
-    return none("invalid_config");
-  }
-  if (!config.enabled) {
-    return none("disabled");
-  }
-  if (compareSemVer(currentVersion, config.latest_version) >= 0) {
-    return none("up_to_date");
-  }
-  if (
-    compareSemVer(currentVersion, config.min_supported_version) < 0 ||
-    config.force_update
-  ) {
-    return { kind: "required", config };
-  }
-  if (rolloutBucket(installId, config.latest_version) < config.rollout) {
-    return { kind: "optional", config };
-  }
-  return none("rollout");
+export function decideApplicationVersion(
+  data: ApplicationVersionData,
+): ApplicationVersionDecision {
+  if (data.stopUpdate) return { kind: "stopped", data };
+  if (!data.update) return none("up_to_date");
+  return data.forcedUpdate
+    ? { kind: "required", data }
+    : { kind: "optional", data };
 }
 
-/** Stable FNV-1a bucket over the specified install_id + latest_version value. */
-export function rolloutBucket(
-  installId: string,
-  latestVersion: string,
-): number {
-  const bytes = new TextEncoder().encode(`${installId}${latestVersion}`);
-  let hash = 0x811c9dc5;
-  for (const byte of bytes) {
-    hash ^= byte;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash % 100;
-}
-
-export async function runUpdateHostHooks(
-  decision: UpdateDecision,
-  hooks: UpdateHostHooks,
+export async function runApplicationVersionHostHooks(
+  decision: ApplicationVersionDecision,
+  hooks: ApplicationVersionHostHooks,
   logger?: DebugLogger,
 ): Promise<void> {
   try {
@@ -256,6 +178,8 @@ export async function runUpdateHostHooks(
       await hooks.onOptionalUpdate?.(decision);
     } else if (decision.kind === "required") {
       await hooks.onRequiredUpdate?.(decision);
+    } else if (decision.kind === "stopped") {
+      await hooks.onStoppedUpdate?.(decision);
     } else {
       await hooks.onNoUpdate?.(decision);
     }
@@ -270,35 +194,99 @@ export async function runUpdateHostHooks(
   }
 }
 
-export function buildUpdateUrl(
+export function buildApplicationVersionCheckUrl(
   baseUrl: string,
-  appId: string,
-  platform: UpdateConfig["platform"],
+  code: string,
+  currentVersion: string,
 ): string | null {
-  if (!isSafeExternalUrl(baseUrl) || !isAppId(appId) || !isPlatform(platform)) {
+  if (
+    !isCanonicalApplicationVersionBaseUrl(baseUrl) ||
+    !isApplicationCode(code) ||
+    !isApplicationVersion(currentVersion)
+  ) {
     return null;
   }
-  const parsedBase = new URL(baseUrl);
-  if (parsedBase.search !== "" || parsedBase.hash !== "") {
-    return null;
-  }
-  if (!parsedBase.pathname.endsWith("/")) {
-    parsedBase.pathname = `${parsedBase.pathname}/`;
-  }
-  const url = new URL(
-    `${appId}/${platform}.json`,
-    parsedBase.toString(),
-  ).toString();
-  return isSafeExternalUrl(url) ? url : null;
+  const base = new URL(baseUrl);
+  base.pathname = `${BASE_PATH}/versions/${encodeURIComponent(code)}/${encodeURIComponent(currentVersion)}`;
+  return isSafeExternalUrl(base.toString()) ? base.toString() : null;
 }
 
-function isValidCheckerConfig(config: UpdateCheckerConfig): boolean {
+export function isCanonicalApplicationVersionBaseUrl(value: unknown): boolean {
+  if (!isSafeExternalUrl(value)) return false;
+  const parsed = new URL(value);
   return (
-    isSafeExternalUrl(config.baseUrl) &&
-    isAppId(config.appId) &&
-    isPlatform(config.platform) &&
-    isValidSemVer(config.currentVersion) &&
-    isUuidV4(config.installId)
+    parsed.pathname === BASE_PATH && parsed.search === "" && parsed.hash === ""
+  );
+}
+
+export function isApplicationCode(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    Array.from(value).length >= 1 &&
+    Array.from(value).length <= 100 &&
+    CODE_PATTERN.test(value)
+  );
+}
+
+export function isApplicationVersion(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= 1 &&
+    value.length <= 50 &&
+    VERSION_PATTERN.test(value)
+  );
+}
+
+function isSafeUpdateContent(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    Array.from(value).length <= MAX_UPDATE_CONTENT_CODE_POINTS &&
+    !UNSAFE_CONTENT_CHARACTER_PATTERN.test(value)
+  );
+}
+
+function isSafePromptContent(value: unknown): value is string {
+  return (
+    isSafeDisplayText(value, MAX_PROMPT_CODE_POINTS) &&
+    !value.includes("<") &&
+    !value.includes(">")
+  );
+}
+
+function isValidStateCombination(
+  update: boolean,
+  forcedUpdate: boolean,
+  promptUpdate: boolean,
+  stopUpdate: boolean,
+): boolean {
+  const enabledStates = [forcedUpdate, promptUpdate, stopUpdate].filter(
+    Boolean,
+  ).length;
+  if (enabledStates > 1) return false;
+  if (!update && (forcedUpdate || promptUpdate)) return false;
+  if (update && stopUpdate) return false;
+  return true;
+}
+
+function isValidCheckerConfig(
+  config: ApplicationVersionCheckerConfig,
+): boolean {
+  return (
+    isCanonicalApplicationVersionBaseUrl(config.baseUrl) &&
+    isApplicationCode(config.code) &&
+    isApplicationVersion(config.currentVersion) &&
+    isCredential(config.appKey) &&
+    isCredential(config.appSecret)
+  );
+}
+
+function isCredential(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= 1 &&
+    value.length <= MAX_CREDENTIAL_CHARACTERS &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/u.test(value)
   );
 }
 
@@ -308,14 +296,16 @@ function normalizeTimeout(value: number | undefined): number {
     value >= 1 &&
     value <= 30_000
     ? value
-    : DEFAULT_UPDATE_TIMEOUT_MS;
+    : DEFAULT_APPLICATION_VERSION_TIMEOUT_MS;
 }
 
-function none(reason: NoUpdateDecision["reason"]): NoUpdateDecision {
+function none(
+  reason: NoApplicationVersionDecision["reason"],
+): NoApplicationVersionDecision {
   return { kind: "none", reason };
 }
 
-const defaultFetch: UpdateFetch = async (url, init) => {
+const defaultFetch: ApplicationVersionFetch = async (url, init) => {
   if (typeof globalThis.fetch !== "function") {
     throw new Error("fetch_unavailable");
   }

@@ -1,9 +1,9 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 const registryUrl = new URL("./apps.json", import.meta.url);
-const outputUrl = new URL("../cloudbaserc.json.example", import.meta.url);
+const outputUrl = new URL("../cloudbaserc.example.json", import.meta.url);
 
 // `telemetry-` leaves 50 of SCF's 60 characters for the app id. Keeping the
 // registry alphabet narrower than the public protocol makes every derived
@@ -11,7 +11,19 @@ const outputUrl = new URL("../cloudbaserc.json.example", import.meta.url);
 // free.
 export const DEPLOYMENT_APP_ID_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
-export const SUPPORTED_UPDATE_PLATFORMS = Object.freeze(["windows", "macos"]);
+export const RELEASE_CODE_PATTERN = DEPLOYMENT_APP_ID_PATTERN;
+export const RELEASE_CHANNEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+export const SUPPORTED_RELEASE_PLATFORMS = Object.freeze([
+  "windows",
+  "macos",
+  "linux",
+]);
+export const SUPPORTED_RELEASE_ARCHITECTURES = Object.freeze([
+  "x64",
+  "arm64",
+  "ia32",
+]);
+export const MAX_RELEASE_STREAMS_PER_APP = 12;
 export const OPERATIONS_DASHBOARD = Object.freeze({
   functionName: "operations-dashboard-api",
   path: "/admin/v1/metrics",
@@ -20,29 +32,8 @@ export const APPLICATION_VERSION_API = Object.freeze({
   functionName: "application-version-api",
   path: "/tools/version-control/v1",
 });
-const UPDATE_MANIFEST_KEYS = [
-  "app_id",
-  "download_url",
-  "enabled",
-  "force_update",
-  "latest_version",
-  "message",
-  "min_supported_version",
-  "platform",
-  "published_at",
-  "release_notes_url",
-  "rollout",
-  "schema_version",
-  "sha256",
-  "title",
-];
-const SEMVER_PATTERN =
-  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
-const RFC3339_PATTERN =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/;
-const UNSAFE_DISPLAY_CHARACTER_PATTERN =
-  /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u;
-const VISIBLE_DISPLAY_CONTENT_PATTERN = /[^\s\u200c\u200d\ufe00-\ufe0f]/u;
+
+const RELEASE_STREAM_KEYS = ["architecture", "channel", "code", "platform"];
 
 export function deriveAppResources(appId) {
   assertDeploymentAppId(appId);
@@ -51,7 +42,6 @@ export function deriveAppResources(appId) {
     functionName: `telemetry-${appId}`,
     collectionName: `telemetry_${appId.replaceAll("-", "_")}`,
     trackPath: `/apps/${appId}/v1/track`,
-    updatePath: `/updates/${appId}`,
   };
 }
 
@@ -69,11 +59,19 @@ export function deriveApplicationVersionResources(appId) {
 export function createCloudBaseConfig(registry) {
   const applications = validateRegistry(registry);
   const resources = applications.map(({ appId }) => deriveAppResources(appId));
-  const dashboardApps = applications.map(({ appId, platforms }) => ({
-    appId,
-    collectionName: deriveAppResources(appId).collectionName,
-    platforms,
-  }));
+  const dashboardApps = applications.map(({ appId, releaseStreams }) => {
+    const telemetry = deriveAppResources(appId);
+    const version = deriveApplicationVersionResources(appId);
+    return {
+      appId,
+      collectionName: telemetry.collectionName,
+      versionCollection: version.versionCollection,
+      platforms: SUPPORTED_RELEASE_PLATFORMS.filter((platform) =>
+        releaseStreams.some((stream) => stream.platform === platform),
+      ),
+      releaseStreams: releaseStreams.map((stream) => ({ ...stream })),
+    };
+  });
   const applicationVersionApps = applications.map(({ appId }) =>
     deriveApplicationVersionResources(appId),
   );
@@ -136,25 +134,16 @@ export function createCloudBaseConfig(registry) {
         memorySize: 256,
         installDependency: true,
         envVariables: {
-          CLOUDBASE_ENV_ID: "{{env.ENV_ID}}",
+          // Bind database reads to the same environment selected by the CLI.
+          // A separately supplied ENV_ID could drift or remain an unresolved
+          // template literal and make the dashboard unavailable.
+          CLOUDBASE_ENV_ID: "{{tcb.envId}}",
           // CLI 3.8.1 revives object-shaped JSON strings while parsing config.
           // Keep this a string for SCF; the handler accepts these two layers.
           DASHBOARD_APPS_JSON: JSON.stringify(JSON.stringify(dashboardApps)),
           DASHBOARD_PATH: OPERATIONS_DASHBOARD.path,
           DASHBOARD_TOKEN_SHA256: "{{env.DASHBOARD_TOKEN_SHA256}}",
-          DASHBOARD_UPDATES_BASE_URL: "{{env.DASHBOARD_UPDATES_BASE_URL}}",
         },
-      },
-    ],
-    hosting: [
-      {
-        name: "updates",
-        root: "./cloudbase/updates",
-        framework: "static",
-        installCommand: "",
-        buildCommand: "",
-        outputDir: ".",
-        deployPath: "/updates",
       },
     ],
     gateway: {
@@ -196,17 +185,12 @@ export function createCloudBaseConfig(registry) {
           // bearer token and fails closed when its SHA-256 is not configured.
           enableAuth: false,
           qpsPolicy: {
-            qpsTotal: 5,
+            qpsTotal: 100,
             qpsPerClient: {
               limitBy: "ClientIP",
               limitValue: 2,
             },
           },
-        },
-        {
-          path: "/updates",
-          target: "hosting:updates",
-          enableAuth: false,
         },
       ],
     },
@@ -218,8 +202,8 @@ export function validateRegistry(registry) {
     throw new TypeError("cloudbase/apps.json must contain an object");
   }
   assertExactKeys(registry, ["apps", "schema_version"], "registry");
-  if (registry.schema_version !== 2) {
-    throw new TypeError("cloudbase/apps.json schema_version must be 2");
+  if (registry.schema_version !== 3) {
+    throw new TypeError("cloudbase/apps.json schema_version must be 3");
   }
   if (!Array.isArray(registry.apps) || registry.apps.length === 0) {
     throw new TypeError("cloudbase/apps.json apps must be a non-empty array");
@@ -229,13 +213,13 @@ export function validateRegistry(registry) {
     if (!isPlainObject(app)) {
       throw new TypeError(`apps[${index}] must contain an object`);
     }
-    assertExactKeys(app, ["app_id", "platforms"], `apps[${index}]`);
+    assertExactKeys(app, ["app_id", "release_streams"], `apps[${index}]`);
     assertDeploymentAppId(app.app_id);
     return {
       appId: app.app_id,
-      platforms: validateUpdatePlatforms(
-        app.platforms,
-        `apps[${index}].platforms`,
+      releaseStreams: validateReleaseStreams(
+        app.release_streams,
+        `apps[${index}].release_streams`,
       ),
     };
   });
@@ -244,377 +228,121 @@ export function validateRegistry(registry) {
   if (new Set(appIds).size !== appIds.length) {
     throw new TypeError("cloudbase/apps.json contains duplicate app_id values");
   }
+  const codes = applications.flatMap(({ releaseStreams }) =>
+    releaseStreams.map(({ code }) => code),
+  );
+  if (new Set(codes).size !== codes.length) {
+    throw new TypeError(
+      "cloudbase/apps.json contains duplicate release code values",
+    );
+  }
   return applications;
 }
 
-export async function validateUpdateManifests(
-  applications,
-  updatesRootUrl = new URL("./updates/", import.meta.url),
-) {
-  if (!Array.isArray(applications) || applications.length === 0) {
-    throw new TypeError("registered applications must be a non-empty array");
-  }
-  for (const [index, application] of applications.entries()) {
-    if (!isPlainObject(application)) {
-      throw new TypeError(`applications[${index}] must contain an object`);
-    }
-    assertExactKeys(
-      application,
-      ["appId", "platforms"],
-      `applications[${index}]`,
-    );
-    assertDeploymentAppId(application.appId);
-    validateUpdatePlatforms(
-      application.platforms,
-      `applications[${index}].platforms`,
-    );
-  }
-
-  const appIds = applications.map(({ appId }) => appId);
-  if (new Set(appIds).size !== appIds.length) {
-    throw new TypeError("registered applications contain duplicate app ids");
-  }
-  const appIdSet = new Set(appIds);
-  const entries = await readdir(updatesRootUrl, { withFileTypes: true });
-  const orphanDirectories = entries
-    .filter((entry) => entry.isDirectory() && !appIdSet.has(entry.name))
-    .map((entry) => entry.name)
-    .sort();
-  const symbolicLinks = entries
-    .filter((entry) => entry.isSymbolicLink())
-    .map((entry) => entry.name)
-    .sort();
-  if (orphanDirectories.length > 0) {
-    throw new TypeError(
-      `unregistered update directories: ${orphanDirectories.join(", ")}`,
-    );
-  }
-  if (symbolicLinks.length > 0) {
-    throw new TypeError(
-      `symbolic links are not allowed in cloudbase/updates: ${symbolicLinks.join(", ")}`,
-    );
-  }
-
-  for (const { appId, platforms } of applications) {
-    const appUpdatesUrl = new URL(
-      `${encodeURIComponent(appId)}/`,
-      updatesRootUrl,
-    );
-    let manifestEntries;
-    try {
-      manifestEntries = await readdir(appUpdatesUrl, { withFileTypes: true });
-    } catch (error) {
-      throw new TypeError(
-        `missing update directory: cloudbase/updates/${appId} (${error.message})`,
-      );
-    }
-
-    const expectedFiles = new Set(
-      platforms.map((platform) => `${platform}.json`),
-    );
-    const unexpectedEntries = manifestEntries
-      .filter(
-        (entry) =>
-          !entry.isFile() ||
-          entry.isSymbolicLink() ||
-          !expectedFiles.has(entry.name),
-      )
-      .map((entry) => entry.name)
-      .sort();
-    if (unexpectedEntries.length > 0) {
-      throw new TypeError(
-        `unexpected entries in cloudbase/updates/${appId}: ${unexpectedEntries.join(", ")}`,
-      );
-    }
-
-    for (const platform of platforms) {
-      const manifestUrl = new URL(`${platform}.json`, appUpdatesUrl);
-      let manifest;
-      try {
-        manifest = JSON.parse(await readFile(manifestUrl, "utf8"));
-      } catch (error) {
-        throw new TypeError(
-          `missing or invalid update manifest: cloudbase/updates/${appId}/${platform}.json (${error.message})`,
-        );
-      }
-      validateUpdateManifest(manifest, appId, platform);
-    }
-  }
-}
-
-export function validateUpdateManifest(
-  manifest,
-  expectedAppId,
-  expectedPlatform,
-) {
-  assertDeploymentAppId(expectedAppId);
-  assertUpdatePlatform(expectedPlatform);
-  const label = `cloudbase/updates/${expectedAppId}/${expectedPlatform}.json`;
-  if (!isPlainObject(manifest)) {
+export function validateReleaseStream(value, label = "release_stream") {
+  if (!isPlainObject(value)) {
     throw new TypeError(`${label} must contain an object`);
   }
-  try {
-    assertExactKeys(manifest, UPDATE_MANIFEST_KEYS, label);
-  } catch {
-    throw new TypeError(`${label} must contain exactly the 14 v1 fields`);
+  assertExactKeys(value, RELEASE_STREAM_KEYS, label);
+  if (!SUPPORTED_RELEASE_PLATFORMS.includes(value.platform)) {
+    throw new TypeError(
+      `${label}.platform must be one of: ${SUPPORTED_RELEASE_PLATFORMS.join(", ")}`,
+    );
   }
-
+  if (!SUPPORTED_RELEASE_ARCHITECTURES.includes(value.architecture)) {
+    throw new TypeError(
+      `${label}.architecture must be one of: ${SUPPORTED_RELEASE_ARCHITECTURES.join(", ")}`,
+    );
+  }
   if (
-    manifest.schema_version !== 1 ||
-    manifest.app_id !== expectedAppId ||
-    manifest.platform !== expectedPlatform ||
-    typeof manifest.enabled !== "boolean" ||
-    !isSemVer(manifest.latest_version) ||
-    !isSemVer(manifest.min_supported_version) ||
-    compareSemVer(manifest.min_supported_version, manifest.latest_version) >
-      0 ||
-    typeof manifest.force_update !== "boolean" ||
-    !Number.isInteger(manifest.rollout) ||
-    manifest.rollout < 0 ||
-    manifest.rollout > 100 ||
-    !isSafeDisplayText(manifest.title, 120) ||
-    !isSafeDisplayText(manifest.message, 1_000) ||
-    !isSafeExternalUrl(manifest.download_url) ||
-    !isSafeExternalUrl(manifest.release_notes_url) ||
-    !/^(?:|[0-9a-f]{64})$/i.test(manifest.sha256) ||
-    !isRfc3339Date(manifest.published_at)
-  ) {
-    throw new TypeError(`${label} does not satisfy the complete v1 contract`);
-  }
-
-  if (!manifest.enabled) {
-    if (manifest.force_update || manifest.rollout !== 0) {
-      throw new TypeError(
-        `${label} must use force_update false and rollout 0 while disabled`,
-      );
-    }
-  } else if (
-    manifest.sha256 === "" ||
-    isExampleInvalidUrl(manifest.download_url) ||
-    isExampleInvalidUrl(manifest.release_notes_url)
+    typeof value.channel !== "string" ||
+    !RELEASE_CHANNEL_PATTERN.test(value.channel)
   ) {
     throw new TypeError(
-      `${label} cannot be enabled with placeholder URLs or an empty sha256`,
+      `${label}.channel must be 1-32 lowercase letters, digits, or hyphens`,
     );
   }
-
-  return manifest;
-}
-
-export function validateWindowsUpdateManifest(manifest, expectedAppId) {
-  return validateUpdateManifest(manifest, expectedAppId, "windows");
-}
-
-export function validateMacosUpdateManifest(manifest, expectedAppId) {
-  return validateUpdateManifest(manifest, expectedAppId, "macos");
-}
-
-export function validateUpdatePlatforms(value, label = "platforms") {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new TypeError(`${label} must be a non-empty array`);
-  }
-  for (const platform of value) {
-    assertUpdatePlatform(platform, label);
-  }
-  if (new Set(value).size !== value.length) {
-    throw new TypeError(`${label} contains duplicate platform values`);
-  }
-  const canonical = SUPPORTED_UPDATE_PLATFORMS.filter((platform) =>
-    value.includes(platform),
-  );
-  if (canonical.some((platform, index) => platform !== value[index])) {
+  if (
+    typeof value.code !== "string" ||
+    !RELEASE_CODE_PATTERN.test(value.code)
+  ) {
     throw new TypeError(
-      `${label} must follow canonical order: ${SUPPORTED_UPDATE_PLATFORMS.join(", ")}`,
+      `${label}.code must be 1-50 lowercase letters, digits, or hyphens`,
     );
   }
-  return [...value];
+  return {
+    platform: value.platform,
+    architecture: value.architecture,
+    channel: value.channel,
+    code: value.code,
+  };
 }
 
-function isSemVer(value) {
-  return (
-    typeof value === "string" &&
-    value.length <= 64 &&
-    SEMVER_PATTERN.test(value)
-  );
+export function validateReleaseStreams(value, label = "release_streams") {
+  const streams = canonicalizeReleaseStreams(value, label);
+  if (
+    value.some((stream, index) =>
+      RELEASE_STREAM_KEYS.some((key) => stream[key] !== streams[index][key]),
+    )
+  ) {
+    throw new TypeError(`${label} must follow canonical release-stream order`);
+  }
+  return streams;
 }
 
-function compareSemVer(left, right) {
-  const leftMatch = SEMVER_PATTERN.exec(left);
-  const rightMatch = SEMVER_PATTERN.exec(right);
-  for (let index = 1; index <= 3; index += 1) {
-    const comparison = compareNumericIdentifier(
-      leftMatch[index],
-      rightMatch[index],
+export function canonicalizeReleaseStreams(value, label = "release_streams") {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > MAX_RELEASE_STREAMS_PER_APP
+  ) {
+    throw new TypeError(
+      `${label} must contain between 1 and ${MAX_RELEASE_STREAMS_PER_APP} items`,
     );
-    if (comparison !== 0) return comparison;
   }
-  return comparePrerelease(
-    leftMatch[4]?.split(".") || [],
-    rightMatch[4]?.split(".") || [],
+  const streams = value.map((stream, index) =>
+    validateReleaseStream(stream, `${label}[${index}]`),
   );
+  const targets = streams.map(
+    ({ platform, architecture, channel }) =>
+      `${platform}\u0000${architecture}\u0000${channel}`,
+  );
+  if (new Set(targets).size !== targets.length) {
+    throw new TypeError(
+      `${label} contains duplicate platform/architecture/channel targets`,
+    );
+  }
+  const codes = streams.map(({ code }) => code);
+  if (new Set(codes).size !== codes.length) {
+    throw new TypeError(`${label} contains duplicate code values`);
+  }
+  return streams.toSorted(compareReleaseStreams);
 }
 
-function comparePrerelease(left, right) {
-  if (left.length === 0 || right.length === 0) {
-    return left.length === right.length ? 0 : left.length === 0 ? 1 : -1;
+function compareReleaseStreams(left, right) {
+  for (const [leftValue, rightValue] of [
+    [
+      SUPPORTED_RELEASE_PLATFORMS.indexOf(left.platform),
+      SUPPORTED_RELEASE_PLATFORMS.indexOf(right.platform),
+    ],
+    [
+      SUPPORTED_RELEASE_ARCHITECTURES.indexOf(left.architecture),
+      SUPPORTED_RELEASE_ARCHITECTURES.indexOf(right.architecture),
+    ],
+  ]) {
+    if (leftValue !== rightValue) return leftValue - rightValue;
   }
-  const length = Math.max(left.length, right.length);
-  for (let index = 0; index < length; index += 1) {
-    if (left[index] === undefined) return -1;
-    if (right[index] === undefined) return 1;
-    if (left[index] === right[index]) continue;
-    const leftNumeric = /^\d+$/.test(left[index]);
-    const rightNumeric = /^\d+$/.test(right[index]);
-    if (leftNumeric && rightNumeric) {
-      return compareNumericIdentifier(left[index], right[index]);
-    }
-    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
-    return left[index] < right[index] ? -1 : 1;
+  if (left.channel !== right.channel) {
+    return left.channel < right.channel ? -1 : 1;
   }
+  if (left.code !== right.code) return left.code < right.code ? -1 : 1;
   return 0;
-}
-
-function compareNumericIdentifier(left, right) {
-  if (left.length !== right.length) return left.length < right.length ? -1 : 1;
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
-}
-
-function isSafeDisplayText(value, maxCodePoints) {
-  return (
-    typeof value === "string" &&
-    Array.from(value).length >= 1 &&
-    Array.from(value).length <= maxCodePoints &&
-    VISIBLE_DISPLAY_CONTENT_PATTERN.test(value) &&
-    !UNSAFE_DISPLAY_CHARACTER_PATTERN.test(value)
-  );
-}
-
-function isRfc3339Date(value) {
-  if (typeof value !== "string" || value.length > 35) return false;
-  const match = RFC3339_PATTERN.exec(value);
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6]);
-  if (
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > new Date(Date.UTC(year, month, 0)).getUTCDate() ||
-    hour > 23 ||
-    minute > 59 ||
-    second > 59
-  ) {
-    return false;
-  }
-  if (match[7] !== "Z") {
-    const offsetHour = Number(match[9]);
-    const offsetMinute = Number(match[10]);
-    if (
-      offsetHour > 14 ||
-      offsetMinute > 59 ||
-      (offsetHour === 14 && offsetMinute !== 0)
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function isSafeExternalUrl(value) {
-  if (typeof value !== "string" || value.length === 0 || value.length > 2_048) {
-    return false;
-  }
-  let parsed;
-  try {
-    parsed = new URL(value);
-  } catch {
-    return false;
-  }
-  if (
-    parsed.protocol !== "https:" ||
-    parsed.username !== "" ||
-    parsed.password !== "" ||
-    parsed.hostname === ""
-  ) {
-    return false;
-  }
-  const hostname = normalizeHostname(parsed.hostname);
-  return (
-    hostname !== "localhost" &&
-    !hostname.endsWith(".localhost") &&
-    !hostname.endsWith(".local") &&
-    !hostname.endsWith(".internal") &&
-    !isNonPublicIpv4(hostname) &&
-    !isNonPublicIpv6(hostname)
-  );
-}
-
-function isExampleInvalidUrl(value) {
-  const hostname = normalizeHostname(new URL(value).hostname);
-  return (
-    hostname === "example.invalid" || hostname.endsWith(".example.invalid")
-  );
-}
-
-function normalizeHostname(value) {
-  return value
-    .toLowerCase()
-    .replace(/^\[/, "")
-    .replace(/\]$/, "")
-    .replace(/\.$/, "");
-}
-
-function isNonPublicIpv4(hostname) {
-  const parts = hostname.split(".");
-  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
-    return false;
-  }
-  const octets = parts.map(Number);
-  if (octets.some((part) => part > 255)) return true;
-  const [first, second] = octets;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 0) ||
-    (first === 192 && second === 168) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    first >= 224
-  );
-}
-
-function isNonPublicIpv6(hostname) {
-  if (!hostname.includes(":")) return false;
-  return (
-    hostname.startsWith("::") ||
-    hostname.startsWith("fc") ||
-    hostname.startsWith("fd") ||
-    /^fe[89a-f]/.test(hostname) ||
-    hostname.startsWith("ff") ||
-    hostname.startsWith("2001:db8:")
-  );
 }
 
 function assertDeploymentAppId(appId) {
   if (typeof appId !== "string" || !DEPLOYMENT_APP_ID_PATTERN.test(appId)) {
     throw new TypeError(
       "app_id must be 1-50 lowercase letters, digits, or hyphens and must start and end with a letter or digit",
-    );
-  }
-}
-
-function assertUpdatePlatform(platform, label = "platform") {
-  if (!SUPPORTED_UPDATE_PLATFORMS.includes(platform)) {
-    throw new TypeError(
-      `${label} must contain only: ${SUPPORTED_UPDATE_PLATFORMS.join(", ")}`,
     );
   }
 }
@@ -626,12 +354,14 @@ function assertExactKeys(value, expected, label) {
     actual.length !== sortedExpected.length ||
     actual.some((key, index) => key !== sortedExpected[index])
   ) {
-    throw new TypeError(`${label} contains missing or unknown fields`);
+    throw new TypeError(
+      `${label} must contain exactly: ${sortedExpected.join(", ")}`,
+    );
   }
 }
 
 function isPlainObject(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const prototype = Object.getPrototypeOf(value);
@@ -648,24 +378,21 @@ async function main() {
 
   const registry = JSON.parse(await readFile(registryUrl, "utf8"));
   const config = createCloudBaseConfig(registry);
-  await validateUpdateManifests(validateRegistry(registry));
   const generated = `${JSON.stringify(config, null, 2)}\n`;
 
   if (args[0] === "--check") {
     const current = await readFile(outputUrl, "utf8").catch(() => "");
     if (current !== generated) {
       throw new Error(
-        "cloudbaserc.json.example is stale; run node cloudbase/generate-cloudbaserc.mjs",
+        "cloudbaserc.example.json is stale; run node cloudbase/generate-cloudbaserc.mjs",
       );
     }
-    process.stdout.write("cloudbaserc.json.example is up to date\n");
+    process.stdout.write("cloudbaserc.example.json is up to date\n");
     return;
   }
 
   await writeFile(outputUrl, generated, "utf8");
-  process.stdout.write(
-    `generated ${fileURLToPath(outputUrl)} from ${fileURLToPath(registryUrl)}\n`,
-  );
+  process.stdout.write("generated cloudbaserc.example.json\n");
 }
 
 const isMain =

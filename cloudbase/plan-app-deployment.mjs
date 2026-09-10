@@ -5,11 +5,9 @@ import { pathToFileURL } from "node:url";
 import {
   deriveAppResources,
   validateRegistry,
-  validateUpdateManifests,
 } from "./generate-cloudbaserc.mjs";
 
 const defaultRegistryUrl = new URL("./apps.json", import.meta.url);
-const defaultUpdatesUrl = new URL("./updates/", import.meta.url);
 const ENV_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,127}$/;
 
 export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
@@ -48,28 +46,10 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       Routes: [toCloudBaseApiRoute(route)],
     },
   });
-  const manifestSteps = application.platforms.map((platform) => {
-    const localPath = `cloudbase/updates/${appId}/${platform}.json`;
-    const cloudPath = `updates/${appId}/${platform}.json`;
-    return {
-      kind: "command",
-      resource: `manifest:${platform}`,
-      argv: [
-        "tcb",
-        "hosting",
-        "deploy",
-        localPath,
-        cloudPath,
-        "-e",
-        envId,
-        "--json",
-      ],
-    };
-  });
 
   return {
-    schema_version: 1,
-    mode: "target-only-preview",
+    schema_version: 2,
+    mode: "telemetry-target-only-preview",
     requires_stage_4_confirmation: true,
     env_id: envId,
     origin: `https://${domain}`,
@@ -79,17 +59,17 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       collection: resources.collectionName,
       collection_permission: "ADMINONLY",
       route,
-      manifests: application.platforms.map(
-        (platform) => `/updates/${appId}/${platform}.json`,
-      ),
     },
+    release_streams: application.releaseStreams.map((stream) => ({
+      ...stream,
+    })),
     excluded_app_ids: applications
       .map(({ appId: registeredAppId }) => registeredAppId)
       .filter((registeredAppId) => registeredAppId !== appId),
     read_only_preflight: [
       {
         resource: "functions",
-        argv: ["tcb", "fn", "list", "--limit", "100", "--json"],
+        argv: ["tcb", "fn", "list", "-e", envId, "--limit", "100", "--json"],
       },
       {
         resource: "routes",
@@ -107,16 +87,9 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
         ],
       },
       {
-        resource: "manifests",
-        argv: [
-          "tcb",
-          "hosting",
-          "list",
-          `updates/${appId}`,
-          "-e",
-          envId,
-          "--json",
-        ],
+        kind: "manual-read-only",
+        resource: "collection-and-cost",
+        instruction: `Verify ${resources.collectionName} ownership, ADMINONLY ACL and indexes, then confirm the existing environment remains zero-cost with overrun disabled. Stop on incomplete inventory, a conflicting collection, non-zero amount, upgrade prompt or insufficient quota.`,
       },
     ],
     write_steps_after_confirmation: [
@@ -128,7 +101,17 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
       {
         kind: "command",
         resource: "function",
-        argv: ["tcb", "fn", "deploy", resources.functionName, "--json"],
+        argv: [
+          "tcb",
+          "fn",
+          "deploy",
+          resources.functionName,
+          "--config-file",
+          "cloudbaserc.example.json",
+          "-e",
+          envId,
+          "--json",
+        ],
       },
       {
         kind: "command",
@@ -145,29 +128,27 @@ export function createAppDeploymentPlan(registry, appId, { envId, origin }) {
           "--json",
         ],
       },
-      ...manifestSteps,
     ],
     post_write_verification: [
       `DescribeHTTPServiceRoute must return exactly ${route.path} -> ${resources.functionName} for the selected domain.`,
-      ...application.platforms.map(
-        (platform) =>
-          `GET /updates/${appId}/${platform}.json and require byte-for-byte equality with the local file.`,
-      ),
       `DescribeDatabaseACL must return ADMINONLY for ${resources.collectionName}.`,
+      "A valid daily_active request must be acknowledged once and an identical retry must remain idempotent.",
     ],
     safety_notes: [
-      "fn deploy is bound to cloudbaserc.json envId; verify that file before execution.",
-      "CloudBase CLI 3.8.1 ignores --safe and --verify for a single local file, so each manifest requires an absent-target preflight and independent byte verification.",
+      "fn deploy is explicitly bound to the reviewed env_id and tracked cloudbaserc.example.json.",
       "The platform default domain is created through the exact CreateHTTPServiceRoute API because routes add rejects system default domains during its custom-domain verification step.",
+      "Release streams are displayed for identity review only; this telemetry-only plan never writes the shared application-version service.",
     ],
     forbidden_scope: [
       "tcb deploy",
       "tcb deploy --only=gateway",
       "tcb fn deploy --all",
-      "directory-level hosting deploy",
+      "application-version-api function, route or collections",
+      "hosting writes",
       "--force",
       "--prune",
       "delete commands",
+      "paid plans, resource packs or overage",
     ],
   };
 }
@@ -193,9 +174,7 @@ function toCloudBaseApiRoute(route) {
 
 export async function planAppDeployment(appId, options = {}) {
   const registryUrl = options.registryUrl || defaultRegistryUrl;
-  const updatesUrl = options.updatesUrl || defaultUpdatesUrl;
   const registry = JSON.parse(await readFile(registryUrl, "utf8"));
-  await validateUpdateManifests(validateRegistry(registry), updatesUrl);
   return createAppDeploymentPlan(registry, appId, options);
 }
 

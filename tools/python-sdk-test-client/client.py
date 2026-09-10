@@ -2,6 +2,7 @@
 
 import argparse
 import concurrent.futures
+import getpass
 import hashlib
 import json
 import os
@@ -239,6 +240,8 @@ class ClientConfig:
     app_version: str = "0.1.0"
     platform: str = "windows"
     arch: str = "x64"
+    application_code: str = "bifang-tools-windows-x64"
+    version_base_url: str = ""
 
     def bridge_fields(self) -> Dict[str, Any]:
         return {
@@ -246,6 +249,13 @@ class ClientConfig:
             "app_version": self.app_version,
             "platform": self.platform,
             "arch": self.arch,
+        }
+
+    def application_version_fields(self) -> Dict[str, Any]:
+        return {
+            "application_code": self.application_code,
+            "current_version": self.app_version,
+            "version_base_url": self.version_base_url,
         }
 
 
@@ -294,11 +304,13 @@ class InteractiveClient:
         bridge: BridgeProcess,
         state_root: Path,
         input_function: Callable[[str], str] = input,
+        secret_input_function: Callable[[str], str] = getpass.getpass,
         output: TextIO = sys.stdout,
     ) -> None:
         self.bridge = bridge
         self.state_root = state_root.resolve()
         self.input = input_function
+        self.secret_input = secret_input_function
         self.output = output
         self.config = ClientConfig(
             platform=detect_sdk_platform(), arch=detect_sdk_architecture()
@@ -306,13 +318,16 @@ class InteractiveClient:
         self.jobs = BackgroundJobs()
         self.capture_initialized = False
         self.live_endpoint: Optional[str] = None
+        self.app_key = ""
+        self.app_secret = ""
 
     def run(self) -> None:
         self._write(
             "毕方 SDK Python 手动测试客户端\n"
             "安全默认：启动不初始化 SDK、不发 POST、不发 GET。\n"
             "多工具隔离：每个工具使用唯一 app_id、独立 /apps/<app_id>/v1/track、"
-            "独立数据库集合和独立更新文件。\n"
+            "独立数据库集合；版本检查使用独立 application code。\n"
+            "版本 API 凭据只保存在当前进程内，不写文件、不打印。"
             "只有你手填 URL 并键入 POST/GET 后才允许真实网络动作。\n"
         )
         try:
@@ -326,10 +341,9 @@ class InteractiveClient:
                     "1": self.configure,
                     "2": self.init_capture,
                     "3": self.init_live,
-                    "4": self.preview_update,
-                    "5": self.start_live_update_check,
-                    "6": self.show_jobs,
-                    "7": self.show_status,
+                    "4": self.start_live_update_check,
+                    "5": self.show_jobs,
+                    "6": self.show_status,
                 }
                 action = actions.get(choice)
                 if action is None:
@@ -342,6 +356,8 @@ class InteractiveClient:
         except EOFError:
             self._write("\n输入已结束，退出。")
         finally:
+            self.app_key = ""
+            self.app_secret = ""
             try:
                 self.bridge.close()
             finally:
@@ -358,11 +374,34 @@ class InteractiveClient:
         )
         self.config.platform = self._prompt_default("platform", self.config.platform)
         self.config.arch = self._prompt_default("arch", self.config.arch)
+        self.config.application_code = self._prompt_default(
+            "application code（每个发布流唯一）", self.config.application_code
+        )
+        self.config.version_base_url = self._prompt_default(
+            "版本 API Base URL（精确到 /tools/version-control/v1）",
+            self.config.version_base_url,
+        )
+        entered_key = self.secret_input(
+            "x-app-key（留空保持当前内存值；输入不回显）: "
+        )
+        entered_secret = self.secret_input(
+            "x-app-secret（留空保持当前内存值；输入不回显）: "
+        )
+        if entered_key:
+            self.app_key = entered_key
+        if entered_secret:
+            self.app_secret = entered_secret
         self.capture_initialized = False
         self.live_endpoint = None
         self.bridge.request("reset_sessions")
         self._write("现有 SDK 会话已失效，请按新配置重新初始化。")
-        self._write_json(self.config.bridge_fields())
+        self._write_json(
+            {
+                **self.config.bridge_fields(),
+                **self.config.application_version_fields(),
+                "credentials_configured": bool(self.app_key and self.app_secret),
+            }
+        )
 
     def init_capture(self) -> None:
         result = self.bridge.request(
@@ -398,35 +437,23 @@ class InteractiveClient:
         self.live_endpoint = endpoint
         self._write_json(result)
 
-    def preview_update(self) -> None:
-        if not self.capture_initialized and self.live_endpoint is None:
-            self._write("请先初始化本地捕获或 live SDK 会话。")
-            return
-        manifest_path = Path(
-            self.input("填写本地更新清单 JSON 路径（不会联网）: ").strip()
-        ).expanduser()
-        with manifest_path.open("r", encoding="utf-8") as manifest_file:
-            manifest = json.load(manifest_file)
-        result = self.bridge.request(
-            "preview_update", manifest=manifest, **self.config.bridge_fields()
-        )
-        self._write("真实 UpdateChecker 的本地预览结果：")
-        self._write_json(result)
-
     def start_live_update_check(self) -> None:
-        if not self.capture_initialized and self.live_endpoint is None:
-            self._write("请先初始化本地捕获或 live SDK 会话。")
+        base_url = self.config.version_base_url
+        if not self.app_key or not self.app_secret:
+            self._write("请先在“修改测试配置”中输入 x-app-key 和 x-app-secret。")
             return
-        base_url = self.input("填写更新清单公网 HTTPS base URL: ").strip()
         if not self._confirm_network("GET", base_url):
             return
-        fields = self.config.bridge_fields()
+        fields = {
+            **self.config.application_version_fields(),
+            "app_key": self.app_key,
+            "app_secret": self.app_secret,
+        }
 
         def check() -> Any:
             return self.bridge.request(
-                "check_update_live",
+                "check_application_version",
                 timeout=35,
-                base_url=base_url,
                 allow_network=True,
                 confirmation="GET",
                 **fields,
@@ -493,10 +520,9 @@ class InteractiveClient:
             "\n1. 修改测试配置\n"
             "2. 检查本次启动使用记录（本地捕获，零网络）\n"
             "3. 上报本次启动使用记录（当天最多 1 个 POST）\n"
-            "4. 用本地 JSON 预览更新决策（零网络）\n"
-            "5. 后台检查公网更新（显式 GET）\n"
-            "6. 查看后台检查\n"
-            "7. 查看桥接状态\n"
+            "4. 后台检查 application-version API（显式 GET）\n"
+            "5. 查看后台检查\n"
+            "6. 查看桥接状态\n"
             "q. 退出\n"
         )
 

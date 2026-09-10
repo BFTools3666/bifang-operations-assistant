@@ -28,17 +28,15 @@ export type DistributionItem = {
   tone?: 'mint' | 'lime' | 'amber' | 'ink';
 };
 
-export type UpdateManifestSummary = {
+export type ReleaseStreamSummary = {
   appId: AppId;
-  platform: 'windows' | 'macos';
-  enabled: boolean;
-  forceUpdate: boolean;
-  rollout: number;
-  latestVersion: string;
-  minSupportedVersion: string;
-  publishedAt: string;
-  manifestUrl: string;
-  source: 'cloudbase' | 'unavailable';
+  code: string;
+  platform: 'windows' | 'macos' | 'linux';
+  architecture: 'x64' | 'arm64' | 'ia32';
+  channel: string;
+  highestVersion: string | null;
+  status: 'empty' | 'normal' | 'prompt' | 'forced' | 'stopped';
+  updatedAt: string | null;
 };
 
 export type DashboardAlert = {
@@ -50,7 +48,7 @@ export type DashboardAlert = {
 };
 
 export type DashboardSnapshot = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   mode: 'live';
   connection: 'connected';
   connectionNote: string;
@@ -71,7 +69,7 @@ export type DashboardSnapshot = {
   versions: DistributionItem[];
   platforms: DistributionItem[];
   architectures: DistributionItem[];
-  manifests: UpdateManifestSummary[];
+  releaseStreams: ReleaseStreamSummary[];
   alerts: DashboardAlert[];
 };
 

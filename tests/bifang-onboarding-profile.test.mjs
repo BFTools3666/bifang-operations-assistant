@@ -53,7 +53,7 @@ function runPython(script, args) {
 
 function completeProfile(overrides = {}) {
   return {
-    profile_schema_version: 1,
+    profile_schema_version: 2,
     display_name: "毕方录屏助手",
     product_purpose: "Record a selected screen area",
     product_key: "screen-recorder",
@@ -73,9 +73,34 @@ function completeProfile(overrides = {}) {
     cloudbase_origin: "https://bifang-free-test.ap-shanghai.app.tcloudbase.com",
     telemetry_endpoint:
       "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/apps/bifang-screen-recorder/v1/track",
-    update_base_url:
-      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/updates",
-    infrastructure_version: "2.1.0",
+    update_transport: "application-version-api-v1",
+    application_version_contract_version: "1.0.0",
+    application_version_base_url:
+      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/tools/version-control/v1",
+    release_streams: [
+      {
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-windows-x64",
+      },
+      {
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-screen-recorder-macos-arm64",
+      },
+      {
+        platform: "linux",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-linux-x64",
+      },
+    ],
+    version_api_auth_binding_id: "runtime-bifang-screen-recorder",
+    version_api_auth_status: "verified",
+    legacy_update_status: "detected",
+    infrastructure_version: "3.0.0",
     infrastructure_source_commit: infrastructureCommit,
     registration_status: "not_registered",
     legacy_track_status: "found",
@@ -91,6 +116,64 @@ function completeProfile(overrides = {}) {
   };
 }
 
+function completeV2Profile(overrides = {}) {
+  return completeProfile({
+    platforms: ["windows", "macos"],
+    architectures: ["x64", "arm64"],
+    release_streams: [
+      {
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-windows-x64",
+      },
+      {
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-screen-recorder-macos-arm64",
+      },
+    ],
+    ...overrides,
+  });
+}
+
+function legacyV1Profile(overrides = {}) {
+  return {
+    profile_schema_version: 1,
+    display_name: "毕方录屏助手",
+    app_id: "bifang-screen-recorder",
+    update_base_url:
+      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/updates",
+    deployment_gates: {
+      update_manifests_deployed: true,
+    },
+    current_stage: 5,
+    ...overrides,
+  };
+}
+
+function deployedV2Gates(overrides = {}) {
+  return {
+    ...completeProfile().deployment_gates,
+    app_registered: true,
+    platform_code_mapping_confirmed: true,
+    cloudbase_config_reviewed: true,
+    version_api_config_reviewed: true,
+    function_deployed: true,
+    collection_created: true,
+    collection_admin_only: true,
+    route_deployed: true,
+    online_e2e_passed: true,
+    runtime_auth_ready: true,
+    version_api_service_verified: true,
+    client_integration_complete: true,
+    version_api_client_integrated: true,
+    legacy_client_update_removed: true,
+    ...overrides,
+  };
+}
+
 async function withTempProfile(profile, run) {
   const root = await mkdtemp(join(tmpdir(), "bifang-profile-test-"));
   const path = join(root, "public-services-profile.json");
@@ -102,22 +185,51 @@ async function withTempProfile(profile, run) {
   }
 }
 
-async function createSdkTarball(projectRoot, version = "2.0.0") {
+const sdkRuntimeEntry = `export {
+  ApplicationVersionChecker,
+  buildApplicationVersionCheckUrl,
+  decideApplicationVersion,
+  isCanonicalApplicationVersionBaseUrl,
+  parseApplicationVersionData,
+  runApplicationVersionHostHooks
+} from "./application-version.js";\n`;
+const sdkDeclarationEntry = `export declare class ApplicationVersionChecker {}
+export declare function buildApplicationVersionCheckUrl(): string | null;
+export declare function decideApplicationVersion(): ApplicationVersionDecision;
+export declare function isCanonicalApplicationVersionBaseUrl(): boolean;
+export declare function parseApplicationVersionData(): ApplicationVersionData | null;
+export declare function runApplicationVersionHostHooks(): Promise<void>;
+export interface ApplicationVersionCheckerConfig { baseUrl: string; }
+export interface ApplicationVersionData { update: boolean; }
+export type ApplicationVersionDecision = { kind: "none" };
+export interface ApplicationVersionHostHooks {}\n`;
+
+async function createSdkTarball(projectRoot, version = "3.0.0") {
   const relative = `vendor/bifang-telemetry-update-sdk-${version}.tgz`;
   const artifact = join(projectRoot, ...relative.split("/"));
   await mkdir(join(projectRoot, "vendor"), { recursive: true });
   const script = [
     "import io, json, sys, tarfile",
-    'payload = json.dumps({"name":"@bifang/telemetry-update-sdk","version":sys.argv[2]}, separators=(",", ":")).encode("utf-8")',
+    'package = json.dumps({"name":"@bifang/telemetry-update-sdk","version":sys.argv[2],"type":"module","main":"./dist/index.js","types":"./dist/index.d.ts","exports":{".":{"types":"./dist/index.d.ts","import":"./dist/index.js"}}}, separators=(",", ":")).encode("utf-8")',
+    'members = {"package/package.json": package, "package/dist/index.js": sys.argv[3].encode("utf-8"), "package/dist/index.d.ts": sys.argv[4].encode("utf-8")}',
     'with tarfile.open(sys.argv[1], "w:gz") as archive:',
-    '    info = tarfile.TarInfo("package/package.json")',
-    "    info.size = len(payload)",
-    "    info.mtime = 0",
-    "    archive.addfile(info, io.BytesIO(payload))",
+    "    for name, payload in members.items():",
+    "        info = tarfile.TarInfo(name)",
+    "        info.size = len(payload)",
+    "        info.mtime = 0",
+    "        archive.addfile(info, io.BytesIO(payload))",
   ].join("\n");
   const created = spawnSync(
     pythonCommand,
-    ["-B", "-c", script, artifact, version],
+    [
+      "-B",
+      "-c",
+      script,
+      artifact,
+      version,
+      sdkRuntimeEntry,
+      sdkDeclarationEntry,
+    ],
     { encoding: "utf8", windowsHide: true },
   );
   assert.equal(created.status, 0, created.stderr);
@@ -150,7 +262,53 @@ test("profile schema is resumable, strict, and enumerates only non-sensitive fie
   assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, ["profile_schema_version"]);
+  assert.equal(schema.properties.profile_schema_version.const, 2);
   assert.equal(schema.properties.deployment_gates.additionalProperties, false);
+  assert.equal(Object.hasOwn(schema.properties, "update_base_url"), false);
+  assert.equal(
+    Object.hasOwn(
+      schema.properties.deployment_gates.properties,
+      "update_manifests_deployed",
+    ),
+    false,
+  );
+  assert.equal(
+    Object.hasOwn(
+      schema.properties.deployment_gates.properties,
+      "legacy_update_removed",
+    ),
+    false,
+  );
+  assert.equal(
+    schema.properties.deployment_gates.properties.legacy_client_update_removed
+      .type,
+    "boolean",
+  );
+  assert.equal(
+    schema.properties.deployment_gates.properties.legacy_cloud_resources_removed
+      .type,
+    "boolean",
+  );
+  assert.equal(
+    schema.properties.update_transport.const,
+    "application-version-api-v1",
+  );
+  assert.equal(
+    schema.properties.application_version_contract_version.const,
+    "1.0.0",
+  );
+  assert.equal(schema.$defs.releaseStream.properties.code.maxLength, 50);
+  assert.deepEqual(schema.properties.version_api_auth_status.enum, [
+    "unknown",
+    "planned",
+    "ready",
+    "verified",
+  ]);
+  assert.deepEqual(schema.properties.legacy_update_status.enum, [
+    "detected",
+    "not_found",
+    "removed",
+  ]);
   assert.equal(
     schema.properties.infrastructure_source_commit.pattern,
     "^[0-9a-f]{40}$",
@@ -170,11 +328,11 @@ test("profile schema is resumable, strict, and enumerates only non-sensitive fie
 
 test("a minimal stage-one profile validates so an interrupted interview can resume", async () => {
   await withTempProfile(
-    { profile_schema_version: 1, current_stage: 1 },
+    { profile_schema_version: 2, current_stage: 1 },
     async (path) => {
       const result = runPython(validateScript, [path]);
       assert.equal(result.status, 0, result.stderr);
-      assert.equal(result.stdout.trim(), "profile is valid");
+      assert.match(result.stdout, /profile is valid/i);
     },
   );
 });
@@ -200,29 +358,67 @@ test("a complete profile cannot omit detected platform architecture or progress 
   }
 });
 
-test("an existing confirmed profile restores exact progress without being rewritten", async () => {
-  await withTempProfile(completeProfile(), async (path) => {
+test("an existing v1 profile is read-only migration input and is never rewritten", async () => {
+  await withTempProfile(legacyV1Profile(), async (path) => {
     const before = await readFile(path, "utf8");
 
     const firstValidation = runPython(validateScript, [path]);
-    assert.equal(firstValidation.status, 0, firstValidation.stderr);
+    assert.equal(firstValidation.status, 1, firstValidation.stdout);
+    assert.match(
+      firstValidation.stderr,
+      /legacy profile schema v1 is obsolete.*migrate.*schema_version 2/i,
+    );
+    assert.equal(
+      firstValidation.stderr.match(/^- /gm)?.length,
+      1,
+      firstValidation.stderr,
+    );
     const derivation = runPython(deriveScript, ["--profile", path]);
-    assert.equal(derivation.status, 0, derivation.stderr);
+    assert.equal(derivation.status, 1, derivation.stderr);
+    assert.match(derivation.stderr, /schema v1 is obsolete.*migrate/i);
     const secondValidation = runPython(validateScript, [path]);
-    assert.equal(secondValidation.status, 0, secondValidation.stderr);
+    assert.equal(secondValidation.status, 1, secondValidation.stdout);
 
     assert.equal(await readFile(path, "utf8"), before);
+  });
+});
+
+test("a v2 profile derives telemetry and application-version resources without static updates", async () => {
+  await withTempProfile(completeV2Profile(), async (path) => {
+    const validation = runPython(validateScript, [path]);
+    assert.equal(validation.status, 0, validation.stderr);
+    assert.equal(validation.stdout.trim(), "profile is valid");
+
+    const derivation = runPython(deriveScript, ["--profile", path]);
+    assert.equal(derivation.status, 0, derivation.stderr);
     const resources = JSON.parse(derivation.stdout);
-    assert.equal(resources.app_id, "bifang-screen-recorder");
     assert.equal(resources.function_name, "telemetry-bifang-screen-recorder");
+    assert.equal(resources.collection_name, "telemetry_bifang_screen_recorder");
     assert.equal(
-      resources.telemetry_endpoint,
-      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/apps/bifang-screen-recorder/v1/track",
+      resources.application_version_function_name,
+      "application-version-api",
     );
     assert.equal(
-      resources.update_manifest_urls.windows,
-      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/updates/bifang-screen-recorder/windows.json",
+      resources.version_collection_name,
+      "versions_bifang_screen_recorder",
     );
+    assert.equal(resources.ad_collection_name, "ads_bifang_screen_recorder");
+    assert.equal(
+      resources.audit_collection_name,
+      "audit_bifang_screen_recorder",
+    );
+    assert.equal(
+      resources.application_version_base_url,
+      "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/tools/version-control/v1",
+    );
+    assert.equal(resources.release_streams.length, 2);
+    assert.match(
+      resources.release_streams[1].version_check_url_template,
+      /\/tools\/version-control\/v1\/versions\/bifang-screen-recorder-windows-x64\/\{version\}$/,
+    );
+    assert.equal(Object.hasOwn(resources, "update_base_url"), false);
+    assert.equal(Object.hasOwn(resources, "update_manifests"), false);
+    assert.equal(Object.hasOwn(resources, "update_directory"), false);
   });
 });
 
@@ -262,33 +458,34 @@ test("resource derivation is deterministic across desktop and native platforms",
   assert.equal(second.status, 0, second.stderr);
   assert.equal(first.stdout, second.stdout);
   assert.deepEqual(JSON.parse(first.stdout), {
+    ad_collection_name: "ads_bifang_capture",
     app_id: "bifang-capture",
+    application_version_contract_version: "1.0.0",
+    application_version_function_name: "application-version-api",
+    application_version_route: "/tools/version-control/v1",
+    audit_collection_name: "audit_bifang_capture",
     collection_name: "telemetry_bifang_capture",
     function_name: "telemetry-bifang-capture",
     platform_gates: {
       linux: {
         reason:
-          "authoritative infrastructure does not generate or validate linux.json",
+          "application-version API release stream code is not yet declared",
         status: "pending",
       },
       macos: {
         reason:
-          "authoritative infrastructure generates and validates macos.json",
-        status: "ready",
+          "application-version API release stream code is not yet declared",
+        status: "pending",
       },
       windows: {
         reason:
-          "authoritative infrastructure generates and validates windows.json",
-        status: "ready",
+          "application-version API release stream code is not yet declared",
+        status: "pending",
       },
     },
+    release_streams: [],
     telemetry_route: "/apps/bifang-capture/v1/track",
-    update_directory: "/updates/bifang-capture",
-    update_manifests: {
-      linux: "/updates/bifang-capture/linux.json",
-      macos: "/updates/bifang-capture/macos.json",
-      windows: "/updates/bifang-capture/windows.json",
-    },
+    version_collection_name: "versions_bifang_capture",
   });
 });
 
@@ -317,16 +514,24 @@ test("profiles reject unsupported platforms and non-canonical architectures", as
 test("unknown and sensitive fields or values are rejected", async () => {
   const cases = [
     {
-      profile_schema_version: 1,
+      profile_schema_version: 2,
       SecretId: "AKIDEXAMPLE",
     },
     {
-      profile_schema_version: 1,
+      profile_schema_version: 2,
       hardware_id: "machine-1234",
     },
     {
-      profile_schema_version: 1,
+      profile_schema_version: 2,
       privacy_notice: "Authorization: Bearer abcdefghijklmnop",
+    },
+    {
+      profile_schema_version: 2,
+      x_app_secret: "must-never-be-stored",
+    },
+    {
+      profile_schema_version: 2,
+      privacy_notice: "x-app-secret: must-never-be-stored",
     },
   ];
 
@@ -340,6 +545,127 @@ test("unknown and sensitive fields or values are rejected", async () => {
       );
     });
   }
+});
+
+test("v2 rejects duplicate-v1 URLs, static update fields, and ambiguous release streams", async () => {
+  const duplicateCode = completeV2Profile();
+  duplicateCode.release_streams[1].code = duplicateCode.release_streams[0].code;
+
+  const duplicateTarget = completeV2Profile();
+  duplicateTarget.release_streams[1] = {
+    ...duplicateTarget.release_streams[0],
+    code: "another-release-code",
+  };
+
+  const obsoleteStaticField = completeV2Profile();
+  obsoleteStaticField.update_base_url =
+    "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/updates";
+
+  const obsoleteStaticGate = completeV2Profile();
+  obsoleteStaticGate.deployment_gates.update_manifests_deployed = true;
+
+  const cases = [
+    completeV2Profile({
+      application_version_base_url:
+        "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/tools/version-control/v1/v1",
+    }),
+    duplicateCode,
+    duplicateTarget,
+    completeV2Profile({
+      release_streams: [
+        {
+          platform: "windows",
+          architecture: "x64",
+          channel: "stable",
+          code: "a".repeat(51),
+        },
+      ],
+    }),
+    obsoleteStaticField,
+    obsoleteStaticGate,
+  ];
+
+  for (const profile of cases) {
+    await withTempProfile(profile, async (path) => {
+      const result = runPython(validateScript, [path]);
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(
+        result.stderr,
+        /one v1 segment|duplicate release|duplicate platform|50 character|unknown field/,
+      );
+    });
+  }
+});
+
+test("v2 completion records obsolete static updates as removed without retaining their fields", async () => {
+  const deploymentGates = {
+    profile_complete: true,
+    app_id_confirmed: true,
+    uses_existing_free_environment: true,
+    free_environment_confirmed: true,
+    app_registered: true,
+    platform_code_mapping_confirmed: true,
+    cloudbase_config_reviewed: true,
+    version_api_config_reviewed: true,
+    function_deployed: true,
+    collection_created: true,
+    collection_admin_only: true,
+    route_deployed: true,
+    online_e2e_passed: true,
+    runtime_auth_ready: true,
+    version_api_service_verified: true,
+    client_integration_complete: true,
+    version_api_client_integrated: true,
+    client_e2e_passed: true,
+    version_api_client_e2e_passed: true,
+    privacy_notice_ready: true,
+    migration_observation_complete: true,
+    legacy_usage_assessed: true,
+    owner_approved: true,
+    legacy_client_update_removed: true,
+    legacy_cloud_resources_removed: true,
+  };
+  await withTempProfile(
+    completeV2Profile({
+      framework: "Tauri/Rust",
+      current_stage: 8,
+      registration_status: "verified",
+      legacy_update_status: "not_found",
+      deployment_gates: {
+        ...deploymentGates,
+        legacy_client_update_removed: false,
+      },
+    }),
+    async (path) => {
+      const result = runPython(validateScript, [path]);
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(
+        result.stderr,
+        /legacy_(?:update_status|client_update_removed)/,
+      );
+    },
+  );
+
+  const profile = completeV2Profile({
+    framework: "Tauri/Rust",
+    current_stage: 8,
+    registration_status: "verified",
+    version_api_auth_binding_id: "runtime-bifang-screen-recorder",
+    version_api_auth_status: "verified",
+    legacy_update_status: "removed",
+    deployment_gates: deploymentGates,
+  });
+
+  await withTempProfile(profile, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 0, result.stderr);
+    const derivation = runPython(deriveScript, ["--profile", path]);
+    assert.equal(derivation.status, 0, derivation.stderr);
+    const resources = JSON.parse(derivation.stdout);
+    assert.equal(resources.legacy_update_status, "removed");
+    assert.equal(Object.hasOwn(resources, "update_base_url"), false);
+    assert.equal(Object.hasOwn(resources, "update_manifests"), false);
+  });
 });
 
 test("SemVer, URL identity, and stage gates are validated semantically", async () => {
@@ -367,13 +693,15 @@ test("SemVer, URL identity, and stage gates are validated semantically", async (
       cloudbase_origin: "https://custom.example.com",
       telemetry_endpoint:
         "https://custom.example.com/apps/bifang-screen-recorder/v1/track",
-      update_base_url: "https://custom.example.com/updates",
+      application_version_base_url:
+        "https://custom.example.com/tools/version-control/v1",
     }),
     completeProfile({
       cloudbase_origin: "https://gateway.example.invalid",
       telemetry_endpoint:
         "https://gateway.example.invalid/apps/bifang-screen-recorder/v1/track",
-      update_base_url: "https://gateway.example.invalid/updates",
+      application_version_base_url:
+        "https://gateway.example.invalid/tools/version-control/v1",
     }),
   ];
 
@@ -387,30 +715,24 @@ test("SemVer, URL identity, and stage gates are validated semantically", async (
 });
 
 test("stage seven requires a ready privacy notice", async () => {
-  const deploymentGates = {
-    ...completeProfile().deployment_gates,
-    app_registered: true,
-    cloudbase_config_reviewed: true,
-    function_deployed: true,
-    collection_created: true,
-    collection_admin_only: true,
-    route_deployed: true,
-    update_manifests_deployed: true,
-    online_e2e_passed: true,
+  const deploymentGates = deployedV2Gates({
     client_integration_complete: true,
+    version_api_client_integrated: true,
     client_e2e_passed: true,
+    version_api_client_e2e_passed: true,
     privacy_notice_ready: false,
     sdk_distribution_ready: true,
-  };
+  });
   await withTempProfile(
     completeProfile({
       current_stage: 7,
       registration_status: "verified",
+      legacy_update_status: "removed",
       deployment_gates: deploymentGates,
       sdk_distribution: {
         kind: "versioned_tarball",
-        source: "vendor/bifang-telemetry-update-sdk-2.0.0.tgz",
-        version: "2.0.0",
+        source: "vendor/bifang-telemetry-update-sdk-3.0.0.tgz",
+        version: "3.0.0",
       },
       sdk_artifact_sha256: "b".repeat(64),
     }),
@@ -422,21 +744,34 @@ test("stage seven requires a ready privacy notice", async () => {
   );
 });
 
+test("stage five is a local migration and does not require CloudBase or runtime credentials", async () => {
+  const profile = completeV2Profile({
+    framework: "Tauri/Rust",
+    current_stage: 5,
+    registration_status: "not_registered",
+    version_api_auth_binding_id: "planned-runtime-binding",
+    version_api_auth_status: "planned",
+    legacy_update_status: "removed",
+    deployment_gates: {
+      ...completeProfile().deployment_gates,
+      client_integration_complete: true,
+      version_api_client_integrated: true,
+      legacy_client_update_removed: true,
+    },
+  });
+
+  await withTempProfile(profile, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+});
+
 test("Node and Electron stage five requires a fixed relative SDK artifact", async () => {
-  const stageFiveGates = {
-    ...completeProfile().deployment_gates,
-    app_registered: true,
-    cloudbase_config_reviewed: true,
-    function_deployed: true,
-    collection_created: true,
-    collection_admin_only: true,
-    route_deployed: true,
-    update_manifests_deployed: true,
-    online_e2e_passed: true,
-  };
+  const stageFiveGates = deployedV2Gates();
   const stageFive = completeProfile({
     current_stage: 5,
     registration_status: "verified",
+    legacy_update_status: "removed",
     deployment_gates: stageFiveGates,
   });
 
@@ -457,8 +792,8 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
       },
       sdk_distribution: {
         kind: "versioned_tarball",
-        source: "C:\\temp\\bifang-sdk-2.0.0.tgz",
-        version: "2.0.0",
+        source: "C:\\temp\\bifang-sdk-3.0.0.tgz",
+        version: "3.0.0",
       },
       sdk_artifact_sha256: "b".repeat(64),
     },
@@ -486,8 +821,8 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
       },
       sdk_distribution: {
         kind: "versioned_tarball",
-        source: "%USERPROFILE%\\bifang-sdk-2.0.0.tgz",
-        version: "2.0.0",
+        source: "%USERPROFILE%\\bifang-sdk-3.0.0.tgz",
+        version: "3.0.0",
       },
       sdk_artifact_sha256: "b".repeat(64),
     },
@@ -507,8 +842,8 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
       },
       sdk_distribution: {
         kind: "versioned_tarball",
-        source: "vendor/bifang-telemetry-update-sdk-2.0.0.tgz",
-        version: "2.0.0",
+        source: "vendor/bifang-telemetry-update-sdk-3.0.0.tgz",
+        version: "3.0.0",
       },
       sdk_artifact_sha256: "b".repeat(64),
     },
@@ -530,8 +865,8 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
       },
       sdk_distribution: {
         kind: "versioned_tarball",
-        source: "vendor/bifang-telemetry-update-sdk-2.0.0.tgz",
-        version: "2.0.0",
+        source: "vendor/bifang-telemetry-update-sdk-3.0.0.tgz",
+        version: "3.0.0",
       },
       sdk_artifact_sha256: "b".repeat(64),
     },
@@ -555,6 +890,7 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
       framework: "Tauri/Rust",
       current_stage: 5,
       registration_status: "verified",
+      legacy_update_status: "removed",
       deployment_gates: stageFiveGates,
     }),
     async (path) => {
@@ -565,27 +901,19 @@ test("Node and Electron stage five requires a fixed relative SDK artifact", asyn
 });
 
 test("a private SDK package needs explicit immutable human evidence", async () => {
-  const deploymentGates = {
-    ...completeProfile().deployment_gates,
-    app_registered: true,
-    cloudbase_config_reviewed: true,
-    function_deployed: true,
-    collection_created: true,
-    collection_admin_only: true,
-    route_deployed: true,
-    update_manifests_deployed: true,
-    online_e2e_passed: true,
+  const deploymentGates = deployedV2Gates({
     sdk_distribution_ready: true,
-  };
+  });
   const artifactHash = "c".repeat(64);
   const profile = completeProfile({
     current_stage: 5,
     registration_status: "verified",
+    legacy_update_status: "removed",
     deployment_gates: deploymentGates,
     sdk_distribution: {
       kind: "private_package",
-      source: "@bifang/telemetry-update-sdk@2.0.0",
-      version: "2.0.0",
+      source: "@bifang/telemetry-update-sdk@3.0.0",
+      version: "3.0.0",
       verification_evidence: "evidence/sdk-private-package.json",
       immutable_reference: `sha256:${artifactHash}`,
     },
@@ -597,7 +925,7 @@ test("a private SDK package needs explicit immutable human evidence", async () =
     await mkdir(evidenceDirectory, { recursive: true });
     const evidence = {
       package: "@bifang/telemetry-update-sdk",
-      version: "2.0.0",
+      version: "3.0.0",
       artifact_sha256: artifactHash,
       immutable_reference: `sha256:${artifactHash}`,
       verified_by: "Bifang team",
@@ -631,26 +959,18 @@ test("a private SDK package needs explicit immutable human evidence", async () =
 });
 
 test("a workspace SDK uses a stable content hash and detects later mutation", async () => {
-  const deploymentGates = {
-    ...completeProfile().deployment_gates,
-    app_registered: true,
-    cloudbase_config_reviewed: true,
-    function_deployed: true,
-    collection_created: true,
-    collection_admin_only: true,
-    route_deployed: true,
-    update_manifests_deployed: true,
-    online_e2e_passed: true,
+  const deploymentGates = deployedV2Gates({
     sdk_distribution_ready: true,
-  };
+  });
   const profile = completeProfile({
     current_stage: 5,
     registration_status: "verified",
+    legacy_update_status: "removed",
     deployment_gates: deploymentGates,
     sdk_distribution: {
       kind: "workspace",
       source: "vendor/sdk-workspace",
-      version: "2.0.0",
+      version: "3.0.0",
     },
     sdk_artifact_sha256: "d".repeat(64),
   });
@@ -661,13 +981,31 @@ test("a workspace SDK uses a stable content hash and detects later mutation", as
     await writeFile(
       join(sdkRoot, "package.json"),
       `${JSON.stringify(
-        { name: "@bifang/telemetry-update-sdk", version: "2.0.0" },
+        {
+          name: "@bifang/telemetry-update-sdk",
+          version: "3.0.0",
+          type: "module",
+          main: "./dist/index.js",
+          types: "./dist/index.d.ts",
+          exports: {
+            ".": {
+              types: "./dist/index.d.ts",
+              import: "./dist/index.js",
+            },
+          },
+        },
         null,
         2,
       )}\n`,
       "utf8",
     );
-    await writeFile(join(sdkRoot, "src", "index.js"), "export {};\n", "utf8");
+    await mkdir(join(sdkRoot, "dist"), { recursive: true });
+    await writeFile(join(sdkRoot, "dist", "index.js"), sdkRuntimeEntry, "utf8");
+    await writeFile(
+      join(sdkRoot, "dist", "index.d.ts"),
+      sdkDeclarationEntry,
+      "utf8",
+    );
     const saved = JSON.parse(await readFile(path, "utf8"));
     saved.sdk_artifact_sha256 = calculateSdkTreeHash(sdkRoot);
     await writeFile(path, `${JSON.stringify(saved, null, 2)}\n`, "utf8");
@@ -835,6 +1173,74 @@ test("legacy scan treats common runtime script extensions as migration evidence"
   }
 });
 
+test("project scan separates obsolete static updates from the application-version v1 client", async () => {
+  const root = await mkdtemp(join(tmpdir(), "bifang-version-api-scan-test-"));
+  try {
+    await mkdir(join(root, "src"), { recursive: true });
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "src", "version-client.rs"),
+      'const CHECK: &str = "/tools/version-control/v1/versions/bifang-recorder-windows-x64/{version}";\n' +
+        'const ADS: &str = "/tools/version-control/v1/app/bifang-recorder-windows-x64/ads/show";\n' +
+        'const KEY_HEADER: &str = "x-app-key";\n' +
+        'const SECRET_HEADER: &str = "x-app-secret";\n' +
+        'const LOCAL_TEST_VALUE: &str = "runtime-secret-value-must-not-leak";\n',
+      "utf8",
+    );
+    await writeFile(
+      join(root, "src", "legacy-update.ts"),
+      'const manifest = "/updates/bifang-recorder/windows.json";\n',
+      "utf8",
+    );
+    await writeFile(
+      join(root, "docs", "bad-example.md"),
+      "Never use `/tools/version-control/v1/v1/versions/code/1.0.0`.\n",
+      "utf8",
+    );
+
+    const detected = runPython(scanScript, [root]);
+    assert.equal(detected.status, 0, detected.stderr);
+    assert.doesNotMatch(detected.stdout, /runtime-secret-value-must-not-leak/);
+    const firstScan = JSON.parse(detected.stdout);
+    assert.equal(firstScan.scan_version, 3);
+    assert.equal(firstScan.application_version_api_status, "marker-only");
+    assert.equal(firstScan.legacy_update_status, "detected");
+    assert.equal(firstScan.legacy_update_removal_gate, "blocked");
+    assert.deepEqual(
+      new Set(firstScan.application_version_api_hits.map((hit) => hit.marker)),
+      new Set([
+        "version_check_path",
+        "ads_show_path",
+        "x_app_key_header",
+        "x_app_secret_header",
+      ]),
+    );
+    assert.equal(firstScan.invalid_application_version_api_hits.length, 1);
+
+    await rm(join(root, "src", "legacy-update.ts"));
+    const migrated = runPython(scanScript, [root]);
+    assert.equal(migrated.status, 0, migrated.stderr);
+    const migratedScan = JSON.parse(migrated.stdout);
+    assert.equal(migratedScan.application_version_api_status, "marker-only");
+    assert.equal(migratedScan.legacy_update_status, "not_found");
+    assert.equal(migratedScan.legacy_update_removal_gate, "clear");
+
+    await writeFile(
+      join(root, "src", "bad-runtime.ts"),
+      'const base = "/tools/version-control/v1/v1";\n',
+      "utf8",
+    );
+    const invalid = runPython(scanScript, [root]);
+    assert.equal(invalid.status, 0, invalid.stderr);
+    assert.equal(
+      JSON.parse(invalid.stdout).application_version_api_status,
+      "invalid",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("project scan reports unresolved APP_ID values and incomplete env scans without guessing", async () => {
   const root = await mkdtemp(join(tmpdir(), "bifang-conservative-scan-test-"));
   try {
@@ -870,6 +1276,8 @@ test("project scan reports unresolved APP_ID values and incomplete env scans wit
     assert.equal(scan.classification, "incomplete");
     assert.equal(scan.legacy_track_status, "unknown");
     assert.equal(scan.migration_gate, "blocked");
+    assert.equal(scan.legacy_update_removal_gate, "blocked");
+    assert.equal(Object.hasOwn(scan, "legacy_update_status"), false);
     assert.deepEqual(scan.skipped_files.map((item) => item.reason).sort(), [
       "non_utf8",
       "too_large",

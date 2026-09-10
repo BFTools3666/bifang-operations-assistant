@@ -10,26 +10,40 @@ const ENV_ID = "bifang-telemetry-prod-d8efa6a8d3";
 const ORIGIN =
   "https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com";
 
+const releaseStream = (platform, architecture, code) => ({
+  platform,
+  architecture,
+  channel: "stable",
+  code,
+});
+
 function registry() {
   return {
-    schema_version: 2,
+    schema_version: 3,
     apps: [
-      { app_id: "bifang-tools", platforms: ["windows"] },
+      {
+        app_id: "bifang-tools",
+        release_streams: [releaseStream("windows", "x64", "bifang-tools")],
+      },
       {
         app_id: "bifang-screen-recorder",
-        platforms: ["windows", "macos"],
+        release_streams: [
+          releaseStream("windows", "x64", "bifang-screen-recorder-windows-x64"),
+          releaseStream("macos", "arm64", "bifang-screen-recorder-macos-arm64"),
+        ],
       },
     ],
   };
 }
 
-test("the target-only plan contains only the selected app write commands", () => {
+test("the target-only plan contains telemetry writes for only the selected app", () => {
   const plan = createAppDeploymentPlan(registry(), "bifang-screen-recorder", {
     envId: ENV_ID,
     origin: ORIGIN,
   });
 
-  assert.equal(plan.mode, "target-only-preview");
+  assert.equal(plan.schema_version, 2);
+  assert.equal(plan.mode, "telemetry-target-only-preview");
   assert.equal(plan.requires_stage_4_confirmation, true);
   assert.equal(plan.env_id, ENV_ID);
   assert.equal(plan.app_id, "bifang-screen-recorder");
@@ -37,10 +51,13 @@ test("the target-only plan contains only the selected app write commands", () =>
   assert.equal(plan.resources.function, "telemetry-bifang-screen-recorder");
   assert.equal(plan.resources.collection, "telemetry_bifang_screen_recorder");
   assert.equal(plan.resources.collection_permission, "ADMINONLY");
-  assert.deepEqual(plan.resources.manifests, [
-    "/updates/bifang-screen-recorder/windows.json",
-    "/updates/bifang-screen-recorder/macos.json",
-  ]);
+  assert.deepEqual(
+    plan.release_streams.map(({ code }) => code),
+    [
+      "bifang-screen-recorder-windows-x64",
+      "bifang-screen-recorder-macos-arm64",
+    ],
+  );
 
   const commands = plan.write_steps_after_confirmation
     .filter(({ kind }) => kind === "command")
@@ -50,37 +67,25 @@ test("the target-only plan contains only the selected app write commands", () =>
     "fn",
     "deploy",
     "telemetry-bifang-screen-recorder",
-    "--json",
-  ]);
-  assert.deepEqual(commands[2], [
-    "tcb",
-    "hosting",
-    "deploy",
-    "cloudbase/updates/bifang-screen-recorder/windows.json",
-    "updates/bifang-screen-recorder/windows.json",
+    "--config-file",
+    "cloudbaserc.example.json",
     "-e",
     ENV_ID,
     "--json",
   ]);
-  assert.deepEqual(commands[3], [
-    "tcb",
-    "hosting",
-    "deploy",
-    "cloudbase/updates/bifang-screen-recorder/macos.json",
-    "updates/bifang-screen-recorder/macos.json",
-    "-e",
-    ENV_ID,
-    "--json",
-  ]);
+  assert.equal(commands.length, 2);
   for (const argv of commands) {
     assert.equal(argv.includes("--all"), false);
     assert.equal(argv.includes("--force"), false);
     assert.equal(argv.includes("--prune"), false);
     assert.equal(argv.includes("bifang-tools"), false);
+    assert.equal(argv.includes("hosting"), false);
+    assert.equal(argv.includes("application-version-api"), false);
   }
+  assert.equal(JSON.stringify(plan).includes("manifest"), false);
 });
 
-test("the target-only route command uses the exact default domain and isolated function", () => {
+test("the target-only route command uses the exact default domain and isolated telemetry function", () => {
   const plan = createAppDeploymentPlan(registry(), "bifang-screen-recorder", {
     envId: ENV_ID,
     origin: ORIGIN,
@@ -120,7 +125,7 @@ test("the target-only route command uses the exact default domain and isolated f
   });
 });
 
-test("the deployment preview rejects unknown apps, unsafe origins, and unsafe environment ids", () => {
+test("the deployment preview rejects unknown apps and unsafe target values", () => {
   assert.throws(
     () =>
       createAppDeploymentPlan(registry(), "unknown-tool", {
@@ -142,7 +147,7 @@ test("the deployment preview rejects unknown apps, unsafe origins, and unsafe en
     "https://user:password@example.tcloudbaseapp.com",
     "https://example.tcloudbaseapp.com",
     "https://example.com",
-    `${ORIGIN}/updates`,
+    `${ORIGIN}/unexpected-path`,
   ]) {
     assert.throws(
       () =>
@@ -155,15 +160,24 @@ test("the deployment preview rejects unknown apps, unsafe origins, and unsafe en
   }
 });
 
-test("the checked-in target plan passes all local registry and manifest gates", async () => {
+test("the checked-in target plan is telemetry-only", async () => {
   const plan = await planAppDeployment("bifang-screen-recorder", {
     envId: ENV_ID,
     origin: ORIGIN,
   });
 
   assert.equal(plan.app_id, "bifang-screen-recorder");
-  assert.deepEqual(plan.resources.manifests, [
-    "/updates/bifang-screen-recorder/windows.json",
-    "/updates/bifang-screen-recorder/macos.json",
+  assert.equal(plan.mode, "telemetry-target-only-preview");
+  assert.deepEqual(Object.keys(plan.resources).sort(), [
+    "collection",
+    "collection_permission",
+    "function",
+    "route",
   ]);
+  assert.equal(
+    plan.write_steps_after_confirmation.some(
+      ({ resource }) => resource === "function" || resource === "route",
+    ),
+    true,
+  );
 });

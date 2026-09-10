@@ -11,8 +11,6 @@ const APP_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const UNSAFE_DISPLAY_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b\u200e\u200f\u2028-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/u;
 const VISIBLE_DISPLAY_CONTENT_PATTERN = /[^\s\u200c\u200d\ufe00-\ufe0f]/u;
-const RFC3339_PATTERN =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -38,48 +36,6 @@ export function isIsoDate(value: unknown): value is string {
   return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
 }
 
-export function isRfc3339Date(value: unknown): value is string {
-  if (typeof value !== "string" || value.length > 35) {
-    return false;
-  }
-  const match = RFC3339_PATTERN.exec(value);
-  if (!match) {
-    return false;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6]);
-  if (
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > daysInMonth(year, month) ||
-    hour > 23 ||
-    minute > 59 ||
-    second > 59
-  ) {
-    return false;
-  }
-
-  if (match[7] !== "Z") {
-    const offsetHour = Number(match[9]);
-    const offsetMinute = Number(match[10]);
-    if (
-      offsetHour > 14 ||
-      offsetMinute > 59 ||
-      (offsetHour === 14 && offsetMinute !== 0)
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 export function isSafeDisplayText(
   value: unknown,
   maxCodePoints: number,
@@ -94,21 +50,6 @@ export function isSafeDisplayText(
     VISIBLE_DISPLAY_CONTENT_PATTERN.test(value) &&
     !UNSAFE_DISPLAY_CHARACTER_PATTERN.test(value)
   );
-}
-
-export function isSha256(value: unknown): value is string {
-  return typeof value === "string" && /^(?:|[0-9a-f]{64})$/i.test(value);
-}
-
-function daysInMonth(year: number, month: number): number {
-  if (month === 2) {
-    return isLeapYear(year) ? 29 : 28;
-  }
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
-
-function isLeapYear(year: number): boolean {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 export function isAppId(value: unknown): value is string {
@@ -165,10 +106,7 @@ export function isSafeExternalUrl(value: unknown): value is string {
     .replace(/\]$/, "")
     .replace(/\.$/, "");
   if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local") ||
-    hostname.endsWith(".internal") ||
+    !isPotentiallyPublicHostname(hostname) ||
     isNonPublicIpv4(hostname) ||
     isNonPublicIpv6(hostname)
   ) {
@@ -176,6 +114,22 @@ export function isSafeExternalUrl(value: unknown): value is string {
   }
 
   return true;
+}
+
+function isPotentiallyPublicHostname(hostname: string): boolean {
+  if (!hostname.includes(".") && !hostname.includes(":")) {
+    return false;
+  }
+  return ![
+    ".example",
+    ".home.arpa",
+    ".internal",
+    ".invalid",
+    ".local",
+    ".localhost",
+    ".onion",
+    ".test",
+  ].some((suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix));
 }
 
 function isNonPublicIpv4(hostname: string): boolean {
@@ -188,7 +142,7 @@ function isNonPublicIpv4(hostname: string): boolean {
     return true;
   }
 
-  const [first, second] = octets as [number, number, number, number];
+  const [first, second, third] = octets as [number, number, number, number];
   return (
     first === 0 ||
     first === 10 ||
@@ -197,8 +151,11 @@ function isNonPublicIpv4(hostname: string): boolean {
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 0) ||
+    (first === 192 && second === 88 && third === 99) ||
     (first === 192 && second === 168) ||
     (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
     first >= 224
   );
 }

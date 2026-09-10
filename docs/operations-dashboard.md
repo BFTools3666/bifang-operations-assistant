@@ -2,7 +2,7 @@
 
 ## 产品范围
 
-`apps/operations-dashboard` 是生产环境的只读单页运营看板。它展示成功写入 CloudBase 的每日启动使用记录、活跃版本与运行环境，以及更新清单状态。
+`apps/operations-dashboard` 是生产环境的只读单页运营看板。它展示成功写入 CloudBase 的每日启动使用记录、活跃版本与运行环境，以及 application-version 发布流摘要。
 
 首版只读，包含：
 
@@ -10,7 +10,7 @@
 - 今日设备中在此前 29 天出现过的回访比例；
 - 每日活跃趋势与数据最后写入时间；
 - 每台设备在所选周期内最近一次记录对应的版本、平台和架构分布；
-- 公开更新清单的启用、灰度、最新/最低版本和强制更新状态；
+- 每个已登记发布流的 code、平台、架构、渠道、当前最高版本和更新状态；
 - 应用和周期筛选、手动刷新、诊断详情。
 
 这些指标不是账号人数、安装量、功能漏斗、渠道转化、收入、崩溃率或更新安装成功率。全部应用视图以 `(app_id, install_id)` 为设备键，不做跨应用设备去重。
@@ -25,11 +25,11 @@
     -> Bearer Token 服务端请求
     -> CloudBase /admin/v1/metrics
     -> operations-dashboard-api
-    -> ADMINONLY 每应用独立集合
+    -> ADMINONLY telemetry_* 与 versions_* 每应用独立集合
     -> 仅返回聚合 JSON
 ```
 
-`cloudbase/functions/operations-dashboard` 与匿名写入函数完全分离。网关虽然可到达，但函数在 Bearer Token SHA-256 缺失或不匹配时 fail closed；总 QPS 为 5、单 ClientIP QPS 为 2。响应使用 `Cache-Control: no-store`，不设置浏览器跨域访问头。
+`cloudbase/functions/operations-dashboard` 与匿名写入函数、application-version HTTP API 完全分离。网关虽然可到达，但函数在 Bearer Token SHA-256 缺失或不匹配时 fail closed；总 QPS 为 100、单 ClientIP QPS 为 2。响应使用 `Cache-Control: no-store`，不设置浏览器跨域访问头。函数使用 CloudBase 运行时短期身份直接读取固定 `ADMINONLY` 集合，不配置或暴露 application-version 管理凭据、运行凭据。
 
 原始 Token 仅存于私有 Sites 的服务端 secret `CLOUDBASE_METRICS_TOKEN`，不使用 `NEXT_PUBLIC_` 变量，不进入浏览器、Git 或日志；CloudBase 只接收 `DASHBOARD_TOKEN_SHA256`。站点的本人访问限制由 Sites 私有可见性执行，同源 API 另行检查宿主认证的登录身份。
 
@@ -40,22 +40,24 @@
 - 周期活跃按 `(app_id, install_id)` 去重。
 - 回访设备是今日设备键与此前 29 天设备键的交集。
 - 版本、平台、架构以每台设备在所选周期内最新的 `received_at` 为准。
-- 更新清单读取失败或格式异常时必须显示“状态未知”，绝不当作“未发布”。
+- 发布流只来自 `DASHBOARD_APPS_JSON` 已登记的 APP_ID/code 映射；每个 code 在其应用固定 `versions_*` 集合内按内部排序键读取最高版本。
+- 空集合是合法生产结果，返回 `status=empty` 与空最高版本；未知 code、跨应用结果、字段异常或任一集合读取失败会让整次请求 fail closed，前端显示“生产数据暂时不可用”。
+- 发布状态只返回安全枚举：普通更新、提示更新、强制更新、暂停更新或暂无版本；不返回下载地址、提示正文、富文本、管理字段或任何凭据。
 - 原始记录只在函数内短暂用于聚合，响应绝不序列化 `install_id`、`event_id` 或 `source_ip`。
 
 ## 可重现部署配置
 
-生成器为聚合函数显式注入 `CLOUDBASE_ENV_ID={{env.ENV_ID}}`，查询环境与本次部署目标一致。`DASHBOARD_APPS_JSON` 在模板中双重 JSON 编码：CloudBase CLI 3.8.1 的 `ConfigParser.parseRawConfig` 会将普通 JSON 数组字符串转成数组，双编码让 SCF 环境变量保持字符串；函数只允许最多两层解析，随后执行精确应用与集合白名单校验。不要手工去掉这层编码。
+生成器为聚合函数显式注入 `CLOUDBASE_ENV_ID={{tcb.envId}}`，直接绑定 CLI 本次选择的部署环境，不接受另一份可能漂移或未展开的 `ENV_ID`。`DASHBOARD_APPS_JSON` 包含每个应用固定的 telemetry collection、version collection 与 release streams，并在模板中双重 JSON 编码：CloudBase CLI 3.8.1 的 `ConfigParser.parseRawConfig` 会将普通 JSON 数组字符串转成数组，双编码让 SCF 环境变量保持字符串；函数只允许最多两层解析，随后核对 APP_ID、集合派生名、每应用最多 12 条发布流、code 全局唯一性和平台映射。不要手工去掉这层编码。
 
 ## 部署范围与复核
 
-生产看板的 CloudBase 部署范围仅为 `operations-dashboard-api` 与 `/admin/v1/metrics`。仓库顶层部署同时包含现有上报函数和更新托管，不能用于本看板的定向发布。不得借看板发布修改业务集合、上报函数、更新 manifest、套餐或其他应用资源。远程部署前必须：
+生产看板的 CloudBase 部署范围仅为 `operations-dashboard-api` 与 `/admin/v1/metrics`。仓库顶层部署同时包含现有上报函数和 application-version 服务，不能用于本看板的定向发布。不得借看板发布修改业务集合、上报函数、版本记录、套餐或其他应用资源。远程部署前必须：
 
 1. 实时确认环境仍为体验版、状态正常、按量扣费为 0，且没有非零金额、自动续费或套餐升级提示。
 2. 实时核对目标函数与路由；首次创建只添加这两个资源，后续发布只更新已核实属于本看板的目标。
 3. 生成至少 32 字节高熵 Token，只把 SHA-256 放入 CloudBase；原始 Token 只配置到私有 Sites 环境变量。
 4. 校验模板并运行 dry-run；展示最终环境、函数、路由、QPS、变量名与零删除结论。
 5. 在负责人授权的生产看板范围内，定向部署函数、创建或核对唯一 admin 路由，并配置私有 Sites 服务端 secret；新的额外范围需要另行授权。
-6. 公网复验无 Token/错误 Token 为 401，非法查询为 400，正确请求为 200，响应不含原始标识和 IP；随后再发布私有 Site。
+6. 公网复验无 Token/错误 Token 为 401，非法查询为 400，正确请求为 200，响应不含原始标识、IP、版本正文、下载地址或凭据；随后再发布私有 Site。
 
 任何非零费用、付费资源、卡绑定、自动续费、套餐升级或超额风险都必须停止并提醒负责人。

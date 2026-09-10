@@ -1,7 +1,7 @@
 interface:
   display_name: "毕方公共服务接入向导"
-  short_description: "分步检查并完善小工具的每日启动统计、版本更新与上线门禁接入信息"
-  default_prompt: "Use $bifang-public-services-onboarding to inspect this project and continue its Bifang public-services onboarding."
+  short_description: "用一个仓库 URL 将当前小工具迁移到毕方 application-version API v1"
+  default_prompt: "Use $bifang-public-services-onboarding to migrate this client from the unpublished static-update protocol to Bifang application-version API v1 while preserving daily-active telemetry."
 
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

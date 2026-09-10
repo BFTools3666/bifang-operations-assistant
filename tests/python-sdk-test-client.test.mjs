@@ -19,22 +19,15 @@ const BASE_REQUEST = {
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-function updateManifest(overrides = {}) {
+function applicationVersionResponse(overrides = {}) {
   return {
-    schema_version: 1,
-    app_id: "bifang-tools",
-    platform: "windows",
-    enabled: true,
-    latest_version: "0.2.0",
-    min_supported_version: "0.1.0",
-    force_update: false,
-    rollout: 100,
-    title: "Bifang Tools 0.2.0",
-    message: "A tested update is available.",
-    download_url: "https://downloads.example.invalid/bifang-tools-0.2.0.exe",
-    release_notes_url: "https://releases.example.invalid/bifang-tools/0.2.0",
-    sha256: "",
-    published_at: "2026-09-03T04:43:55.000Z",
+    update: true,
+    downloadUrl: "https://downloads.example.com/bifang-tools-0.2.0.exe",
+    promptContent: "A tested update is available.",
+    forcedUpdate: false,
+    promptUpdate: true,
+    stopUpdate: false,
+    updateContent: "<p>Tested release notes</p>",
     ...overrides,
   };
 }
@@ -83,7 +76,7 @@ test("capture initialization creates only one daily-active record and never uses
       ]);
       assert.equal(event.event, "daily_active");
       assert.equal(event.schema_version, 2);
-      assert.equal(event.sdk_version, "2.0.0");
+      assert.equal(event.sdk_version, "3.0.0");
       assert.equal(event.app_id, BASE_REQUEST.app_id);
       assert.equal(event.app_version, BASE_REQUEST.app_version);
       assert.equal(event.platform, "windows");
@@ -173,7 +166,7 @@ test("one approved test performs exactly one daily-active POST", async () => {
       assert.equal(requests[0].init.method, "POST");
       assert.equal(requests[0].body.event, "daily_active");
       assert.equal(requests[0].body.schema_version, 2);
-      assert.equal(requests[0].body.sdk_version, "2.0.0");
+      assert.equal(requests[0].body.sdk_version, "3.0.0");
       assert.equal(requests[0].body.install_id, result.install_id);
       for (const removed of [
         "channel",
@@ -393,16 +386,33 @@ test("network actions fail closed without consent or canonical public HTTPS URLs
       );
       await assert.rejects(
         dispatch({
-          action: "check_update_url",
-          state_dir: stateDirectory,
-          update_url: "https://updates.example.com/a/../windows.json",
-          allow_network: true,
-          confirmation: "GET",
-          ...BASE_REQUEST,
+          action: "check_application_version",
+          version_base_url:
+            "https://versions.example.com/tools/version-control/v1",
+          application_code: "bifang-tools-windows-x64",
+          current_version: "0.1.0",
+          app_key: "runtime-key",
+          app_secret: "runtime-secret",
         }),
         (error) =>
           error instanceof BridgeRequestError &&
-          error.code === "unsafe_update_url",
+          error.code === "network_consent_required",
+      );
+      await assert.rejects(
+        dispatch({
+          action: "check_application_version",
+          version_base_url:
+            "https://versions.example.com/tools/version-control/v1/v1",
+          application_code: "bifang-tools-windows-x64",
+          current_version: "0.1.0",
+          app_key: "runtime-key",
+          app_secret: "runtime-secret",
+          allow_network: true,
+          confirmation: "GET",
+        }),
+        (error) =>
+          error instanceof BridgeRequestError &&
+          error.code === "invalid_version_api_config",
       );
       await assert.rejects(
         dispatch({
@@ -421,94 +431,115 @@ test("network actions fail closed without consent or canonical public HTTPS URLs
   });
 });
 
-test("full update URL is fetched freshly while identities stay stable per app", async () => {
-  await withTemporaryDirectory(async (stateDirectory) => {
-    const originalFetch = globalThis.fetch;
-    const calls = [];
-    const updateUrl =
-      "https://updates.example.com/releases/bifang-tools/windows.json";
-    const otherUpdateUrl =
-      "https://updates.example.com/releases/bifang-tools-image/windows.json";
-    globalThis.fetch = async (url, init) => {
-      calls.push({ url, init });
-      const body =
-        url === otherUpdateUrl
-          ? updateManifest({ app_id: "bifang-tools-image" })
-          : calls.length === 1
-            ? updateManifest({
-                latest_version: "0.1.0",
-                min_supported_version: "0.1.0",
-              })
-            : updateManifest();
-      return {
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify(body),
-      };
+test("application-version API uses one v1, exact headers, fresh GETs, and redacted diagnostics", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    const body =
+      calls.length === 1
+        ? applicationVersionResponse({
+            update: false,
+            promptUpdate: false,
+          })
+        : applicationVersionResponse();
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(body),
     };
-    try {
-      const request = {
-        action: "check_update_url",
-        state_dir: join(stateDirectory, "stable-update-identity"),
-        update_url: updateUrl,
-        allow_network: true,
-        confirmation: "GET",
-        ...BASE_REQUEST,
-      };
-      const dispatch = createBridgeDispatcher();
-      const first = await dispatch(request);
-      const second = await dispatch(request);
-      const otherApp = await dispatch({
-        ...request,
-        app_id: "bifang-tools-image",
-        update_url: otherUpdateUrl,
-      });
-      assert.deepEqual(first.decision, { kind: "none", reason: "up_to_date" });
-      assert.equal(second.decision.kind, "optional");
-      assert.equal(first.install_id, second.install_id);
-      assert.notEqual(first.install_id, otherApp.install_id);
-      assert.equal(calls.length, 3);
-      assert.deepEqual(
-        calls.map((call) => call.url),
-        [updateUrl, updateUrl, otherUpdateUrl],
-      );
-      assert.ok(calls.every((call) => call.init.method === "GET"));
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
+  };
+  try {
+    const request = {
+      action: "check_application_version",
+      version_base_url: "https://versions.example.com/tools/version-control/v1",
+      application_code: "bifang-tools-windows-x64",
+      current_version: "0.1.0",
+      app_key: "runtime-key",
+      app_secret: "runtime-secret",
+      allow_network: true,
+      confirmation: "GET",
+    };
+    const dispatch = createBridgeDispatcher();
+    const first = await dispatch(request);
+    const second = await dispatch(request);
+
+    assert.deepEqual(first.decision, { kind: "none", reason: "up_to_date" });
+    assert.equal(second.decision.kind, "optional");
+    assert.equal(calls.length, 2);
+    assert.ok(
+      calls.every(
+        (call) =>
+          call.url ===
+          "https://versions.example.com/tools/version-control/v1/versions/bifang-tools-windows-x64/0.1.0",
+      ),
+    );
+    assert.ok(calls.every((call) => call.init.method === "GET"));
+    assert.ok(
+      calls.every((call) => call.init.headers["x-app-key"] === "runtime-key"),
+    );
+    assert.ok(
+      calls.every(
+        (call) => call.init.headers["x-app-secret"] === "runtime-secret",
+      ),
+    );
+    assert.deepEqual(second.fetch_diagnostic.request_headers, [
+      "accept",
+      "x-app-key",
+      "x-app-secret",
+    ]);
+    assert.equal(second.fetch_diagnostic.credentials_redacted, true);
+    assert.doesNotMatch(
+      JSON.stringify([first, second]),
+      /runtime-key|runtime-secret/u,
+    );
+    assert.equal(Object.hasOwn(second, "install_id"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test("local update preview remains network-free", async () => {
-  await withTemporaryDirectory(async (stateDirectory) => {
-    const originalFetch = globalThis.fetch;
-    let fetchCalls = 0;
-    globalThis.fetch = async () => {
-      fetchCalls += 1;
-      throw new Error("network must stay disabled");
-    };
-    try {
-      const dispatch = createBridgeDispatcher();
-      await dispatch({
-        action: "init_capture",
-        state_dir: stateDirectory,
-        ...BASE_REQUEST,
-      });
-      const result = await dispatch({
-        action: "preview_update",
-        manifest: updateManifest(),
-        ...BASE_REQUEST,
-      });
-      assert.equal(result.decision.kind, "optional");
-      assert.equal(result.network_performed, false);
-      assert.equal(fetchCalls, 0);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+test("application-version response is a strict bare seven-field object and stopUpdate does not become required", async () => {
+  const originalFetch = globalThis.fetch;
+  let response = applicationVersionResponse({ unexpected: true });
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(response),
   });
+  try {
+    const dispatch = createBridgeDispatcher();
+    const request = {
+      action: "check_application_version",
+      version_base_url: "https://versions.example.com/tools/version-control/v1",
+      application_code: "bifang-tools-windows-x64",
+      current_version: "0.1.0",
+      app_key: "runtime-key",
+      app_secret: "runtime-secret",
+      allow_network: true,
+      confirmation: "GET",
+    };
+    const invalid = await dispatch(request);
+    assert.deepEqual(invalid.decision, {
+      kind: "none",
+      reason: "invalid_response",
+    });
+
+    response = applicationVersionResponse({
+      update: false,
+      promptUpdate: false,
+      stopUpdate: true,
+    });
+    const stopped = await dispatch(request);
+    assert.equal(stopped.decision.kind, "stopped");
+    assert.equal(stopped.decision.data.stopUpdate, true);
+    assert.notEqual(stopped.decision.kind, "required");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-test("JSON Lines bridge returns structured errors and reports SDK 2", async () => {
+test("JSON Lines bridge returns structured errors and reports SDK 3", async () => {
   const bridgePath = new URL(
     "../tools/python-sdk-test-client/bridge.mjs",
     import.meta.url,
@@ -554,7 +585,7 @@ test("JSON Lines bridge returns structured errors and reports SDK 2", async () =
       (response) =>
         response.ok === true &&
         response.request_id === "unicode-毕方" &&
-        response.result.sdk_version === "2.0.0",
+        response.result.sdk_version === "3.0.0",
     ),
   );
 });

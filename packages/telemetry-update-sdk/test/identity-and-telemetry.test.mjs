@@ -42,7 +42,7 @@ function clientConfig(storage, transport, overrides = {}) {
     appVersion: "0.1.0",
     platform: "windows",
     arch: "x64",
-    endpoint: "https://telemetry.example.invalid/v1/track",
+    endpoint: "https://telemetry.example.com/v1/track",
     enabled: true,
     identityStorage: storage,
     transport,
@@ -97,7 +97,7 @@ test("first launch sends exactly one minimal daily_active event", async () => {
       install_id: client.installId,
       platform: "windows",
       arch: "x64",
-      sdk_version: "2.0.0",
+      sdk_version: "3.0.0",
       occurred_at: DEFAULT_NOW,
     },
   );
@@ -112,9 +112,9 @@ test("multiple tools keep telemetry endpoint, identity, and daily gate isolated"
   const pdfTransport = new CaptureTransport();
   const imageTransport = new CaptureTransport();
   const pdfEndpoint =
-    "https://gateway.example.invalid/apps/bifang-tools-pdf/v1/track";
+    "https://gateway.example.com/apps/bifang-tools-pdf/v1/track";
   const imageEndpoint =
-    "https://gateway.example.invalid/apps/bifang-tools-image/v1/track";
+    "https://gateway.example.com/apps/bifang-tools-image/v1/track";
 
   const [pdfClient, imageClient] = await Promise.all([
     TelemetryClient.init(

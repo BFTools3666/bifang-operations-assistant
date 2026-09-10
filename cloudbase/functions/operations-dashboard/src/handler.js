@@ -8,11 +8,15 @@ const {
   createDashboardSnapshot,
   toShanghaiDate,
 } = require("./aggregate");
-const { createManifestReader } = require("./manifest-reader");
 const { createCloudBaseEventReader } = require("./reader");
+const { createCloudBaseVersionReader } = require("./version-reader");
 
 const APP_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const COLLECTION_PATTERN = /^[a-z][a-z0-9_]{0,59}$/;
+const CHANNEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+const RELEASE_STREAM_KEYS = "architecture,channel,code,platform";
+const RELEASE_PLATFORMS = ["windows", "macos", "linux"];
+const RELEASE_ARCHITECTURES = ["x64", "arm64", "ia32"];
 
 function createHandler(options = {}) {
   const path = normalizePathValue(
@@ -27,7 +31,8 @@ function createHandler(options = {}) {
     options.apps === undefined ? process.env.DASHBOARD_APPS_JSON : options.apps,
   );
   const readEvents = options.reader || createCloudBaseEventReader();
-  const readManifests = options.manifestReader || createManifestReader();
+  const readReleaseStreams =
+    options.versionReader || createCloudBaseVersionReader();
   const now = options.now || (() => new Date());
   const logger = options.logger || console;
   const environmentId = normalizeEnvironmentId(
@@ -80,7 +85,7 @@ function createHandler(options = {}) {
         query.appId === "all"
           ? apps
           : apps.filter((app) => app.appId === query.appId);
-      const [events, manifests] = await Promise.all([
+      const [events, releaseSummaries] = await Promise.all([
         readEvents({
           apps: selectedApps,
           startDate: addDays(toShanghaiDate(currentTime), -29),
@@ -89,14 +94,14 @@ function createHandler(options = {}) {
           // Only the platform-supplied second argument is trusted for identity.
           runtimeContext: context,
         }),
-        readManifests(selectedApps),
+        readReleaseStreams({ apps: selectedApps, runtimeContext: context }),
       ]);
       const snapshot = createDashboardSnapshot({
         apps,
         days: query.days,
         environmentId,
         events,
-        manifests,
+        releaseSummaries,
         now: currentTime,
         selectedAppId: query.appId,
       });
@@ -131,31 +136,88 @@ function parseDashboardApps(value) {
   if (!Array.isArray(parsed)) return [];
   const apps = [];
   for (const item of parsed) {
+    const expectedKeys =
+      "appId,collectionName,platforms,releaseStreams,versionCollection";
     if (
       !item ||
       typeof item !== "object" ||
-      Object.keys(item).sort().join(",") !== "appId,collectionName,platforms" ||
+      Array.isArray(item) ||
+      Object.keys(item).sort().join(",") !== expectedKeys ||
       typeof item.appId !== "string" ||
       !APP_ID_PATTERN.test(item.appId) ||
       typeof item.collectionName !== "string" ||
       !COLLECTION_PATTERN.test(item.collectionName) ||
+      item.collectionName !== `telemetry_${item.appId.replaceAll("-", "_")}` ||
+      typeof item.versionCollection !== "string" ||
+      !COLLECTION_PATTERN.test(item.versionCollection) ||
+      item.versionCollection !==
+        `versions_${item.appId.replaceAll("-", "_")}` ||
       !Array.isArray(item.platforms) ||
       item.platforms.length === 0 ||
       item.platforms.some(
-        (platform) => !["windows", "macos"].includes(platform),
+        (platform) => !RELEASE_PLATFORMS.includes(platform),
       ) ||
-      new Set(item.platforms).size !== item.platforms.length
+      new Set(item.platforms).size !== item.platforms.length ||
+      !Array.isArray(item.releaseStreams) ||
+      item.releaseStreams.length === 0 ||
+      item.releaseStreams.length > 12
+    ) {
+      return [];
+    }
+    const releaseStreams = [];
+    for (const stream of item.releaseStreams) {
+      if (
+        !stream ||
+        typeof stream !== "object" ||
+        Array.isArray(stream) ||
+        Object.keys(stream).sort().join(",") !== RELEASE_STREAM_KEYS ||
+        !RELEASE_PLATFORMS.includes(stream.platform) ||
+        !RELEASE_ARCHITECTURES.includes(stream.architecture) ||
+        typeof stream.channel !== "string" ||
+        !CHANNEL_PATTERN.test(stream.channel) ||
+        typeof stream.code !== "string" ||
+        !APP_ID_PATTERN.test(stream.code)
+      ) {
+        return [];
+      }
+      releaseStreams.push({
+        platform: stream.platform,
+        architecture: stream.architecture,
+        channel: stream.channel,
+        code: stream.code,
+      });
+    }
+    const expectedPlatforms = RELEASE_PLATFORMS.filter((platform) =>
+      releaseStreams.some((stream) => stream.platform === platform),
+    );
+    if (
+      JSON.stringify(item.platforms) !== JSON.stringify(expectedPlatforms) ||
+      new Set(releaseStreams.map((stream) => stream.code)).size !==
+        releaseStreams.length ||
+      new Set(
+        releaseStreams.map(
+          (stream) =>
+            `${stream.platform}\u0000${stream.architecture}\u0000${stream.channel}`,
+        ),
+      ).size !== releaseStreams.length
     ) {
       return [];
     }
     apps.push({
       appId: item.appId,
       collectionName: item.collectionName,
+      versionCollection: item.versionCollection,
       platforms: [...item.platforms],
+      releaseStreams,
     });
   }
+  const allCodes = apps.flatMap((app) =>
+    app.releaseStreams.map((stream) => stream.code),
+  );
   return new Set(apps.map((app) => app.appId)).size === apps.length &&
-    new Set(apps.map((app) => app.collectionName)).size === apps.length
+    new Set(apps.map((app) => app.collectionName)).size === apps.length &&
+    new Set(apps.map((app) => app.versionCollection)).size === apps.length &&
+    new Set(allCodes).size === allCodes.length
     ? apps
     : [];
 }
@@ -282,10 +344,11 @@ function normalizeRequestPath(value) {
 
 function findHeader(headers, name) {
   if (!headers || typeof headers !== "object") return undefined;
-  const entry = Object.entries(headers).find(
+  const matches = Object.entries(headers).filter(
     ([key]) => key.toLowerCase() === name,
   );
-  const value = entry?.[1];
+  if (matches.length !== 1) return undefined;
+  const value = matches[0][1];
   return Array.isArray(value) && value.length === 1 ? value[0] : value;
 }
 

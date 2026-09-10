@@ -23,7 +23,7 @@ class BridgeProcessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="毕方-sdk-python-") as state_directory:
             with CLIENT.BridgeProcess(CLIENT_PATH.with_name("bridge.mjs")) as bridge:
                 ping = bridge.request("ping", timeout=5)
-                self.assertEqual(ping["sdk_version"], "2.0.0")
+                self.assertEqual(ping["sdk_version"], "3.0.0")
                 initialized = bridge.request(
                     "init_capture",
                     timeout=10,
@@ -39,7 +39,7 @@ class BridgeProcessTests(unittest.TestCase):
                     ["daily_active"],
                 )
                 self.assertEqual(initialized["events"][0]["schema_version"], 2)
-                self.assertEqual(initialized["events"][0]["sdk_version"], "2.0.0")
+                self.assertEqual(initialized["events"][0]["sdk_version"], "3.0.0")
                 self.assertNotIn("channel", initialized["events"][0])
                 self.assertNotIn("session_id", initialized["events"][0])
                 second = bridge.request(
@@ -52,34 +52,6 @@ class BridgeProcessTests(unittest.TestCase):
                     arch="x64",
                 )
                 self.assertEqual(second["events"], [])
-                preview = bridge.request(
-                    "preview_update",
-                    timeout=10,
-                    app_id="bifang-tools",
-                    app_version="0.1.0",
-                    platform="windows",
-                    manifest={
-                        "schema_version": 1,
-                        "app_id": "bifang-tools",
-                        "platform": "windows",
-                        "enabled": True,
-                        "latest_version": "0.1.0",
-                        "min_supported_version": "0.1.0",
-                        "force_update": False,
-                        "rollout": 100,
-                        "title": "Bifang Tools 0.1.0",
-                        "message": "Already current.",
-                        "download_url": "https://downloads.example.invalid/tool.exe",
-                        "release_notes_url": "https://releases.example.invalid/tool",
-                        "sha256": "",
-                        "published_at": "2026-09-03T04:43:55.000Z",
-                    },
-                )
-                self.assertEqual(
-                    preview["decision"],
-                    {"kind": "none", "reason": "up_to_date"},
-                )
-                self.assertFalse(preview["network_performed"])
 
     def test_request_after_close_fails_immediately(self):
         bridge = CLIENT.BridgeProcess(CLIENT_PATH.with_name("bridge.mjs"))
@@ -172,7 +144,6 @@ class SafetyPromptTests(unittest.TestCase):
             [
                 "https://telemetry.example.com/track",
                 "NO",
-                "https://updates.example.com/base",
                 "NO",
             ]
         )
@@ -184,6 +155,11 @@ class SafetyPromptTests(unittest.TestCase):
         )
         client.capture_initialized = True
         client.live_endpoint = "https://telemetry.example.com/track"
+        client.config.version_base_url = (
+            "https://versions.example.com/tools/version-control/v1"
+        )
+        client.app_key = "runtime-key"
+        client.app_secret = "runtime-secret"
         try:
             client.init_live()
             client.start_live_update_check()
@@ -204,11 +180,22 @@ class SafetyPromptTests(unittest.TestCase):
                 return None
 
         bridge = RecordingBridge()
-        answers = iter(["app-b", "", "", ""])
+        answers = iter(
+            [
+                "app-b",
+                "",
+                "",
+                "",
+                "app-b-windows-x64",
+                "https://versions.example.com/tools/version-control/v1",
+            ]
+        )
+        secrets = iter(["runtime-key", "runtime-secret"])
         client = CLIENT.InteractiveClient(
             bridge,
             Path.cwd(),
             input_function=lambda _prompt: next(answers),
+            secret_input_function=lambda _prompt: next(secrets),
             output=io.StringIO(),
         )
         first_directory = client._state_directory("capture")
@@ -224,6 +211,9 @@ class SafetyPromptTests(unittest.TestCase):
         self.assertFalse(client.capture_initialized)
         self.assertIsNone(client.live_endpoint)
         self.assertEqual(bridge.calls[0][0], ("reset_sessions",))
+        rendered = client.output.getvalue()
+        self.assertNotIn("runtime-key", rendered)
+        self.assertNotIn("runtime-secret", rendered)
 
 
 if __name__ == "__main__":

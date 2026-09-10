@@ -1,10 +1,9 @@
 "use strict";
 
-const { fallbackManifest } = require("./manifest-reader");
 const {
   UUID_V4,
   isCalendarDate,
-  isHttpsUrl,
+  isDottedVersion,
   isRfc3339,
   isSemVer,
 } = require("./validation");
@@ -33,8 +32,9 @@ function createDashboardSnapshot(options) {
     throw new TypeError("events must be an array");
   const dailyDevices = new Map();
   for (const event of options.events) {
-    if (!isUsableEvent(event, knownAppIds, retentionStart, today, now))
-      continue;
+    if (!isUsableEvent(event, knownAppIds, retentionStart, today, now)) {
+      throw new TypeError("telemetry event is invalid");
+    }
     const safe = {
       app_id: event.app_id,
       app_version: event.app_version,
@@ -109,7 +109,10 @@ function createDashboardSnapshot(options) {
   const yesterdayActive = safeEvents.filter(
     (event) => event.active_date === addDays(today, -1),
   ).length;
-  const manifests = expectedManifests(selectedApps, options.manifests);
+  const releaseStreams = normalizeReleaseSummaries(
+    selectedApps,
+    options.releaseSummaries,
+  );
   // Always use yesterday through seven days ago, independent of chart range.
   const priorWeekAverage =
     safeEvents.filter(
@@ -118,7 +121,7 @@ function createDashboardSnapshot(options) {
     ).length / 7;
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: "live",
     connection: "connected",
     connectionNote: "CloudBase 只读聚合接口已连接。",
@@ -142,12 +145,12 @@ function createDashboardSnapshot(options) {
     versions,
     platforms,
     architectures,
-    manifests,
+    releaseStreams,
     alerts: createAlerts({
       todayActive,
       priorWeekAverage,
       lastReceivedAt,
-      manifests,
+      releaseStreams,
       now,
     }),
   };
@@ -157,7 +160,7 @@ function createAlerts({
   todayActive,
   priorWeekAverage,
   lastReceivedAt,
-  manifests,
+  releaseStreams,
   now,
 }) {
   const alerts = [];
@@ -205,32 +208,47 @@ function createAlerts({
     time: "数据新鲜度",
   });
 
-  const unavailable = manifests.filter(
-    (manifest) => manifest.source === "unavailable",
+  const empty = releaseStreams.filter(
+    (stream) => stream.status === "empty",
   ).length;
-  const enabled = manifests.filter(
-    (manifest) => manifest.source === "cloudbase" && manifest.enabled,
+  const stopped = releaseStreams.filter(
+    (stream) => stream.status === "stopped",
+  ).length;
+  const forced = releaseStreams.filter(
+    (stream) => stream.status === "forced",
   ).length;
   alerts.push(
-    unavailable > 0
+    empty > 0
       ? {
           id: "update-state",
           tone: "warning",
-          title: `${unavailable} 个更新清单状态未知`,
-          detail: "清单读取失败或格式异常，不能据此判断发布是否关闭。",
+          title: `${empty} 个发布流尚无版本`,
+          detail: "数据库读取成功；这些发布流当前确实没有版本记录。",
           time: "需要复核",
         }
-      : {
-          id: "update-state",
-          tone: enabled > 0 ? "warning" : "neutral",
-          title:
-            enabled > 0 ? `${enabled} 个更新清单已开启` : "更新清单保持关闭",
-          detail:
-            enabled > 0
-              ? "请复核版本、灰度比例、制品地址与哈希。"
-              : "已成功读取全部平台清单，当前均不会触发更新。",
-          time: "更新服务",
-        },
+      : stopped > 0
+        ? {
+            id: "update-state",
+            tone: "warning",
+            title: `${stopped} 个发布流已暂停更新`,
+            detail: "请复核对应 code 的最高版本和暂停状态。",
+            time: "更新服务",
+          }
+        : forced > 0
+          ? {
+              id: "update-state",
+              tone: "warning",
+              title: `${forced} 个发布流为强制更新`,
+              detail: "请复核对应 code 的最高版本与客户端退出流程。",
+              time: "更新服务",
+            }
+          : {
+              id: "update-state",
+              tone: "success",
+              title: `${releaseStreams.length} 个发布流读取正常`,
+              detail: "已从应用隔离的版本集合读取各 code 当前最高版本。",
+              time: "更新服务",
+            },
   );
   return alerts;
 }
@@ -280,46 +298,58 @@ function isLater(event, previous) {
   return a > b;
 }
 
-function expectedManifests(apps, values) {
-  const manifests = Array.isArray(values) ? values : [];
-  return apps.flatMap((app) =>
-    app.platforms.map((platform) => {
-      const matches = manifests.filter(
-        (item) => item?.appId === app.appId && item.platform === platform,
-      );
-      const value = matches.length === 1 ? matches[0] : null;
-      if (
-        value?.source !== "cloudbase" ||
-        typeof value.enabled !== "boolean" ||
-        typeof value.forceUpdate !== "boolean" ||
-        !Number.isInteger(value.rollout) ||
-        value.rollout < 0 ||
-        value.rollout > 100 ||
-        !isSemVer(value.latestVersion) ||
-        !isSemVer(value.minSupportedVersion) ||
-        !isRfc3339(value.publishedAt) ||
-        !isHttpsUrl(value.manifestUrl)
-      ) {
-        return fallbackManifest(
-          app.appId,
-          platform,
-          isHttpsUrl(value?.manifestUrl) ? value.manifestUrl : "",
-        );
-      }
-      return {
-        appId: app.appId,
-        platform,
-        enabled: value.enabled,
-        forceUpdate: value.forceUpdate,
-        rollout: value.rollout,
-        latestVersion: value.latestVersion,
-        minSupportedVersion: value.minSupportedVersion,
-        publishedAt: value.publishedAt,
-        manifestUrl: value.manifestUrl,
-        source: "cloudbase",
-      };
-    }),
+function normalizeReleaseSummaries(apps, values) {
+  if (!Array.isArray(values)) {
+    throw new TypeError("release summaries must be an array");
+  }
+  const expected = apps.flatMap((app) =>
+    app.releaseStreams.map((stream) => ({ app, stream })),
   );
+  if (values.length !== expected.length) {
+    throw new TypeError("release summary count does not match configuration");
+  }
+
+  return expected.map(({ app, stream }) => {
+    const matches = values.filter(
+      (value) => value?.appId === app.appId && value.code === stream.code,
+    );
+    if (matches.length !== 1) {
+      throw new TypeError("release summary mapping is ambiguous");
+    }
+    const value = matches[0];
+    const expectedKeys =
+      "appId,architecture,channel,code,highestVersion,platform,status,updatedAt";
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).sort().join(",") !== expectedKeys ||
+      value.platform !== stream.platform ||
+      value.architecture !== stream.architecture ||
+      value.channel !== stream.channel ||
+      !["empty", "normal", "prompt", "forced", "stopped"].includes(
+        value.status,
+      ) ||
+      (value.status === "empty" &&
+        (value.highestVersion !== null || value.updatedAt !== null)) ||
+      (value.status !== "empty" &&
+        (!isDottedVersion(value.highestVersion) ||
+          !isRfc3339(value.updatedAt) ||
+          new Date(value.updatedAt).toISOString() !== value.updatedAt))
+    ) {
+      throw new TypeError("release summary is invalid");
+    }
+    return {
+      appId: app.appId,
+      code: stream.code,
+      platform: stream.platform,
+      architecture: stream.architecture,
+      channel: stream.channel,
+      highestVersion: value.highestVersion,
+      status: value.status,
+      updatedAt: value.updatedAt,
+    };
+  });
 }
 
 function deviceKey(event) {
@@ -355,5 +385,6 @@ module.exports = {
   addDays,
   createDashboardSnapshot,
   makeDistribution,
+  normalizeReleaseSummaries,
   toShanghaiDate,
 };

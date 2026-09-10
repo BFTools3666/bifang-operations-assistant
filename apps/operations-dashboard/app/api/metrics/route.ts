@@ -5,12 +5,24 @@ import {
   isRangeDays,
   type DashboardSnapshot,
 } from '@/lib/dashboard-data';
+import appRegistry from '../../../../../cloudbase/apps.json';
 
 export const dynamic = 'force-dynamic';
 
 const CLOUDBASE_ORIGIN =
   'https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com';
 const CLOUDBASE_METRICS_ENDPOINT = `${CLOUDBASE_ORIGIN}/admin/v1/metrics`;
+const MAX_RELEASE_STREAMS_PER_APP = 12;
+
+type RegisteredReleaseStream = {
+  appId: string;
+  code: string;
+  platform: string;
+  architecture: string;
+  channel: string;
+};
+
+const REGISTERED_RELEASE_STREAMS = readRegisteredReleaseStreams(appRegistry);
 
 export async function GET(request: Request): Promise<Response> {
   if (process.env.NODE_ENV === 'production') {
@@ -98,7 +110,7 @@ function toSafeDashboardSnapshot(
   payload: DashboardSnapshot,
 ): DashboardSnapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: 'live',
     connection: 'connected',
     connectionNote: payload.connectionNote,
@@ -141,17 +153,15 @@ function toSafeDashboardSnapshot(
       percent: item.percent,
       tone: item.tone,
     })),
-    manifests: payload.manifests.map((item) => ({
+    releaseStreams: payload.releaseStreams.map((item) => ({
       appId: item.appId,
+      code: item.code,
       platform: item.platform,
-      enabled: item.enabled,
-      forceUpdate: item.forceUpdate,
-      rollout: item.rollout,
-      latestVersion: item.latestVersion,
-      minSupportedVersion: item.minSupportedVersion,
-      publishedAt: item.publishedAt,
-      manifestUrl: item.manifestUrl,
-      source: item.source,
+      architecture: item.architecture,
+      channel: item.channel,
+      highestVersion: item.highestVersion,
+      status: item.status,
+      updatedAt: item.updatedAt,
     })),
     alerts: payload.alerts.map((item) => ({
       id: item.id,
@@ -171,7 +181,7 @@ function isDashboardSnapshot(
   if (!isRecord(value)) return false;
   const item = value;
   return (
-    item.schemaVersion === 1 &&
+    item.schemaVersion === 2 &&
     item.mode === 'live' &&
     item.connection === 'connected' &&
     isShortText(item.connectionNote, 200) &&
@@ -187,8 +197,7 @@ function isDashboardSnapshot(
     isDistribution(item.versions) &&
     isDistribution(item.platforms) &&
     isDistribution(item.architectures) &&
-    Array.isArray(item.manifests) &&
-    item.manifests.every(isManifest) &&
+    isReleaseStreams(item.releaseStreams, expectedApp) &&
     Array.isArray(item.alerts) &&
     item.alerts.every(isAlert)
   );
@@ -254,38 +263,131 @@ function isDistribution(value: unknown): boolean {
   );
 }
 
-function isManifest(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  const appId = value.appId;
-  const platform = value.platform;
-  if (
-    typeof appId !== 'string' ||
-    !APP_OPTIONS.some((app) => app.id === appId) ||
-    (platform !== 'windows' && platform !== 'macos') ||
-    (value.source !== 'cloudbase' && value.source !== 'unavailable') ||
-    typeof value.manifestUrl !== 'string'
-  ) {
-    return false;
+function readRegisteredReleaseStreams(
+  value: unknown,
+): readonly RegisteredReleaseStream[] | null {
+  if (!isRecord(value) || value.schema_version !== 3) return null;
+  if (!Array.isArray(value.apps) || value.apps.length !== APP_OPTIONS.length) {
+    return null;
   }
-  let manifestUrl: URL;
-  try {
-    manifestUrl = new URL(value.manifestUrl);
-  } catch {
-    return false;
+
+  const expectedAppIds = new Set<string>(APP_OPTIONS.map((app) => app.id));
+  const seenAppIds = new Set<string>();
+  const seenCodes = new Set<string>();
+  const seenIdentities = new Set<string>();
+  const result: RegisteredReleaseStream[] = [];
+
+  for (const app of value.apps) {
+    if (
+      !isRecord(app) ||
+      typeof app.app_id !== 'string' ||
+      !expectedAppIds.has(app.app_id) ||
+      seenAppIds.has(app.app_id) ||
+      !Array.isArray(app.release_streams) ||
+      app.release_streams.length === 0 ||
+      app.release_streams.length > MAX_RELEASE_STREAMS_PER_APP
+    ) {
+      return null;
+    }
+    seenAppIds.add(app.app_id);
+
+    for (const stream of app.release_streams) {
+      if (
+        !isRecord(stream) ||
+        typeof stream.code !== 'string' ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/.test(stream.code) ||
+        typeof stream.platform !== 'string' ||
+        !['windows', 'macos', 'linux'].includes(stream.platform) ||
+        typeof stream.architecture !== 'string' ||
+        !['x64', 'arm64', 'ia32'].includes(stream.architecture) ||
+        typeof stream.channel !== 'string' ||
+        !/^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/.test(stream.channel)
+      ) {
+        return null;
+      }
+
+      const registered = {
+        appId: app.app_id,
+        code: stream.code,
+        platform: stream.platform,
+        architecture: stream.architecture,
+        channel: stream.channel,
+      };
+      const identity = releaseStreamIdentity(registered);
+      if (seenCodes.has(registered.code) || seenIdentities.has(identity)) {
+        return null;
+      }
+      seenCodes.add(registered.code);
+      seenIdentities.add(identity);
+      result.push(registered);
+    }
   }
-  return (
-    typeof value.enabled === 'boolean' &&
-    typeof value.forceUpdate === 'boolean' &&
-    isCount(value.rollout) &&
-    value.rollout <= 100 &&
-    isShortText(value.latestVersion, 64) &&
-    isShortText(value.minSupportedVersion, 64) &&
-    isIsoDate(value.publishedAt) &&
-    manifestUrl.origin === CLOUDBASE_ORIGIN &&
-    manifestUrl.pathname === `/updates/${appId}/${platform}.json` &&
-    manifestUrl.search === '' &&
-    manifestUrl.hash === ''
+
+  return seenAppIds.size === expectedAppIds.size ? result : null;
+}
+
+function releaseStreamIdentity(value: RegisteredReleaseStream): string {
+  return [
+    value.appId,
+    value.code,
+    value.platform,
+    value.architecture,
+    value.channel,
+  ].join('\u0000');
+}
+
+function isReleaseStreams(value: unknown, expectedApp: string): boolean {
+  if (!Array.isArray(value) || !REGISTERED_RELEASE_STREAMS) return false;
+  const expected = REGISTERED_RELEASE_STREAMS.filter(
+    (stream) => expectedApp === 'all' || stream.appId === expectedApp,
   );
+  if (expected.length === 0 || value.length !== expected.length) return false;
+
+  const expectedIdentities = new Set(expected.map(releaseStreamIdentity));
+  const seenIdentities = new Set<string>();
+  const streamCountByApp = new Map<string, number>();
+  for (const item of value) {
+    if (!isRecord(item)) return false;
+    const identityFields = {
+      appId: item.appId,
+      code: item.code,
+      platform: item.platform,
+      architecture: item.architecture,
+      channel: item.channel,
+    };
+    if (
+      typeof item.appId !== 'string' ||
+      typeof item.code !== 'string' ||
+      typeof item.platform !== 'string' ||
+      typeof item.architecture !== 'string' ||
+      typeof item.channel !== 'string' ||
+      !['empty', 'normal', 'prompt', 'forced', 'stopped'].includes(
+        String(item.status),
+      ) ||
+      (item.status === 'empty' &&
+        (item.highestVersion !== null || item.updatedAt !== null)) ||
+      (item.status !== 'empty' &&
+        (typeof item.highestVersion !== 'string' ||
+          !/^[0-9]+(?:\.[0-9]+)*$/.test(item.highestVersion) ||
+          item.highestVersion.length > 50 ||
+          !isIsoDate(item.updatedAt)))
+    ) {
+      return false;
+    }
+
+    const identity = releaseStreamIdentity(
+      identityFields as RegisteredReleaseStream,
+    );
+    if (!expectedIdentities.has(identity) || seenIdentities.has(identity)) {
+      return false;
+    }
+    seenIdentities.add(identity);
+
+    const appCount = (streamCountByApp.get(item.appId) ?? 0) + 1;
+    if (appCount > MAX_RELEASE_STREAMS_PER_APP) return false;
+    streamCountByApp.set(item.appId, appCount);
+  }
+  return seenIdentities.size === expectedIdentities.size;
 }
 
 function isAlert(value: unknown): boolean {

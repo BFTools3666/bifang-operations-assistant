@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -20,23 +21,40 @@ const sourceSkill = join(repositoryRoot, "skills", skillName);
 const installer = join(sourceSkill, "scripts", "install_skill.py");
 const python = process.env.PYTHON || "python";
 
+function run(command, arguments_, options = {}) {
+  return spawnSync(command, arguments_, {
+    encoding: "utf8",
+    windowsHide: true,
+    ...options,
+  });
+}
+
 async function temporaryDirectory(t) {
   const directory = await mkdtemp(join(tmpdir(), "bifang-onboarding-install-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   return directory;
 }
 
-function runInstaller(codexHome, source, extraEnvironment = {}) {
-  return spawnSync(python, ["-B", installer, "--source", source], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      CODEX_HOME: codexHome,
-      PYTHONDONTWRITEBYTECODE: "1",
-      ...extraEnvironment,
+function runInstaller(
+  codexHome,
+  source,
+  extraEnvironment = {},
+  extraArguments = [],
+) {
+  return spawnSync(
+    python,
+    ["-B", installer, "--source", source, ...extraArguments],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CODEX_HOME: codexHome,
+        PYTHONDONTWRITEBYTECODE: "1",
+        ...extraEnvironment,
+      },
     },
-  });
+  );
 }
 
 async function copySkill(source, destination) {
@@ -103,6 +121,29 @@ async function createOtherSkill(codexHome) {
   return sentinel;
 }
 
+async function materializeCanonicalLegacySkill(codexHome) {
+  const commit = "55f4a031df2756a4e37b1f2e6fe1d9cb91c9db37";
+  const prefix = `skills/${skillName}/`;
+  const listed = run(
+    "git",
+    ["ls-tree", "-r", "--name-only", commit, "--", prefix],
+    { cwd: repositoryRoot },
+  );
+  assert.equal(listed.status, 0, listed.stderr || listed.stdout);
+  const destination = join(codexHome, "skills", skillName);
+  for (const repositoryPath of listed.stdout.trim().split(/\r?\n/)) {
+    const shown = run("git", ["show", `${commit}:${repositoryPath}`], {
+      cwd: repositoryRoot,
+    });
+    assert.equal(shown.status, 0, shown.stderr || shown.stdout);
+    const relative = repositoryPath.slice(prefix.length);
+    const output = join(destination, ...relative.split("/"));
+    await mkdir(dirname(output), { recursive: true });
+    await writeFile(output, shown.stdout, "utf8");
+  }
+  return destination;
+}
+
 test("checked-in source installs with its recorded real provenance", async (t) => {
   const root = await temporaryDirectory(t);
   const codexHome = join(root, "codex-home");
@@ -114,9 +155,17 @@ test("checked-in source installs with its recorded real provenance", async (t) =
     join(codexHome, "skills", skillName, "SKILL.md"),
     "utf8",
   );
+  const checkedIn = await readFile(join(sourceSkill, "SKILL.md"), "utf8");
+  const sourceCommit = checkedIn.match(
+    /^  infrastructure-source-commit: "([0-9a-f]{40})"\r?$/m,
+  );
+  assert.ok(sourceCommit);
   assert.match(
     installed,
-    /^  infrastructure-source-commit: "704da8d702c9991c80ba079910936c275349fabb"\r?$/m,
+    new RegExp(
+      `^  infrastructure-source-commit: "${sourceCommit[1]}"\\r?$`,
+      "m",
+    ),
   );
 });
 
@@ -150,7 +199,7 @@ test("an unknown same-name skill is never overwritten", async (t) => {
   const target = join(codexHome, "skills", skillName);
   const sentinel = await createOtherSkill(codexHome);
   await mkdir(target, { recursive: true });
-  const unknown = `---\nname: ${skillName}\ndescription: unrelated local skill\nmetadata:\n  version: "1.0.0"\n  infrastructure-version: "2.1.0"\n  infrastructure-source-commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n  protocol-baseline-commit: "01f42449bf0f80a2660e7ee0899eef1176aca934"\n  source-repository: "someone-elses-repository"\n---\n\nDo not overwrite.\n`;
+  const unknown = `---\nname: ${skillName}\ndescription: unrelated local skill\nmetadata:\n  version: "2.0.0"\n  infrastructure-version: "3.0.0"\n  infrastructure-source-commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n  application-version-contract-version: "1.0.0"\n  application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"\n  source-repository: "someone-elses-repository"\n  canonical-repository-url: "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"\n---\n\nDo not overwrite.\n`;
   await writeFile(join(target, "SKILL.md"), unknown, "utf8");
 
   const result = runInstaller(codexHome, source);
@@ -164,30 +213,76 @@ test("an unknown same-name skill is never overwritten", async (t) => {
   assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
 });
 
-test("an older same-source installation is updated through staging", async (t) => {
+test("an unrecognized older same-source installation is preserved", async (t) => {
   const root = await temporaryDirectory(t);
   const codexHome = join(root, "codex-home");
   const oldSource = await createInstallableSource(root, "old-source");
   const newSource = await createInstallableSource(root, "new-source");
   await setMetadata(oldSource, "version", "0.9.0");
   await setMetadata(oldSource, "infrastructure-version", "2.0.0");
+  await writeFile(
+    join(oldSource, "local-owner-note.txt"),
+    "must not be overwritten\n",
+    "utf8",
+  );
   const sentinel = await createOtherSkill(codexHome);
 
   const first = runInstaller(codexHome, oldSource);
   assert.equal(first.status, 0, first.stderr || first.stdout);
+  const target = join(codexHome, "skills", skillName);
+  const before = await readFile(join(target, "SKILL.md"), "utf8");
   const result = runInstaller(codexHome, newSource);
 
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /\[OK\] updated:/);
-  const installed = await readFile(
-    join(codexHome, "skills", skillName, "SKILL.md"),
-    "utf8",
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /unrecognized older same-name Skill.*exact canonical published v1/is,
   );
-  assert.match(installed, /^  version: "1\.0\.0"\r?$/m);
-  assert.match(installed, /^  infrastructure-version: "2\.1\.0"\r?$/m);
+  assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), before);
+  assert.equal(
+    await readFile(join(target, "local-owner-note.txt"), "utf8"),
+    "must not be overwritten\n",
+  );
   assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
   const entries = await readdir(join(codexHome, "skills"));
   assert.deepEqual(entries.sort(), [skillName, "unrelated-skill"].sort());
+});
+
+test("a canonical v1 infrastructure-2.1 installation upgrades atomically", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const target = await materializeCanonicalLegacySkill(codexHome);
+  const sentinel = await createOtherSkill(codexHome);
+
+  const result = runInstaller(codexHome, sourceSkill);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /\[OK\] updated:/);
+  const installed = await readFile(join(target, "SKILL.md"), "utf8");
+  assert.match(installed, /^  version: "2\.0\.0"\r?$/m);
+  assert.match(installed, /^  infrastructure-version: "3\.0\.0"\r?$/m);
+  assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
+  const entries = await readdir(join(codexHome, "skills"));
+  assert.deepEqual(entries.sort(), [skillName, "unrelated-skill"].sort());
+});
+
+test("modified content cannot impersonate the canonical v1 installation", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const target = await materializeCanonicalLegacySkill(codexHome);
+  const protectedFile = join(target, "local-owner-note.txt");
+  await writeFile(protectedFile, "do not replace\n", "utf8");
+
+  const result = runInstaller(codexHome, sourceSkill);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /unknown same-name skill.*canonical published tree/is,
+  );
+  assert.equal(await readFile(protectedFile, "utf8"), "do not replace\n");
+  const installed = await readFile(join(target, "SKILL.md"), "utf8");
+  assert.match(installed, /^  version: "1\.0\.0"\r?$/m);
 });
 
 test("a newer same-source installation is preserved and downgrade is refused", async (t) => {
@@ -258,6 +353,93 @@ test("quick_validate runs in UTF-8 mode for a Chinese SKILL.md on Windows", asyn
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /quick_validate=/);
 });
+
+test("the bootstrap-only flag isolates external quick_validate hooks", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const source = await createInstallableSource(root);
+  const validator = join(root, "must-not-run.py");
+  const marker = join(root, "validator-ran.txt");
+  await writeFile(
+    validator,
+    `from pathlib import Path\nPath(${JSON.stringify(marker)}).write_text("ran")\nraise SystemExit(91)\n`,
+    "utf8",
+  );
+
+  const result = runInstaller(
+    codexHome,
+    source,
+    { BIFANG_SKILL_QUICK_VALIDATE: validator },
+    ["--skip-external-quick-validate"],
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.doesNotMatch(result.stdout, /quick_validate=/);
+  await assert.rejects(readFile(marker, "utf8"), { code: "ENOENT" });
+});
+
+test("Python bytecode and cache directories are rejected, never ignored", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const source = await createInstallableSource(root);
+  const cache = join(source, "scripts", "__pycache__");
+  await mkdir(cache, { recursive: true });
+  await writeFile(
+    join(cache, "scan_project.cpython-312.pyc"),
+    "not bytecode\n",
+  );
+
+  const result = runInstaller(codexHome, source);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Python bytecode\/cache entries are not allowed/i,
+  );
+  await assert.rejects(
+    readFile(join(codexHome, "skills", skillName, "SKILL.md"), "utf8"),
+    { code: "ENOENT" },
+  );
+});
+
+test(
+  "Windows junctions in a Skill source are rejected without copying outside content",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const root = await temporaryDirectory(t);
+    const codexHome = join(root, "codex-home");
+    const source = await createInstallableSource(root);
+    const outside = join(root, "outside-source");
+    const payload = join(outside, "outside-payload.txt");
+    await mkdir(outside, { recursive: true });
+    await writeFile(payload, "must stay outside the installed Skill\n", "utf8");
+
+    try {
+      await symlink(outside, join(source, "linked-extra"), "junction");
+    } catch (error) {
+      if (["EACCES", "EPERM", "UNKNOWN"].includes(error?.code)) {
+        t.skip(`junction creation is unavailable: ${error.code}`);
+        return;
+      }
+      throw error;
+    }
+
+    const result = runInstaller(codexHome, source, {}, [
+      "--skip-external-quick-validate",
+    ]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /junction|reparse point/i);
+    assert.equal(
+      await readFile(payload, "utf8"),
+      "must stay outside the installed Skill\n",
+    );
+    await assert.rejects(
+      readFile(join(codexHome, "skills", skillName, "SKILL.md"), "utf8"),
+      { code: "ENOENT" },
+    );
+  },
+);
 
 test("source without infrastructure-source-commit is safely rejected", async (t) => {
   const root = await temporaryDirectory(t);

@@ -7,15 +7,16 @@
  *   services.checkForUpdatesInBackground();
  */
 import {
+  ApplicationVersionChecker,
   TelemetryClient,
-  UpdateChecker,
   isSafeExternalUrl,
-  runUpdateHostHooks,
+  runApplicationVersionHostHooks,
   type Architecture,
-  type AvailableUpdateDecision,
-  type OptionalUpdateDecision,
+  type AvailableApplicationVersionDecision,
+  type OptionalApplicationVersionDecision,
   type Platform,
-  type RequiredUpdateDecision,
+  type RequiredApplicationVersionDecision,
+  type StoppedApplicationVersionDecision,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
@@ -23,8 +24,13 @@ export interface ReleaseConfig {
   /** A stable identifier unique to this tool, for example bifang-tools-pdf. */
   APP_ID: string;
   APP_VERSION: string;
-  /** This tool's update base; UpdateChecker appends APP_ID/platform.json. */
-  UPDATE_BASE_URL: string;
+  /** Exact single-v1 base: https://<host>/tools/version-control/v1. */
+  APPLICATION_VERSION_BASE_URL: string;
+  /** Platform/architecture-specific application-version API code. */
+  APPLICATION_VERSION_CODE: string;
+  /** Runtime-only credential with versions:check for this exact code. */
+  APPLICATION_VERSION_APP_KEY: string;
+  APPLICATION_VERSION_APP_SECRET: string;
   /** This tool's dedicated telemetry function route. */
   TELEMETRY_ENDPOINT: string;
   telemetry_enabled: boolean;
@@ -32,21 +38,25 @@ export interface ReleaseConfig {
 }
 
 export interface HostUpdateUi {
-  /** Render manifest title/message as untrusted plain text, never HTML. */
+  /** Render API prompt content as untrusted plain text, never HTML. */
   showOptionalUpdate(
-    decision: Readonly<OptionalUpdateDecision>,
+    decision: Readonly<OptionalApplicationVersionDecision>,
     actions: {
       updateNow: () => Promise<void>;
       remindLater: () => void;
     },
   ): void | Promise<void>;
-  /** Render manifest title/message as untrusted plain text, never HTML. */
+  /** Render API prompt content as untrusted plain text, never HTML. */
   showRequiredUpdate(
-    decision: Readonly<RequiredUpdateDecision>,
+    decision: Readonly<RequiredApplicationVersionDecision>,
     actions: {
       updateNow: () => Promise<void>;
       exit: () => Promise<void>;
     },
+  ): void | Promise<void>;
+  /** A paused release stream is not an instruction to exit the application. */
+  onUpdateStopped?(
+    decision: Readonly<StoppedApplicationVersionDecision>,
   ): void | Promise<void>;
   openExternal(url: string): void | Promise<void>;
   exitApplication(): void | Promise<void>;
@@ -90,28 +100,25 @@ export async function initializePublicServices(
     telemetry,
     checkForUpdatesInBackground() {
       setTimeout(() => {
-        void checkForUpdates(options, telemetry).catch(() => undefined);
+        void checkForUpdates(options).catch(() => undefined);
       }, 0);
     },
   };
 }
 
-async function checkForUpdates(
-  options: InitializeOptions,
-  telemetry: TelemetryClient,
-): Promise<void> {
+async function checkForUpdates(options: InitializeOptions): Promise<void> {
   const { release } = options;
-  const checker = new UpdateChecker({
-    baseUrl: release.UPDATE_BASE_URL,
-    appId: release.APP_ID,
-    platform: options.platform,
+  const checker = new ApplicationVersionChecker({
+    baseUrl: release.APPLICATION_VERSION_BASE_URL,
+    code: release.APPLICATION_VERSION_CODE,
     currentVersion: release.APP_VERSION,
-    installId: telemetry.installId,
+    appKey: release.APPLICATION_VERSION_APP_KEY,
+    appSecret: release.APPLICATION_VERSION_APP_SECRET,
     enabled: release.update_check_enabled,
   });
   const updateDecision = await checker.check();
 
-  await runUpdateHostHooks(updateDecision, {
+  await runApplicationVersionHostHooks(updateDecision, {
     onOptionalUpdate: async (decision) => {
       await options.ui.showOptionalUpdate(decision, {
         updateNow: () => openDownload(decision, options.ui),
@@ -126,14 +133,17 @@ async function checkForUpdates(
         },
       });
     },
+    onStoppedUpdate: async (decision) => {
+      await options.ui.onUpdateStopped?.(decision);
+    },
   });
 }
 
 async function openDownload(
-  decision: AvailableUpdateDecision,
+  decision: AvailableApplicationVersionDecision,
   ui: HostUpdateUi,
 ): Promise<void> {
-  const url = decision.config.download_url;
+  const url = decision.data.downloadUrl;
   if (!isSafeExternalUrl(url)) return;
 
   await ui.openExternal(url);

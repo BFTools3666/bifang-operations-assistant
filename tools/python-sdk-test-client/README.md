@@ -1,143 +1,81 @@
-# CloudBase 功能验证助手
+# Python SDK 验证客户端
 
-这是给第一次部署 CloudBase 的普通用户使用的四步图形向导。它会帮助你确认两件事：
+这个本地工具通过长驻 Node 桥接进程调用仓库里的真实
+`@bifang/telemetry-update-sdk`。它验证两条独立能力：
 
-1. CloudBase 是否真的收到了程序启动时发出的每日活跃记录；
-2. 修改云端更新文件后，软件是否能看到最新版、普通更新和必须更新。
+- `daily_active`：保留每个工具独立的 telemetry 函数、路由、集合和本地匿名身份；
+- application-version API v1：使用发布流 `code`、当前版本和一对只读运行时凭据检查版本。
 
-不需要填写密钥、口令或 Token，也不需要理解程序事件、请求结构或版本判断算法。
+版本检查只使用以下冻结请求：
 
-## 开始前
+```text
+GET https://<host>/tools/version-control/v1/versions/{code}/{currentVersion}
+x-app-key: <runtime key>
+x-app-secret: <runtime secret>
+```
 
-先按[飞书 CloudBase 新手部署文档](https://my.feishu.cn/docx/CQEsdn73moXxM1xKvT9cDnZKnRg)准备以下资源：
+Base URL 必须精确到 `/tools/version-control/v1`，`v1` 只出现一次。成功体必须是裸七字段对象：
 
-- 目标工具独立的 `telemetry-<app_id>` 云函数；
-- `/apps/<app_id>/v1/track` 独立数据接收通道；
-- `telemetry_<规范化app_id>` 独立匿名统计数据表；
-- 该函数唯一的允许应用编号；
-- `/updates/<app_id>/windows.json` 独立更新文件。
+```json
+{
+  "update": true,
+  "downloadUrl": "https://downloads.example.com/tool.exe",
+  "promptContent": "发现新版本",
+  "forcedUpdate": false,
+  "promptUpdate": true,
+  "stopUpdate": false,
+  "updateContent": "<p>更新说明</p>"
+}
+```
 
-多个工具可以共用一个免费环境和默认 HTTPS 域名，但以上五项必须按工具分开。完整命名规则见[多工具隔离指南](../../docs/multi-tool-isolation.md)。
+`stopUpdate=true` 只表示暂停更新分发，不会退出或禁止启动应用。只有
+`forcedUpdate=true` 才进入强制更新交互。
 
-然后在仓库根目录准备依赖：
+## 准备与启动
+
+在仓库根目录执行：
 
 ```powershell
 npm ci
 npm run build --workspace @bifang/telemetry-update-sdk
+py -3 -X utf8 -B tools/python-sdk-test-client/gui.py
 ```
 
-需要 Node.js 20+、Python 3.9+，以及标准 Python 自带的 Tkinter/ttk。
-
-## 启动图形向导
-
-在仓库根目录运行：
+也可以使用终端版：
 
 ```powershell
-python .\tools\python-sdk-test-client\gui.py
+py -3 -X utf8 -B tools/python-sdk-test-client/client.py
 ```
 
-也可以使用 Windows Python Launcher：
+启动只创建本地 Node 进程并执行零网络 `ping`。发送 telemetry 前会要求明确确认
+`POST`；请求版本 API 前会要求明确确认 `GET`。
 
-```powershell
-py -3 .\tools\python-sdk-test-client\gui.py
-```
+## GUI 填写项
 
-启动只会准备本地检查组件，不会访问网络、发送数据或打开网页。只有明确点击“发送 1 条
-启动使用测试到 CloudBase”“模拟 10 台设备使用”或“检查有没有新版本”后，才会访问你填写
-的地址。
+- 应用编号：telemetry 的 `app_id`，例如 `bifang-tools`；
+- 发布流 code：版本 API 的唯一发布流，例如 `bifang-tools-windows-x64`；
+- 当前版本：数字点分版本，例如 `1.2.3`；
+- 数据接收地址：`https://<host>/apps/<app_id>/v1/track`；
+- 版本 API Base URL：`https://<host>/tools/version-control/v1`；
+- `x-app-key` / `x-app-secret`：仅允许 `versions:check` 且绑定当前 code 的运行时凭据。
 
-## 四步怎么用
+凭据输入框不回显，值只保存在当前进程内；客户端不把它们写入文件、输出、普通日志或
+高级诊断。桥接返回的请求证据只列出头名称，并固定标记 `credentials_redacted=true`。
+关闭窗口时 GUI 会清空两个输入变量。
 
-### 第一步：完成云端准备
+## 验证结果边界
 
-逐项核对向导中的五项资源。可以直接点击“打开飞书新手部署文档”和“打开 CloudBase 控制台”。
-按钮只打开入口，不会替你部署、修改或删除任何云端资源。
+- telemetry 成功必须同时满足 HTTP 成功与服务端显式 `{ "ok": true }` 回执；
+- 版本响应多字段、少字段、类型错误、非法状态组合或非安全 URL 都会静默降级为
+  `invalid_response` / `unavailable`，不会阻断应用启动；
+- `promptContent` 只按普通文本显示；`updateContent` 不在 Tkinter 中解释成 HTML；
+- “立即更新”只打开经过 SDK 校验的 HTTPS 地址，不自动下载、安装或发布；
+- 本地测试不等同于 CloudBase 公网部署、真实客户端 E2E 或第三方程序零代码兼容。
 
-### 第二步：填写你的 CloudBase 信息
-
-只填写四项：
-
-- 应用编号：与目标工具独立函数中的唯一允许值相同；
-- 当前版本：例如 `1.2.3`；
-- 数据接收地址：完整 `https://.../apps/<同一应用编号>/v1/track` 地址；
-- 更新文件地址：浏览器能直接打开的完整 `https://.../updates/<同一应用编号>/windows.json` 地址。
-
-向导会检查两个 URL 中的应用编号是否与第一项一致，从而避免把一个工具的测试误发到另一个工具。
-
-地址默认都是空的，不会读取历史输入。只有你主动点击“载入本项目示例”时，仓库的 smoke
-示例才会填入输入框；填入本身仍不会联网。
-
-### 第三步：发送启动使用测试
-
-“发送 1 条启动使用测试到 CloudBase”只会产生 1 个 POST。记录类型固定为
-`daily_active`，表示软件这一天确实被启动使用；它不是安装量，也不统计功能点击、任务过程、
-更新提示或下载点击。同一真实设备同一天最多上报一次，用来保护免费网关额度。
-
-记录只包含匿名设备编号、应用版本、操作系统和系统架构。来源 IP 不由客户端填写，而是由
-CloudBase 从收到的请求连接中识别并写入数据库。工具不会读取姓名、账号、文件或密钥。
-
-“模拟 10 台设备使用”最多产生 10 个 POST，每台模拟设备只有 1 条启动使用记录，并以较慢
-速度依次发送，避免瞬间冲击免费网关。十条请求都从当前电脑发出，因此数据库中的来源 IP
-通常相同；这个按钮用于验证设备、系统和架构展示，不用于模拟十个不同网络。
-
-两种模式都只把云端明确确认已经保存的记录算作成功。完成后页面会显示设备编号、操作系统、
-系统架构和云端保存状态；来源 IP 请到数据库中查看。
-
-需要核对真实记录时：
-
-1. 点击“复制本次测试查询条件”或“复制本次模拟的筛选条件”；
-2. 点击“打开 CloudBase 数据表”；
-3. 在控制台依次进入“云开发统一工作台 → 选择环境 → 文档型数据库 → 集合管理 →
-   `telemetry_<目标工具规范化应用编号>` → 文档列表 → 筛选”；例如 `bifang-tools` 使用
-   `telemetry_bifang_tools`；
-4. 直接粘贴，不需要看懂或修改复制出的内容。
-
-### 第四步：验证版本更新
-
-修改并重新发布云端 `windows.json` 后，点击“检查有没有新版本”。每次点击都会重新请求
-你填写的完整文件地址，不会复用上一次结果。
-
-- 有普通更新：弹窗显示新版本和云端说明，按钮为“立即更新 / 稍后提醒”；
-- 当前版本已停止支持：弹窗要求升级，按钮为“立即更新 / 退出软件”；
-- 已是最新版：页面显示“你现在已经是最新版”，不弹窗；
-- 云端暂停或本机暂未进入分批发布范围：页面显示对应中文说明。
-
-“立即更新”只会打开云端配置的下载页面，不会自动下载或安装。
-
-## 隐私与安全边界
-
-- 测试设备编号和每条记录编号都是随机值；
-- 客户端上报内容不含姓名、账号、邮箱、文件路径、文件内容、浏览记录或凭证；
-- 来源 IP 由 CloudBase 服务端根据网络连接记录，不由客户端采集或伪造；
-- 没有密钥、Secret 或 Token 输入框；
-- 原始请求、云端响应、内部身份和英文代码字段默认隐藏，只在“高级排错信息”中提供；
-- 失败显示在页面内，不会用系统错误框打断操作；
-- 本工具不会部署 CloudBase、修改线上资源、查询数据库或充当管理后台。
-
-## 保留的命令行工具
-
-命令行入口继续保留，供熟悉开发流程的维护者使用：
-
-```powershell
-python .\tools\python-sdk-test-client\client.py
-```
-
-命令行工具同样只提供每日启动使用记录和更新检查，不提供额外高频事件入口。
-
-## 自动验证
-
-完整检查：
-
-```powershell
-npm run check
-```
-
-专项检查：
+## 测试
 
 ```powershell
 npm run build --workspace @bifang/telemetry-update-sdk
-node --test .\tests\python-sdk-test-client.test.mjs
-python -m unittest discover -s .\tools\python-sdk-test-client\tests -p "test_*.py" -v
+node --test tests/python-sdk-test-client.test.mjs
+py -3 -X utf8 -B -m unittest discover -s tools/python-sdk-test-client/tests -p "test_*.py" -v
 ```
-
-自动化测试不创建真实窗口、不访问公网、不打开网页，也不会退出测试进程。

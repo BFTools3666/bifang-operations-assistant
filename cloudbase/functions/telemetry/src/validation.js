@@ -44,7 +44,7 @@ function validateAndSanitizePayload(payload) {
     !isUuidV4(payload.install_id) ||
     !PLATFORMS.has(payload.platform) ||
     !ARCHITECTURES.has(payload.arch) ||
-    payload.sdk_version !== "2.0.0" ||
+    payload.sdk_version !== "3.0.0" ||
     !isIso8601(payload.occurred_at)
   ) {
     return invalid();
@@ -61,7 +61,7 @@ function validateAndSanitizePayload(payload) {
       install_id: payload.install_id.toLowerCase(),
       platform: payload.platform,
       arch: payload.arch,
-      sdk_version: "2.0.0",
+      sdk_version: "3.0.0",
       occurred_at: payload.occurred_at,
     },
   };

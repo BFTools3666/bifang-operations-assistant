@@ -1,414 +1,365 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
 
-import {
-  DISABLED_UPDATE_MANIFEST_ORIGIN,
-  addApp,
-  createDisabledUpdateManifest,
-} from "../cloudbase/add-app.mjs";
-import { addAppPlatform } from "../cloudbase/add-app-platform.mjs";
-import { parseDashboardApps } from "../cloudbase/functions/operations-dashboard/src/handler.js";
-import { parseApplicationResources } from "../cloudbase/functions/application-version-api/src/repository.js";
+import { addApp } from "../cloudbase/add-app.mjs";
+import { addReleaseStream } from "../cloudbase/add-release-stream.mjs";
 import {
   APPLICATION_VERSION_API,
   OPERATIONS_DASHBOARD,
   createCloudBaseConfig,
-  deriveApplicationVersionResources,
   deriveAppResources,
+  deriveApplicationVersionResources,
   validateRegistry,
-  validateUpdateManifest,
-  validateUpdateManifests,
-  validateUpdatePlatforms,
-  validateWindowsUpdateManifest,
 } from "../cloudbase/generate-cloudbaserc.mjs";
 
-const readJson = async (relativePath) =>
-  JSON.parse(
-    await readFile(new URL(`../${relativePath}`, import.meta.url), "utf8"),
-  );
+const repositoryRoot = new URL("../", import.meta.url);
 
-test("the app registry exactly generates the checked-in CloudBase template", async () => {
-  const registry = await readJson("cloudbase/apps.json");
-  const checkedIn = await readJson("cloudbaserc.json.example");
-  const generated = createCloudBaseConfig(registry);
-
-  assert.deepEqual(generated, checkedIn);
-  await validateUpdateManifests(validateRegistry(registry));
+const stream = (overrides = {}) => ({
+  platform: "windows",
+  architecture: "x64",
+  channel: "stable",
+  code: "first-tool",
+  ...overrides,
 });
 
-test("each registered app stays isolated while shared services keep fixed routes", () => {
-  const appIds = ["bifang-tools", "image-helper"];
-  const registry = {
-    schema_version: 2,
-    apps: appIds.map((app_id) => ({
-      app_id,
-      platforms: ["windows"],
-    })),
-  };
-  const config = createCloudBaseConfig(registry);
+const registry = (apps = undefined) => ({
+  schema_version: 3,
+  apps: apps || [
+    {
+      app_id: "first-tool",
+      release_streams: [stream()],
+    },
+  ],
+});
 
-  assert.equal(config.functions.length, appIds.length + 2);
-  assert.equal(config.gateway.routes.length, appIds.length + 3);
-  assert.equal(
-    config.gateway.routes.some((route) => route.path === "/v1/track"),
-    false,
+test("the app registry exactly generates the checked-in CloudBase template", async () => {
+  const checkedInRegistry = JSON.parse(
+    await readFile(new URL("cloudbase/apps.json", repositoryRoot), "utf8"),
+  );
+  const checkedInConfig = JSON.parse(
+    await readFile(new URL("cloudbaserc.example.json", repositoryRoot), "utf8"),
   );
 
-  for (const appId of appIds) {
-    const resources = deriveAppResources(appId);
-    const fn = config.functions.find(
-      (candidate) => candidate.name === resources.functionName,
-    );
-    const route = config.gateway.routes.find(
-      (candidate) => candidate.path === resources.trackPath,
-    );
+  assert.deepEqual(createCloudBaseConfig(checkedInRegistry), checkedInConfig);
+});
 
-    assert.ok(fn);
-    assert.equal(fn.dir, "./cloudbase/functions/telemetry");
-    assert.equal(fn.timeout, 3);
-    assert.deepEqual(fn.envVariables, {
-      ALLOWED_APP_IDS: appId,
-      TELEMETRY_COLLECTION: resources.collectionName,
-      TRACK_PATH: resources.trackPath,
-    });
-    assert.equal(route.target, `function:${resources.functionName}`);
-    assert.equal(route.enableAuth, false);
-    assert.equal(resources.updatePath, `/updates/${appId}`);
+test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", () => {
+  const cli = fileURLToPath(
+    new URL("../node_modules/@cloudbase/cli/bin/tcb", import.meta.url),
+  );
+  const config = fileURLToPath(
+    new URL("../cloudbaserc.example.json", import.meta.url),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      cli,
+      "validate",
+      "--config-file",
+      config,
+      "--json",
+      "--env-id",
+      "offline-config-check",
+    ],
+    {
+      cwd: fileURLToPath(repositoryRoot),
+      encoding: "utf8",
+      windowsHide: true,
+      env: {
+        ...process.env,
+        APPLICATION_VERSION_CREDENTIALS_B64: "dGVzdA==",
+        DASHBOARD_TOKEN_SHA256: "a".repeat(64),
+      },
+    },
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.valid, true);
+  assert.equal(output.version, "2.1");
+  assert.deepEqual(output.errors, []);
+  assert.deepEqual(output.summary, {
+    functions: 4,
+    hosting: 0,
+    databases: 0,
+    gateways: 4,
+  });
+});
+
+test("release streams are the non-sensitive authority while telemetry remains isolated", async () => {
+  const checkedInRegistry = JSON.parse(
+    await readFile(new URL("cloudbase/apps.json", repositoryRoot), "utf8"),
+  );
+  const applications = validateRegistry(checkedInRegistry);
+  const config = createCloudBaseConfig(checkedInRegistry);
+
+  assert.equal(checkedInRegistry.schema_version, 3);
+  assert.deepEqual(
+    applications.map(({ appId, releaseStreams }) => ({
+      appId,
+      codes: releaseStreams.map(({ code }) => code),
+    })),
+    [
+      {
+        appId: "bifang-screen-recorder",
+        codes: [
+          "bifang-screen-recorder-windows-x64",
+          "bifang-screen-recorder-macos-arm64",
+        ],
+      },
+      {
+        appId: "bifang-mouse-clicker",
+        codes: ["bifang-mouse-clicker"],
+      },
+    ],
+  );
+
+  for (const { appId } of applications) {
+    const telemetry = deriveAppResources(appId);
+    const telemetryFunction = config.functions.find(
+      ({ name }) => name === telemetry.functionName,
+    );
+    const telemetryRoute = config.gateway.routes.find(
+      ({ path }) => path === telemetry.trackPath,
+    );
+    assert.ok(telemetryFunction);
+    assert.equal(
+      telemetryFunction.envVariables.TELEMETRY_COLLECTION,
+      telemetry.collectionName,
+    );
+    assert.equal(telemetryFunction.envVariables.ALLOWED_APP_IDS, appId);
+    assert.equal(telemetryRoute.target, `function:${telemetry.functionName}`);
   }
 
   const versionFunction = config.functions.find(
-    (candidate) => candidate.name === APPLICATION_VERSION_API.functionName,
+    ({ name }) => name === APPLICATION_VERSION_API.functionName,
   );
-  const versionRoute = config.gateway.routes.find(
-    (candidate) => candidate.path === APPLICATION_VERSION_API.path,
-  );
-  assert.ok(versionFunction);
-  assert.equal(
-    versionFunction.dir,
-    "./cloudbase/functions/application-version-api",
-  );
-  assert.equal(versionFunction.runtime, "Nodejs20.19");
-  assert.equal(versionFunction.timeout, 3);
-  assert.equal(versionFunction.envVariables.CLOUDBASE_ENV_ID, "{{tcb.envId}}");
-  assert.equal(
-    versionFunction.envVariables.APPLICATION_VERSION_API_PATH,
-    "/tools/version-control/v1",
-  );
-  assert.equal(
-    versionFunction.envVariables.APPLICATION_VERSION_CREDENTIALS_B64,
-    "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}",
+  const applicationResources = JSON.parse(
+    JSON.parse(versionFunction.envVariables.APPLICATION_VERSION_APPS_JSON),
   );
   assert.deepEqual(
-    parseApplicationResources(
-      versionFunction.envVariables.APPLICATION_VERSION_APPS_JSON,
-    ),
-    appIds.map(deriveApplicationVersionResources),
-  );
-  assert.equal(versionRoute.target, "function:application-version-api");
-  assert.equal(versionRoute.protocol, "HTTP_TO_HTTPS");
-  assert.equal(versionRoute.enablePathTransmission, true);
-  assert.equal(versionRoute.enableAuth, false);
-  assert.equal(versionRoute.qpsPolicy.qpsPerClient.limitValue, 10);
-  assert.equal(
-    config.gateway.routes.some(({ path }) => path.includes("/v1/v1")),
-    false,
+    applicationResources,
+    applications.map(({ appId }) => deriveApplicationVersionResources(appId)),
   );
 
   const dashboardFunction = config.functions.find(
-    (candidate) => candidate.name === OPERATIONS_DASHBOARD.functionName,
+    ({ name }) => name === OPERATIONS_DASHBOARD.functionName,
   );
-  const dashboardRoute = config.gateway.routes.find(
-    (candidate) => candidate.path === OPERATIONS_DASHBOARD.path,
-  );
-  assert.ok(dashboardFunction);
-  assert.equal(
-    dashboardFunction.dir,
-    "./cloudbase/functions/operations-dashboard",
-  );
-  assert.equal(dashboardFunction.timeout, 8);
   assert.equal(
     dashboardFunction.envVariables.CLOUDBASE_ENV_ID,
-    "{{env.ENV_ID}}",
+    "{{tcb.envId}}",
   );
-  assert.equal(
-    dashboardFunction.envVariables.DASHBOARD_TOKEN_SHA256,
-    "{{env.DASHBOARD_TOKEN_SHA256}}",
+  const dashboardApps = JSON.parse(
+    JSON.parse(dashboardFunction.envVariables.DASHBOARD_APPS_JSON),
   );
-  assert.deepEqual(
-    JSON.parse(JSON.parse(dashboardFunction.envVariables.DASHBOARD_APPS_JSON)),
-    appIds.map((appId) => ({
-      appId,
-      collectionName: deriveAppResources(appId).collectionName,
-      platforms: ["windows"],
-    })),
-  );
-  assert.equal(
-    dashboardRoute.target,
-    `function:${OPERATIONS_DASHBOARD.functionName}`,
-  );
-  assert.equal(dashboardRoute.protocol, "HTTP_TO_HTTPS");
-  assert.equal(dashboardRoute.enablePathTransmission, true);
-  assert.equal(dashboardRoute.enableAuth, false);
-  assert.equal(dashboardRoute.qpsPolicy.qpsTotal, 5);
-  assert.equal(dashboardRoute.qpsPolicy.qpsPerClient.limitValue, 2);
-});
-
-test("generated dashboard env stays a string through CLI 3.8.1 and parses in the handler", () => {
-  const registry = {
-    schema_version: 2,
-    apps: [{ app_id: "dashboard-tool", platforms: ["windows", "macos"] }],
-  };
-  const expectedApps = [
-    {
-      appId: "dashboard-tool",
-      collectionName: "telemetry_dashboard_tool",
-      platforms: ["windows", "macos"],
-    },
-  ];
-  const config = createCloudBaseConfig(registry);
-  const dashboard = config.functions.find(
-    (candidate) => candidate.name === OPERATIONS_DASHBOARD.functionName,
-  );
-  // ConfigParser.parseRawConfig in CloudBase CLI 3.8.1 applies this reviver
-  // after template substitution. A once-encoded JSON array becomes an array,
-  // which SCF rejects as an environment variable; the generated value must
-  // survive as a string and still decode to the exact registered applications.
-  const cliParse = (raw) =>
-    JSON.parse(JSON.stringify(raw), (_key, value) => {
-      if (typeof value === "string") {
-        try {
-          const parsed = JSON.parse(value);
-          if (typeof parsed === "object") return parsed;
-        } catch {
-          // The CLI leaves non-JSON strings unchanged.
-        }
-      }
-      return value;
-    });
-  const onceEncoded = JSON.stringify(expectedApps);
-  assert.equal(Array.isArray(cliParse({ apps: onceEncoded }).apps), true);
-
-  const deployed = cliParse(dashboard).envVariables;
-  assert.equal(typeof deployed.DASHBOARD_APPS_JSON, "string");
-  assert.equal(
-    cliParse(deployed).DASHBOARD_APPS_JSON,
-    deployed.DASHBOARD_APPS_JSON,
-  );
-  assert.deepEqual(
-    parseDashboardApps(deployed.DASHBOARD_APPS_JSON),
-    expectedApps,
-  );
-  assert.equal(deployed.CLOUDBASE_ENV_ID, config.envId);
-  assert.equal("DASHBOARD_TOKEN" in deployed, false);
-  assert.equal("CLOUDBASE_METRICS_TOKEN" in deployed, false);
-
-  const versionFunction = config.functions.find(
-    (candidate) => candidate.name === APPLICATION_VERSION_API.functionName,
-  );
-  const deployedVersion = cliParse(versionFunction).envVariables;
-  assert.equal(typeof deployedVersion.APPLICATION_VERSION_APPS_JSON, "string");
-  assert.deepEqual(
-    parseApplicationResources(deployedVersion.APPLICATION_VERSION_APPS_JSON),
-    [deriveApplicationVersionResources("dashboard-tool")],
-  );
-});
-
-test("the registry rejects ambiguous or unsafe deployment app ids", () => {
-  const registryFor = (...appIds) => ({
-    schema_version: 2,
-    apps: appIds.map((app_id) => ({
-      app_id,
-      platforms: ["windows"],
-    })),
+  assert.deepEqual(dashboardApps[0], {
+    appId: "bifang-screen-recorder",
+    collectionName: "telemetry_bifang_screen_recorder",
+    versionCollection: "versions_bifang_screen_recorder",
+    platforms: ["windows", "macos"],
+    releaseStreams: [
+      {
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-windows-x64",
+      },
+      {
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-screen-recorder-macos-arm64",
+      },
+    ],
   });
-
-  assert.throws(
-    () => validateRegistry(registryFor("same-tool", "same-tool")),
-    /duplicate/,
+  assert.equal(
+    "DASHBOARD_UPDATES_BASE_URL" in dashboardFunction.envVariables,
+    false,
   );
-  for (const appId of [
-    "Bad-App",
-    "has_underscore",
-    "has.dot",
-    "-leading",
-    "trailing-",
-    "a".repeat(51),
+  assert.equal("hosting" in config, false);
+  assert.deepEqual(
+    config.gateway.routes.map(({ path }) => path),
+    [
+      "/apps/bifang-screen-recorder/v1/track",
+      "/apps/bifang-mouse-clicker/v1/track",
+      "/tools/version-control/v1",
+      "/admin/v1/metrics",
+    ],
+  );
+  assert.equal(JSON.stringify(config).includes("cloudbase/updates"), false);
+});
+
+test("registry v3 rejects ambiguous, duplicate and unsafe release identities", () => {
+  assert.throws(
+    () => validateRegistry({ schema_version: 2, apps: [] }),
+    /schema_version must be 3/,
+  );
+  assert.throws(
+    () =>
+      validateRegistry({
+        ...registry(),
+        apps: [{ app_id: "Bad_App", release_streams: [stream()] }],
+      }),
+    /app_id must be/,
+  );
+
+  for (const invalidStream of [
+    stream({ platform: "android" }),
+    stream({ architecture: "riscv64" }),
+    stream({ channel: "Stable" }),
+    stream({ code: "has/slash" }),
+    { ...stream(), unexpected: true },
   ]) {
-    assert.throws(() => validateRegistry(registryFor(appId)), /app_id/);
+    assert.throws(
+      () =>
+        validateRegistry(
+          registry([
+            { app_id: "first-tool", release_streams: [invalidStream] },
+          ]),
+        ),
+      /must be|must contain/,
+    );
   }
 
   assert.throws(
     () =>
-      validateRegistry({
-        schema_version: 2,
-        apps: [{ app_id: "safe-tool", platforms: [] }],
-      }),
-    /non-empty array/,
+      validateRegistry(
+        registry([
+          {
+            app_id: "first-tool",
+            release_streams: [stream(), stream({ code: "another-code" })],
+          },
+        ]),
+      ),
+    /duplicate platform\/architecture\/channel targets/,
   );
   assert.throws(
-    () => validateUpdatePlatforms(["macos", "windows"]),
-    /canonical order/,
+    () =>
+      validateRegistry(
+        registry([
+          { app_id: "first-tool", release_streams: [stream()] },
+          {
+            app_id: "second-tool",
+            release_streams: [stream({ code: "first-tool" })],
+          },
+        ]),
+      ),
+    /duplicate release code/,
   );
-  assert.throws(() => validateUpdatePlatforms(["linux"]), /windows, macos/);
-});
-
-test("the app scaffold starts with a disabled manifest using inert public URLs", () => {
-  const manifest = createDisabledUpdateManifest("new-tool");
-
-  assert.equal(manifest.app_id, "new-tool");
-  assert.equal(manifest.enabled, false);
-  assert.equal(manifest.force_update, false);
-  assert.equal(manifest.rollout, 0);
-  assert.equal(manifest.sha256, "");
-  assert.equal(
-    new URL(manifest.download_url).origin,
-    DISABLED_UPDATE_MANIFEST_ORIGIN,
-  );
-  assert.equal(
-    new URL(manifest.download_url).pathname,
-    "/updates/new-tool/not-published/windows.exe",
-  );
-  assert.equal(
-    new URL(manifest.release_notes_url).pathname,
-    "/updates/new-tool/not-published/windows-release-notes.html",
-  );
-  assert.equal(manifest.download_url.includes(".invalid"), false);
-  assert.equal(manifest.release_notes_url.includes(".invalid"), false);
-  assert.equal(validateWindowsUpdateManifest(manifest, "new-tool"), manifest);
-});
-
-test("the app scaffold creates a disabled macOS manifest with the same strict contract", () => {
-  const manifest = createDisabledUpdateManifest("new-tool", "macos");
-
-  assert.equal(manifest.app_id, "new-tool");
-  assert.equal(manifest.platform, "macos");
-  assert.equal(manifest.enabled, false);
-  assert.equal(manifest.force_update, false);
-  assert.equal(manifest.rollout, 0);
-  assert.equal(manifest.sha256, "");
-  assert.equal(
-    new URL(manifest.download_url).origin,
-    DISABLED_UPDATE_MANIFEST_ORIGIN,
-  );
-  assert.equal(
-    new URL(manifest.download_url).pathname,
-    "/updates/new-tool/not-published/macos.dmg",
-  );
-  assert.equal(
-    new URL(manifest.release_notes_url).pathname,
-    "/updates/new-tool/not-published/macos-release-notes.html",
-  );
-  assert.equal(validateUpdateManifest(manifest, "new-tool", "macos"), manifest);
   assert.throws(
-    () => validateUpdateManifest(manifest, "new-tool", "windows"),
-    /windows\.json/,
+    () =>
+      validateRegistry(
+        registry([
+          {
+            app_id: "first-tool",
+            release_streams: [
+              stream({
+                platform: "macos",
+                architecture: "arm64",
+                code: "first-tool-macos",
+              }),
+              stream(),
+            ],
+          },
+        ]),
+      ),
+    /canonical release-stream order/,
+  );
+  assert.throws(
+    () =>
+      validateRegistry(
+        registry([
+          {
+            app_id: "first-tool",
+            release_streams: Array.from({ length: 13 }, (_, index) =>
+              stream({
+                channel: `channel-${String(index).padStart(2, "0")}`,
+                code: `first-tool-${String(index).padStart(2, "0")}`,
+              }),
+            ),
+          },
+        ]),
+      ),
+    /between 1 and 12 items/,
   );
 });
 
-test("the complete update contract rejects unsafe or internally inconsistent manifests", () => {
-  const valid = createDisabledUpdateManifest("new-tool");
-  const enabled = {
-    ...valid,
-    enabled: true,
-    rollout: 100,
-    download_url: "https://downloads.example.com/new-tool/setup.exe",
-    release_notes_url: "https://releases.example.com/new-tool/0.0.0",
-    sha256: "a".repeat(64),
-  };
-  assert.equal(validateWindowsUpdateManifest(enabled, "new-tool"), enabled);
-
-  const invalidCases = [
-    { ...valid, latest_version: "v1.0.0" },
-    { ...valid, min_supported_version: "1.0.0", latest_version: "0.9.0" },
-    { ...valid, download_url: "http://downloads.example.com/tool.exe" },
-    { ...valid, rollout: 1 },
-    { ...valid, force_update: true },
-    { ...valid, published_at: "2026-02-30T00:00:00Z" },
-    { ...valid, extra_field: true },
-    { ...valid, enabled: true, rollout: 100 },
-  ];
-
-  for (const manifest of invalidCases) {
-    assert.throws(
-      () => validateWindowsUpdateManifest(manifest, "new-tool"),
-      /cloudbase\/updates\/new-tool\/windows\.json/,
-    );
-  }
-});
-
-test("the app scaffold adds a cross-platform second app without overwriting the first", async () => {
+test("the app scaffold registers app and streams without creating update files", async () => {
   await withTemporaryCloudBaseFixture(async (fixture) => {
-    const resources = await addApp("second-tool", {
+    const result = await addApp("second-tool", {
       ...fixture,
-      platforms: ["windows", "macos"],
+      releaseStreams: [
+        stream({
+          platform: "macos",
+          architecture: "arm64",
+          code: "second-tool-macos-arm64",
+        }),
+        stream({ code: "second-tool-windows-x64" }),
+      ],
     });
-    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
-    const config = JSON.parse(await readFile(fixture.configUrl, "utf8"));
-    const windowsManifest = JSON.parse(
-      await readFile(
-        new URL("second-tool/windows.json", fixture.updatesUrl),
-        "utf8",
-      ),
+    const nextRegistry = JSON.parse(
+      await readFile(fixture.registryUrl, "utf8"),
     );
-    const macosManifest = JSON.parse(
-      await readFile(
-        new URL("second-tool/macos.json", fixture.updatesUrl),
-        "utf8",
-      ),
-    );
+    const nextConfig = JSON.parse(await readFile(fixture.configUrl, "utf8"));
 
+    assert.equal(result.appId, "second-tool");
+    assert.equal(result.functionName, "telemetry-second-tool");
+    assert.equal("updatePath" in result, false);
     assert.deepEqual(
-      registry.apps.map((app) => app.app_id),
-      ["first-tool", "second-tool"],
+      nextRegistry.apps[1].release_streams.map(({ code }) => code),
+      ["second-tool-windows-x64", "second-tool-macos-arm64"],
     );
-    assert.deepEqual(config, createCloudBaseConfig(registry));
-    assert.equal(resources.functionName, "telemetry-second-tool");
-    assert.deepEqual(registry.apps[1].platforms, ["windows", "macos"]);
-    assert.equal(windowsManifest.app_id, "second-tool");
-    assert.equal(windowsManifest.platform, "windows");
-    assert.equal(macosManifest.app_id, "second-tool");
-    assert.equal(macosManifest.platform, "macos");
-    await validateUpdateManifests(
-      validateRegistry(registry),
-      fixture.updatesUrl,
-    );
+    assert.deepEqual(nextConfig, createCloudBaseConfig(nextRegistry));
+    assert.equal("hosting" in nextConfig, false);
   });
 });
 
-test("a registered app can safely add one missing platform without changing other apps", async () => {
+test("a registered app can add one canonical release stream without overwrites", async () => {
   await withTemporaryCloudBaseFixture(async (fixture) => {
-    const beforeConfig = await readFile(fixture.configUrl, "utf8");
-    const result = await addAppPlatform("first-tool", "macos", fixture);
-    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
-    const manifest = JSON.parse(
-      await readFile(
-        new URL("first-tool/macos.json", fixture.updatesUrl),
-        "utf8",
-      ),
+    const result = await addReleaseStream(
+      "first-tool",
+      stream({
+        platform: "macos",
+        architecture: "arm64",
+        code: "first-tool-macos-arm64",
+      }),
+      fixture,
+    );
+    const nextRegistry = JSON.parse(
+      await readFile(fixture.registryUrl, "utf8"),
     );
 
     assert.deepEqual(result, {
       appId: "first-tool",
-      platform: "macos",
-      manifestPath: "/updates/first-tool/macos.json",
+      releaseStream: {
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "first-tool-macos-arm64",
+      },
     });
-    assert.deepEqual(registry.apps[0].platforms, ["windows", "macos"]);
-    assert.equal(manifest.platform, "macos");
-    assert.equal(manifest.enabled, false);
-    assert.equal(await readFile(fixture.configUrl, "utf8"), beforeConfig);
-    await validateUpdateManifests(
-      validateRegistry(registry),
-      fixture.updatesUrl,
+    assert.deepEqual(
+      nextRegistry.apps[0].release_streams.map(({ code }) => code),
+      ["first-tool", "first-tool-macos-arm64"],
+    );
+    assert.deepEqual(
+      JSON.parse(await readFile(fixture.configUrl, "utf8")),
+      createCloudBaseConfig(nextRegistry),
     );
 
     const registryBeforeDuplicate = await readFile(fixture.registryUrl, "utf8");
     await assert.rejects(
-      addAppPlatform("first-tool", "macos", fixture),
-      /platform already exists/,
+      addReleaseStream(
+        "first-tool",
+        stream({ code: "duplicate-target" }),
+        fixture,
+      ),
+      /duplicate platform\/architecture\/channel targets/,
     );
     assert.equal(
       await readFile(fixture.registryUrl, "utf8"),
@@ -417,83 +368,54 @@ test("a registered app can safely add one missing platform without changing othe
   });
 });
 
-test("the app scaffold refuses existing ids and orphan update directories", async () => {
+test("app and stream registration refuse stale generated configuration", async () => {
   await withTemporaryCloudBaseFixture(async (fixture) => {
-    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
     const registryBefore = await readFile(fixture.registryUrl, "utf8");
-    const configBefore = await readFile(fixture.configUrl, "utf8");
+    await writeFile(fixture.configUrl, "{}\n", "utf8");
 
-    await assert.rejects(addApp("first-tool", fixture), /already exists/);
+    await assert.rejects(
+      addApp("second-tool", {
+        ...fixture,
+        releaseStreams: [stream({ code: "second-tool" })],
+      }),
+      /ungenerated changes/,
+    );
+    await assert.rejects(
+      addReleaseStream(
+        "first-tool",
+        stream({
+          platform: "macos",
+          architecture: "arm64",
+          code: "first-tool-macos",
+        }),
+        fixture,
+      ),
+      /ungenerated changes/,
+    );
     assert.equal(await readFile(fixture.registryUrl, "utf8"), registryBefore);
-    assert.equal(await readFile(fixture.configUrl, "utf8"), configBefore);
-
-    await mkdir(new URL("orphan-tool/", fixture.updatesUrl));
-    await assert.rejects(
-      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
-      /unregistered update directories: orphan-tool/,
-    );
-  });
-});
-
-test("manifest validation rejects files that are not declared by the registry", async () => {
-  await withTemporaryCloudBaseFixture(async (fixture) => {
-    await writeFile(
-      new URL("first-tool/macos.json", fixture.updatesUrl),
-      `${JSON.stringify(createDisabledUpdateManifest("first-tool", "macos"), null, 2)}\n`,
-      "utf8",
-    );
-    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
-    await assert.rejects(
-      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
-      /unexpected entries.*macos\.json/,
-    );
-  });
-});
-
-test("manifest validation fails closed when a declared platform file is missing", async () => {
-  await withTemporaryCloudBaseFixture(async (fixture) => {
-    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
-    registry.apps[0].platforms.push("macos");
-
-    await assert.rejects(
-      validateUpdateManifests(validateRegistry(registry), fixture.updatesUrl),
-      /missing or invalid update manifest:.*macos\.json/,
-    );
   });
 });
 
 async function withTemporaryCloudBaseFixture(run) {
   const root = await mkdtemp(join(tmpdir(), "bifang-cloudbase-test-"));
   const cloudbasePath = join(root, "cloudbase");
-  const updatesPath = join(cloudbasePath, "updates");
-  const firstUpdatesPath = join(updatesPath, "first-tool");
   const registryUrl = pathToFileURL(join(cloudbasePath, "apps.json"));
-  const configUrl = pathToFileURL(join(root, "cloudbaserc.json.example"));
-  const updatesUrl = pathToFileURL(`${updatesPath}${sep}`);
-  const registry = {
-    schema_version: 2,
-    apps: [{ app_id: "first-tool", platforms: ["windows"] }],
-  };
+  const configUrl = pathToFileURL(join(root, "cloudbaserc.example.json"));
+  const initialRegistry = registry();
 
   try {
-    await mkdir(firstUpdatesPath, { recursive: true });
+    await mkdir(cloudbasePath, { recursive: true });
     await writeFile(
       registryUrl,
-      `${JSON.stringify(registry, null, 2)}\n`,
+      `${JSON.stringify(initialRegistry, null, 2)}\n`,
       "utf8",
     );
     await writeFile(
       configUrl,
-      `${JSON.stringify(createCloudBaseConfig(registry), null, 2)}\n`,
+      `${JSON.stringify(createCloudBaseConfig(initialRegistry), null, 2)}\n`,
       "utf8",
     );
-    await writeFile(
-      pathToFileURL(join(firstUpdatesPath, "windows.json")),
-      `${JSON.stringify(createDisabledUpdateManifest("first-tool"), null, 2)}\n`,
-      "utf8",
-    );
-
-    await run({ registryUrl, configUrl, updatesUrl });
+    await run({ registryUrl, configUrl });
   } finally {
     await rm(root, { recursive: true, force: true });
   }

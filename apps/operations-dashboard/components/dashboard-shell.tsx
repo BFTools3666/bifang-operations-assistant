@@ -10,7 +10,6 @@ import {
   CircleAlert,
   Cloud,
   Command,
-  ExternalLink,
   Flame,
   Info,
   Laptop,
@@ -64,10 +63,14 @@ import {
   type DashboardSnapshot,
   type DistributionItem,
   type RangeDays,
-  type UpdateManifestSummary,
+  type ReleaseStreamSummary,
 } from '@/lib/dashboard-data';
 
-const platformNames = { windows: 'Windows', macos: 'macOS' } as const;
+const platformNames = {
+  windows: 'Windows',
+  macos: 'macOS',
+  linux: 'Linux',
+} as const;
 
 export function DashboardShell() {
   const [app, setApp] = useState<AppFilter>('all');
@@ -510,14 +513,14 @@ export function DashboardShell() {
                       更新发布雷达
                     </h2>
                     <p className="mt-1 text-[13px] text-muted-foreground">
-                      只读查看 CloudBase 更新清单，不会修改发布配置
+                      从应用隔离的版本集合读取每个 code 的最高版本
                     </p>
                   </div>
                   <Badge
                     className="w-fit border-[#d8e3df] bg-[#eef4f2] text-[#536762]"
                     variant="outline"
                   >
-                    {snapshot.manifests.length} 个平台清单
+                    {snapshot.releaseStreams.length} 个发布流
                   </Badge>
                 </div>
 
@@ -528,57 +531,45 @@ export function DashboardShell() {
                         应用
                       </TableHead>
                       <TableHead className="text-xs text-muted-foreground">
-                        平台
+                        发布流 code
                       </TableHead>
                       <TableHead className="text-xs text-muted-foreground">
-                        状态
+                        平台 / 架构
                       </TableHead>
                       <TableHead className="text-xs text-muted-foreground">
-                        最新 / 最低版本
+                        渠道
                       </TableHead>
                       <TableHead className="text-xs text-muted-foreground">
-                        灰度
+                        最高版本
                       </TableHead>
                       <TableHead className="pr-5 text-right text-xs text-muted-foreground sm:pr-6">
-                        清单
+                        状态
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {snapshot.manifests.map((item) => (
-                      <TableRow key={`${item.appId}-${item.platform}`}>
+                    {snapshot.releaseStreams.map((item) => (
+                      <TableRow key={item.code}>
                         <TableCell className="py-4 pl-5 font-medium sm:pl-6">
                           {appName(item.appId)}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground">
-                          {platformNames[item.platform]}
+                        <TableCell className="max-w-[260px] break-all py-4 font-mono text-xs text-muted-foreground">
+                          {item.code}
                         </TableCell>
-                        <TableCell className="py-4">
-                          <span className={manifestStatus(item).className}>
-                            <span className="size-1.5 rounded-full bg-current" />
-                            {manifestStatus(item).label}
-                          </span>
+                        <TableCell className="py-4 text-muted-foreground">
+                          {platformNames[item.platform]} / {item.architecture}
+                        </TableCell>
+                        <TableCell className="py-4 text-muted-foreground">
+                          {item.channel}
                         </TableCell>
                         <TableCell className="py-4 font-mono text-xs tabular-nums text-muted-foreground">
-                          {item.source === 'unavailable'
-                            ? '—'
-                            : `${item.latestVersion} / ${item.minSupportedVersion}`}
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground">
-                          {item.source === 'unavailable'
-                            ? '—'
-                            : `${item.rollout}%`}
+                          {item.highestVersion ?? '—'}
                         </TableCell>
                         <TableCell className="py-4 pr-5 text-right sm:pr-6">
-                          <a
-                            aria-label={`查看 ${appName(item.appId)} ${platformNames[item.platform]} 更新清单`}
-                            className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            href={item.manifestUrl}
-                            rel="noreferrer"
-                          >
-                            <ExternalLink className="size-4" />
-                            <span className="sr-only">查看更新清单</span>
-                          </a>
+                          <span className={releaseStatus(item).className}>
+                            <span className="size-1.5 rounded-full bg-current" />
+                            {releaseStatus(item).label}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -968,7 +959,7 @@ function AlertDetail({
             </p>
             <p className="mt-2 text-sm leading-6">
               继续观察下一次刷新结果；看板只读，不会自动改动 CloudBase
-              函数、集合、清单或套餐。
+              函数、集合、发布记录或套餐。
             </p>
           </div>
           <div className="rounded-2xl border border-[#d8e8e3] bg-[#eef8f5] p-4 text-sm leading-6 text-[#43655d]">
@@ -1073,16 +1064,23 @@ function appName(appId: string): string {
   return APP_OPTIONS.find((item) => item.id === appId)?.shortLabel ?? appId;
 }
 
-function manifestStatus(item: UpdateManifestSummary): {
+function releaseStatus(item: ReleaseStreamSummary): {
   className: string;
   label: string;
 } {
-  if (item.source === 'unavailable') {
-    return { className: 'manifest-unknown', label: '状态未知' };
+  if (item.status === 'empty') {
+    return { className: 'release-empty', label: '暂无版本' };
   }
-  return item.enabled
-    ? { className: 'manifest-on', label: '发布中' }
-    : { className: 'manifest-off', label: '未发布' };
+  if (item.status === 'stopped') {
+    return { className: 'release-stopped', label: '暂停更新' };
+  }
+  if (item.status === 'forced') {
+    return { className: 'release-forced', label: '强制更新' };
+  }
+  if (item.status === 'prompt') {
+    return { className: 'release-prompt', label: '提示更新' };
+  }
+  return { className: 'release-normal', label: '普通更新' };
 }
 
 function number(value: number): string {

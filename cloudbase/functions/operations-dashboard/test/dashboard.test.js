@@ -9,6 +9,7 @@ const test = require("node:test");
 const {
   addDays,
   createDashboardSnapshot,
+  normalizeReleaseSummaries,
   toShanghaiDate,
 } = require("../src/aggregate");
 const {
@@ -17,29 +18,54 @@ const {
   parseQuery,
 } = require("../src/handler");
 const {
-  createManifestReader,
-  fallbackManifest,
-  summarizeManifest,
-} = require("../src/manifest-reader");
-const {
   createCloudBaseEventReader,
   createDefaultCloudBaseApp,
   PAGE_SIZE,
   MAX_PAGES_PER_COLLECTION,
   extractRuntimeSdkContext,
 } = require("../src/reader");
+const {
+  createVersionSortKey,
+  createCloudBaseVersionReader,
+  emptyReleaseSummary,
+  summarizeVersionDocument,
+} = require("../src/version-reader");
 const { safeDiagnostic } = require("../src/diagnostics");
 
 const APPS = [
   {
     appId: "bifang-screen-recorder",
     collectionName: "telemetry_bifang_screen_recorder",
+    versionCollection: "versions_bifang_screen_recorder",
     platforms: ["windows", "macos"],
+    releaseStreams: [
+      {
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-screen-recorder-windows-x64",
+      },
+      {
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-screen-recorder-macos-arm64",
+      },
+    ],
   },
   {
     appId: "bifang-mouse-clicker",
     collectionName: "telemetry_bifang_mouse_clicker",
+    versionCollection: "versions_bifang_mouse_clicker",
     platforms: ["windows"],
+    releaseStreams: [
+      {
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-mouse-clicker",
+      },
+    ],
   },
 ];
 const NOW = new Date("2026-09-07T04:00:00.000Z");
@@ -67,6 +93,29 @@ function event(overrides) {
   };
 }
 
+function releaseSummaries(apps = APPS) {
+  return apps.flatMap((app) =>
+    app.releaseStreams.map((stream) => emptyReleaseSummary(app, stream)),
+  );
+}
+
+function versionDocument(overrides = {}) {
+  return {
+    doc_type: "version_record",
+    schema_version: 1,
+    code: APPS[0].releaseStreams[0].code,
+    code_version: "1.10",
+    version_sort_key: createVersionSortKey("1.10"),
+    forced_update: false,
+    prompt_update: true,
+    stop_update: false,
+    updated_at: "2026-09-07T03:00:00.000Z",
+    download_url: "https://downloads.example.com/private.exe",
+    prompt_content: "not projected or returned",
+    ...overrides,
+  };
+}
+
 test("aggregation returns only dashboard-safe summaries", () => {
   const snapshot = createDashboardSnapshot({
     apps: APPS,
@@ -81,7 +130,7 @@ test("aggregation returns only dashboard-safe summaries", () => {
         install_id: "33333333-3333-4333-8333-333333333333",
       }),
     ],
-    manifests: [],
+    releaseSummaries: releaseSummaries(),
     now: NOW,
     selectedAppId: "all",
   });
@@ -110,7 +159,7 @@ test("handler fails closed without a valid bearer token", async () => {
     path: "/admin/v1/metrics",
     tokenHash: TOKEN_HASH,
     reader: async () => [],
-    manifestReader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
     now: () => NOW,
   });
 
@@ -139,7 +188,7 @@ test("handler returns a live aggregate for an authorized exact query", async () 
       readOptions = options;
       return [event({})];
     },
-    manifestReader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
     now: () => NOW,
   });
 
@@ -163,7 +212,7 @@ test("handler returns a live aggregate for an authorized exact query", async () 
 
 test("CloudBase split and raw query representations keep the selected app and range", async () => {
   const reads = [];
-  const manifestReads = [];
+  const versionReads = [];
   const handler = createHandler({
     apps: APPS,
     path: "/admin/v1/metrics",
@@ -172,9 +221,9 @@ test("CloudBase split and raw query representations keep the selected app and ra
       reads.push(options);
       return [];
     },
-    manifestReader: async (apps) => {
-      manifestReads.push(apps);
-      return [];
+    versionReader: async (options) => {
+      versionReads.push(options);
+      return releaseSummaries(options.apps);
     },
     now: () => NOW,
   });
@@ -208,8 +257,8 @@ test("CloudBase split and raw query representations keep the selected app and ra
     assert.equal(body.rangeDays, 30);
     assert.equal(body.trend.length, 30);
     assert.equal(body.trend[0].date, "2026-08-09");
-    assert.equal(body.manifests.length, 1);
-    assert.equal(body.manifests[0].source, "unavailable");
+    assert.equal(body.releaseStreams.length, 1);
+    assert.equal(body.releaseStreams[0].status, "empty");
   }
   const contextResponse = await handler(
     {},
@@ -230,8 +279,9 @@ test("CloudBase split and raw query representations keep the selected app and ra
     ),
   );
   assert.ok(
-    manifestReads.every(
-      (apps) => apps.length === 1 && apps[0].appId === query.app_id,
+    versionReads.every(
+      (options) =>
+        options.apps.length === 1 && options.apps[0].appId === query.app_id,
     ),
   );
 });
@@ -263,7 +313,7 @@ test("configuration and storage failures never masquerade as a connected empty d
       reads++;
       return [];
     },
-    manifestReader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
     now: () => NOW,
     logger: { error: (...args) => logs.push(args) },
   };
@@ -328,36 +378,30 @@ test("configuration and storage failures never masquerade as a connected empty d
     headers: { authorization: [`Bearer ${TOKEN}`, `Bearer ${TOKEN}`] },
   });
   assert.equal(duplicateAuth.statusCode, 401);
+  const duplicateCaseVariantAuth = await createHandler(defaults)({
+    ...request,
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      authorization: `Bearer ${"x".repeat(40)}`,
+    },
+  });
+  assert.equal(duplicateCaseVariantAuth.statusCode, 401);
 });
 
-test("DAU deduplicates per app/install/day and distributions select the newest valid observation", () => {
+test("DAU deduplicates per app/install/day and distributions select the newest observation", () => {
   const events = [
     event({ active_date: "2026-09-06", app_version: "0.6.0" }),
     event({ app_version: "0.7.0", received_at: "2026-09-07T01:00:00.000Z" }),
     event({ app_version: "0.7.1", received_at: "2026-09-07T02:00:00.000Z" }),
     event({ app_version: "0.7.1", received_at: "2026-09-07T02:00:00.000Z" }),
     event({ app_id: APPS[1].appId, app_version: "0.2.2" }),
-    event({ schema_version: 1 }),
-    event({ event: "install" }),
-    event({ active_date: "2026-08-08" }),
-    event({ active_date: "2026-09-08" }),
-    event({ received_at: "2026-09-07T05:00:00.000Z" }),
-    event({
-      active_date: "2026-09-06",
-      received_at: "2026-09-07T01:00:00.000Z",
-    }),
-    event({ install_id: "invalid-install" }),
-    event({ app_version: "source_ip=203.0.113.9" }),
-    event({ platform: "secret" }),
-    event({ arch: "unknown" }),
-    event({ received_at: "bad-date" }),
   ];
   const create = (events) =>
     createDashboardSnapshot({
       apps: APPS,
       days: 7,
       events,
-      manifests: [],
+      releaseSummaries: releaseSummaries(),
       now: NOW,
     });
   const result = create(events);
@@ -372,6 +416,61 @@ test("DAU deduplicates per app/install/day and distributions select the newest v
   );
   assert.equal(result.versions.length, 2);
   assert.deepEqual(result, create([...events].reverse()));
+});
+
+test("malformed telemetry rows fail closed while an empty result remains a real zero", async () => {
+  const malformedRows = [
+    event({ install_id: "invalid-install" }),
+    event({ app_version: "source_ip=203.0.113.9" }),
+    event({ platform: "secret" }),
+    event({ arch: "unknown" }),
+  ];
+  for (const row of malformedRows) {
+    assert.throws(
+      () =>
+        createDashboardSnapshot({
+          apps: APPS,
+          days: 7,
+          events: [row],
+          releaseSummaries: releaseSummaries(),
+          now: NOW,
+        }),
+      /telemetry event is invalid/,
+    );
+
+    const response = await createHandler({
+      apps: APPS,
+      path: "/admin/v1/metrics",
+      tokenHash: TOKEN_HASH,
+      reader: async () => [row],
+      versionReader: async ({ apps }) => releaseSummaries(apps),
+      now: () => NOW,
+      logger: { error() {} },
+    })({
+      httpMethod: "GET",
+      path: "/admin/v1/metrics",
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    assert.equal(response.statusCode, 503);
+    assert.deepEqual(JSON.parse(response.body), {
+      error: "metrics_unavailable",
+    });
+  }
+
+  const emptyResponse = await createHandler({
+    apps: APPS,
+    path: "/admin/v1/metrics",
+    tokenHash: TOKEN_HASH,
+    reader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
+    now: () => NOW,
+  })({
+    httpMethod: "GET",
+    path: "/admin/v1/metrics",
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
+  assert.equal(emptyResponse.statusCode, 200);
+  assert.equal(JSON.parse(emptyResponse.body).totals.todayActive, 0);
 });
 
 test("30-day bounds and previous full seven-day average are independent of chart range", () => {
@@ -389,7 +488,7 @@ test("30-day bounds and previous full seven-day average are independent of chart
       apps: APPS,
       days,
       events,
-      manifests: [],
+      releaseSummaries: releaseSummaries(),
       now: NOW,
     });
   const weekly = make(7);
@@ -410,118 +509,6 @@ test("30-day bounds and previous full seven-day average are independent of chart
   );
 });
 
-function updateManifest(overrides = {}) {
-  return {
-    schema_version: 1,
-    app_id: APPS[0].appId,
-    platform: "windows",
-    enabled: false,
-    force_update: false,
-    rollout: 0,
-    latest_version: "0.0.0",
-    min_supported_version: "0.0.0",
-    title: "尚未发布",
-    message: "尚未发布更新",
-    download_url: "https://example.com/not-published.exe",
-    release_notes_url: "https://example.com/notes.html",
-    sha256: "",
-    published_at: "1970-01-01T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-test("missing configuration, malformed content and missing platform manifests remain unknown", async () => {
-  let requests = 0;
-  for (const baseUrl of [
-    undefined,
-    "",
-    "invalid",
-    "http://example.com/updates",
-    "https://example.com/updates?token=abc",
-    "https://user:pass@example.com/updates",
-  ]) {
-    const read = createManifestReader({
-      baseUrl: baseUrl ?? "",
-      fetchImpl: async () => {
-        requests++;
-      },
-    });
-    const result = await read(APPS);
-    assert.equal(result.length, 3);
-    assert.ok(result.every((item) => item.source === "unavailable"));
-  }
-  assert.equal(requests, 0);
-  for (const overrides of [
-    { schema_version: 2 },
-    { latest_version: "bad" },
-    { min_supported_version: "1.0.0" },
-    { published_at: "2026-02-29T00:00:00Z" },
-    { download_url: "http://example.com/file.exe" },
-    { rollout: 101 },
-    { sha256: "bad" },
-    { secret: "not allowed" },
-    { title: "\u0000" },
-  ]) {
-    assert.throws(() =>
-      summarizeManifest(
-        updateManifest(overrides),
-        APPS[0].appId,
-        "windows",
-        "https://example.com/windows.json",
-      ),
-    );
-  }
-  const valid = summarizeManifest(
-    updateManifest(),
-    APPS[0].appId,
-    "windows",
-    "https://example.com/windows.json",
-  );
-  const snapshot = createDashboardSnapshot({
-    apps: APPS,
-    days: 7,
-    events: [],
-    manifests: [valid],
-    now: NOW,
-  });
-  assert.equal(
-    snapshot.manifests.filter((item) => item.source === "unavailable").length,
-    2,
-  );
-  assert.match(snapshot.alerts.at(-1).title, /状态未知/);
-  const none = createDashboardSnapshot({
-    apps: APPS,
-    days: 7,
-    events: [],
-    manifests: [],
-    now: NOW,
-  });
-  assert.match(none.alerts.at(-1).title, /3 个更新清单状态未知/);
-});
-
-test("manifest HTTP fetch is bounded, uncached and does not follow redirects", async () => {
-  let init;
-  const reader = createManifestReader({
-    baseUrl: "https://example.com/updates",
-    fetchImpl: async (_url, options) => {
-      init = options;
-      return new Response(JSON.stringify(updateManifest()));
-    },
-  });
-  const result = await reader([{ ...APPS[0], platforms: ["windows"] }]);
-  assert.equal(result[0].source, "cloudbase");
-  assert.equal(init.redirect, "error");
-  assert.equal(init.cache, "no-store");
-  const huge = createManifestReader({
-    baseUrl: "https://example.com/updates",
-    fetchImpl: async () => new Response(" ".repeat(16385)),
-  });
-  assert.equal(
-    (await huge([{ ...APPS[0], platforms: ["windows"] }]))[0].source,
-    "unavailable",
-  );
-});
-
 function fakeDatabase(getPage) {
   const calls = [];
   const expression = (operator, value) => ({
@@ -537,7 +524,7 @@ function fakeDatabase(getPage) {
     calls,
     command,
     collection(name) {
-      const call = { name };
+      const call = { name, orders: [] };
       const query = {
         where(value) {
           call.where = value;
@@ -545,6 +532,7 @@ function fakeDatabase(getPage) {
         },
         orderBy(...value) {
           call.order = value;
+          call.orders.push(value);
           return query;
         },
         field(value) {
@@ -564,6 +552,141 @@ function fakeDatabase(getPage) {
     },
   };
 }
+
+test("version reader returns one safe highest-version summary per configured release stream", async () => {
+  const windowsCode = APPS[0].releaseStreams[0].code;
+  const db = fakeDatabase(async (_page, call) => ({
+    data: call.where.code === windowsCode ? [versionDocument()] : [],
+  }));
+  const read = createCloudBaseVersionReader({
+    appFactory: () => ({ database: () => db }),
+  });
+  const result = await read({ apps: [APPS[0]], runtimeContext: {} });
+
+  assert.deepEqual(result, [
+    {
+      appId: APPS[0].appId,
+      code: windowsCode,
+      platform: "windows",
+      architecture: "x64",
+      channel: "stable",
+      highestVersion: "1.10",
+      status: "prompt",
+      updatedAt: "2026-09-07T03:00:00.000Z",
+    },
+    emptyReleaseSummary(APPS[0], APPS[0].releaseStreams[1]),
+  ]);
+  assert.equal(db.calls.length, 2);
+  for (const [index, call] of db.calls.entries()) {
+    assert.equal(call.name, APPS[0].versionCollection);
+    assert.deepEqual(call.where, {
+      doc_type: "version_record",
+      schema_version: 1,
+      code: APPS[0].releaseStreams[index].code,
+    });
+    assert.deepEqual(call.orders, [
+      ["version_sort_key", "desc"],
+      ["updated_at", "desc"],
+      ["_id", "desc"],
+    ]);
+    assert.equal(call.limit, 1);
+    assert.equal(call.field.download_url, undefined);
+    assert.equal(call.field.prompt_content, undefined);
+    assert.equal(call.field.update_content, undefined);
+    assert.equal(call.field.version_sort_key, true);
+  }
+  const serialized = JSON.stringify(result);
+  assert.equal(
+    /download|promptContent|secret|credential/i.test(serialized),
+    false,
+  );
+});
+
+test("unknown code, cross-application rows, malformed states and read failures fail closed", async () => {
+  const stream = APPS[0].releaseStreams[0];
+  for (const row of [
+    versionDocument({ code: "unknown-code" }),
+    versionDocument({ code: APPS[1].releaseStreams[0].code }),
+    versionDocument({ code_version: "1.0.0-beta" }),
+    versionDocument({ version_sort_key: "999" }),
+    versionDocument({ forced_update: true, prompt_update: true }),
+    versionDocument({ updated_at: "not-a-time" }),
+  ]) {
+    assert.throws(
+      () => summarizeVersionDocument(row, APPS[0], stream),
+      /application_version_document_invalid/,
+    );
+  }
+
+  for (const result of [
+    undefined,
+    { data: null },
+    { data: [], code: "DATABASE_ERROR" },
+    { data: [versionDocument(), versionDocument()] },
+  ]) {
+    const db = fakeDatabase(async () => result);
+    await assert.rejects(
+      createCloudBaseVersionReader({
+        appFactory: () => ({ database: () => db }),
+      })({ apps: [{ ...APPS[0], releaseStreams: [stream] }] }),
+    );
+  }
+});
+
+test("a corrupted oversized sort key cannot mask the real highest version", async () => {
+  const stream = APPS[0].releaseStreams[0];
+  const realHighest = versionDocument({
+    code_version: "2.0",
+    version_sort_key: createVersionSortKey("2.0"),
+  });
+  const corruptedLowerVersion = versionDocument({
+    code_version: "1.0",
+    version_sort_key: `99${"9".repeat(98)}`,
+  });
+  assert.ok(
+    corruptedLowerVersion.version_sort_key > realHighest.version_sort_key,
+  );
+
+  // CloudBase returns the corrupt row first because the query orders and limits
+  // server-side. The reader must reject it instead of reporting 1.0 as highest.
+  const db = fakeDatabase(async () => ({ data: [corruptedLowerVersion] }));
+  await assert.rejects(
+    createCloudBaseVersionReader({
+      appFactory: () => ({ database: () => db }),
+    })({ apps: [{ ...APPS[0], releaseStreams: [stream] }] }),
+    /application_version_document_invalid/,
+  );
+  assert.equal(db.calls[0].field.version_sort_key, true);
+});
+
+test("release aggregation preserves a real empty stream and rejects missing or cross-app summaries", () => {
+  const empty = releaseSummaries([APPS[0]]);
+  assert.deepEqual(normalizeReleaseSummaries([APPS[0]], empty), empty);
+  const snapshot = createDashboardSnapshot({
+    apps: APPS,
+    days: 7,
+    events: [],
+    releaseSummaries: releaseSummaries(),
+    now: NOW,
+  });
+  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.releaseStreams.length, 3);
+  assert.ok(snapshot.releaseStreams.every((item) => item.status === "empty"));
+  assert.match(snapshot.alerts.at(-1).title, /3 个发布流尚无版本/);
+
+  assert.throws(
+    () => normalizeReleaseSummaries([APPS[0]], []),
+    /count does not match/,
+  );
+  assert.throws(
+    () =>
+      normalizeReleaseSummaries(
+        [APPS[0]],
+        [{ ...empty[0], appId: APPS[1].appId }, empty[1]],
+      ),
+    /ambiguous/,
+  );
+});
 
 test("CloudBase reader uses projected keyset pages and a fixed request cutoff", async () => {
   const first = Array.from({ length: PAGE_SIZE }, (_, i) => ({
@@ -712,7 +835,7 @@ test("only the trusted runtime context supplies short-lived session identity", a
     path: "/admin/v1/metrics",
     tokenHash: TOKEN_HASH,
     reader,
-    manifestReader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
     now: () => NOW,
   });
   const eventWithForgedIdentity = {
@@ -877,7 +1000,7 @@ test("handler rejects unknown parameters and applications", async () => {
     path: "/admin/v1/metrics",
     tokenHash: TOKEN_HASH,
     reader: async () => [],
-    manifestReader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
     now: () => NOW,
   });
   for (const url of [
@@ -899,6 +1022,27 @@ test("dashboard app mapping has an exact fail-closed shape", () => {
   assert.deepEqual(parseDashboardApps(JSON.stringify(APPS)), APPS);
   assert.deepEqual(
     parseDashboardApps([{ ...APPS[0], secret: "not allowed" }]),
+    [],
+  );
+  assert.deepEqual(
+    parseDashboardApps([
+      APPS[0],
+      {
+        ...APPS[1],
+        releaseStreams: [
+          {
+            ...APPS[1].releaseStreams[0],
+            code: APPS[0].releaseStreams[0].code,
+          },
+        ],
+      },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    parseDashboardApps([
+      { ...APPS[0], versionCollection: APPS[1].versionCollection },
+    ]),
     [],
   );
   assert.deepEqual(parseDashboardApps("not-json"), []);
@@ -936,36 +1080,24 @@ test("double-encoded app mapping survives the CloudBase CLI 3.8.1 config reviver
   assert.deepEqual(parseDashboardApps(JSON.stringify("not-json")), []);
 });
 
-test("an unreadable update manifest remains explicitly unknown", async () => {
-  const manifestUrl =
-    "https://example.ap-shanghai.app.tcloudbase.com/updates/bifang-screen-recorder/windows.json";
-  const unavailable = fallbackManifest(
-    "bifang-screen-recorder",
-    "windows",
-    manifestUrl,
-  );
-  assert.equal(unavailable.source, "unavailable");
-
-  const readManifests = createManifestReader({
-    baseUrl: "https://example.ap-shanghai.app.tcloudbase.com/updates",
-    fetchImpl: async () => ({ ok: false }),
-  });
-  const results = await readManifests([APPS[0]]);
-  assert.equal(results.length, 2);
-  assert.equal(
-    results.every((item) => item.source === "unavailable"),
-    true,
-  );
-
-  const snapshot = createDashboardSnapshot({
+test("an unreadable version collection makes the whole dashboard unavailable", async () => {
+  const handler = createHandler({
     apps: APPS,
-    days: 7,
-    environmentId: "test-env",
-    events: [],
-    manifests: [unavailable],
-    now: NOW,
-    selectedAppId: "bifang-screen-recorder",
+    path: "/admin/v1/metrics",
+    tokenHash: TOKEN_HASH,
+    reader: async () => [],
+    versionReader: async () => {
+      throw new Error("application_version_document_invalid");
+    },
+    now: () => NOW,
+    logger: { error: () => undefined },
   });
-  assert.equal(snapshot.alerts.at(-1).tone, "warning");
-  assert.match(snapshot.alerts.at(-1).title, /状态未知/);
+  const response = await handler({
+    httpMethod: "GET",
+    path: "/admin/v1/metrics",
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(JSON.parse(response.body), { error: "metrics_unavailable" });
+  assert.equal(response.body.includes("application_version"), false);
 });

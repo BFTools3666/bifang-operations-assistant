@@ -1,0 +1,35 @@
+{
+  "$schema": "https://bifang.local/schemas/onboarding-bootstrap-v1.json",
+  "schemaVersion": 1,
+  "canonicalRepositoryUrl": "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git",
+  "repositoryIdentity": "bifang-operations-assistant",
+  "minimumInfrastructureCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
+  "infrastructureVersion": "3.0.0",
+  "applicationVersionContractVersion": "1.0.0",
+  "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
+  "skill": {
+    "name": "bifang-public-services-onboarding",
+    "version": "2.0.0",
+    "path": "skills/bifang-public-services-onboarding",
+    "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
+    "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"
+  },
+  "oneLineRequest": "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接入",
+  "initialAuthorization": {
+    "allows": [
+      "fetch-authoritative-repository",
+      "install-or-update-onboarding-skill",
+      "read-only-stage-0-project-scan",
+      "write-or-migrate-non-sensitive-profile",
+      "replace-legacy-update-protocol-in-target-client",
+      "remove-legacy-update-protocol-from-target-client",
+      "run-local-static-and-unit-verification"
+    ],
+    "requiresSeparateExplicitAuthorization": [
+      "build-or-install-client",
+      "deploy-cloudbase",
+      "publish-or-push",
+      "delete-or-retire-cloud-resources"
+    ]
+  }
+}

@@ -8,6 +8,7 @@ coverage/
 *.tgz
 cloudbaserc.json
 cloudbase/application-version-credentials.b64
+cloudbase/application-version-live-state.json
 .cloudbase/
 .tcb/
 __pycache__/

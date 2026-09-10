@@ -9,6 +9,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
 import tarfile
 from datetime import datetime
@@ -37,6 +38,7 @@ except ModuleNotFoundError as error:
 
 
 PACKAGE_NAME = "@bifang/telemetry-update-sdk"
+SDK_COMPATIBLE_VERSION = "3.0.0"
 SUPPORTED_KINDS = frozenset(
     ("versioned_tarball", "private_package", "repository_copy", "workspace")
 )
@@ -53,6 +55,173 @@ IMMUTABLE_REFERENCE_PATTERN = re.compile(
 TREE_HASH_ALGORITHM = "bifang-relative-content-v1"
 _TREE_HASH_DOMAIN = b"bifang-relative-content-v1\x00"
 _CHUNK_SIZE = 1024 * 1024
+_REQUIRED_RUNTIME_EXPORTS = frozenset(
+    (
+        "ApplicationVersionChecker",
+        "buildApplicationVersionCheckUrl",
+        "decideApplicationVersion",
+        "isCanonicalApplicationVersionBaseUrl",
+        "parseApplicationVersionData",
+        "runApplicationVersionHostHooks",
+    )
+)
+_REQUIRED_DECLARATION_EXPORTS = frozenset(
+    (
+        *_REQUIRED_RUNTIME_EXPORTS,
+        "ApplicationVersionCheckerConfig",
+        "ApplicationVersionData",
+        "ApplicationVersionDecision",
+        "ApplicationVersionHostHooks",
+    )
+)
+_STATIC_MANIFEST_PUBLIC_MARKERS = frozenset(
+    (
+        "UpdateChecker",
+        "UpdateCheckerConfig",
+        "UpdateConfig",
+        "UpdateDecision",
+        "UpdateFetch",
+        "UpdateFetchResponse",
+        "UpdateHostHooks",
+        "NoUpdateDecision",
+        "NoUpdateReason",
+        "OptionalUpdateDecision",
+        "RequiredUpdateDecision",
+        "AvailableUpdateDecision",
+        "UPDATE_SCHEMA_VERSION",
+        "DEFAULT_UPDATE_TIMEOUT_MS",
+        "buildUpdateUrl",
+        "decideUpdate",
+        "parseUpdateConfig",
+        "rolloutBucket",
+        "runUpdateHostHooks",
+        "isRfc3339Date",
+        "isSha256",
+        "latest_version",
+        "min_supported_version",
+        "release_notes_url",
+        "force_update",
+        "rollout",
+    )
+)
+_TYPESCRIPT_COMPILER_VERSION = "5.9.3"
+_TYPESCRIPT_COMPILER_SHA256 = (
+    "3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675"
+)
+_TYPESCRIPT_AST_TIMEOUT_SECONDS = 5
+_TYPESCRIPT_AST_INSPECTOR = r"""
+"use strict";
+const fs = require("node:fs");
+const ts = require(process.argv[1]);
+
+function modifiers(node) {
+  return ts.canHaveModifiers(node) ? ts.getModifiers(node) || [] : [];
+}
+
+function hasModifier(node, kind) {
+  return modifiers(node).some((modifier) => modifier.kind === kind);
+}
+
+function bindingNames(name, output) {
+  if (ts.isIdentifier(name)) {
+    output.add(name.text);
+    return;
+  }
+  for (const element of name.elements || []) {
+    if (!ts.isOmittedExpression(element)) bindingNames(element.name, output);
+  }
+}
+
+function declarationNames(statement) {
+  const names = new Set();
+  if (ts.isVariableStatement(statement)) {
+    for (const declaration of statement.declarationList.declarations) {
+      bindingNames(declaration.name, names);
+    }
+  } else if (statement.name && ts.isIdentifier(statement.name)) {
+    names.add(statement.name.text);
+  }
+  return names;
+}
+
+function collectIdentifiers(node, output) {
+  if (ts.isIdentifier(node)) output.add(node.text);
+  if (ts.isStringLiteral(node)) output.add(node.text);
+  ts.forEachChild(node, (child) => collectIdentifiers(child, output));
+}
+
+function analyze(source, fileName, scriptKind, includePublicIdentifiers) {
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    false,
+    scriptKind,
+  );
+  if (file.parseDiagnostics.length !== 0) throw new Error("source syntax is invalid");
+
+  const declarations = new Map();
+  for (const statement of file.statements) {
+    for (const name of declarationNames(statement)) declarations.set(name, statement);
+  }
+
+  const exportedNames = new Set();
+  const publicIdentifiers = new Set();
+  let unresolvedExport = false;
+  for (const statement of file.statements) {
+    if (ts.isExportDeclaration(statement)) {
+      if (!statement.exportClause || ts.isNamespaceExport(statement.exportClause)) {
+        unresolvedExport = true;
+        continue;
+      }
+      for (const element of statement.exportClause.elements) {
+        if (ts.isIdentifier(element.name)) {
+          exportedNames.add(element.name.text);
+          publicIdentifiers.add(element.name.text);
+        }
+        const local = element.propertyName || element.name;
+        if (ts.isIdentifier(local)) {
+          publicIdentifiers.add(local.text);
+          if (!statement.moduleSpecifier && declarations.has(local.text)) {
+            collectIdentifiers(declarations.get(local.text), publicIdentifiers);
+          }
+        }
+      }
+      continue;
+    }
+    if (ts.isExportAssignment(statement)) {
+      exportedNames.add("default");
+      publicIdentifiers.add("default");
+      continue;
+    }
+    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue;
+
+    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) {
+      exportedNames.add("default");
+    } else {
+      for (const name of declarationNames(statement)) exportedNames.add(name);
+    }
+    if (includePublicIdentifiers) collectIdentifiers(statement, publicIdentifiers);
+  }
+
+  if (exportedNames.size > 2048 || publicIdentifiers.size > 8192) {
+    throw new Error("public API is too large to inspect");
+  }
+  return {
+    exportedNames: [...exportedNames].sort(),
+    publicIdentifiers: [...publicIdentifiers].sort(),
+    unresolvedExport,
+  };
+}
+
+const payload = JSON.parse(fs.readFileSync(0, "utf8"));
+const result = {
+  compilerVersion: ts.version,
+  runtime: analyze(payload.runtime, "index.js", ts.ScriptKind.JS, false),
+  declarations: analyze(payload.declarations, "index.d.ts", ts.ScriptKind.TS, true),
+};
+process.stdout.write(JSON.stringify(result));
+"""
 
 
 class SDKDistributionVerificationError(ValueError):
@@ -161,6 +330,11 @@ def verify_sdk_distribution(
         raise SDKDistributionVerificationError(
             "$.sdk_distribution.version must be a SemVer"
         )
+    if version != SDK_COMPATIBLE_VERSION:
+        raise SDKDistributionVerificationError(
+            "$.sdk_distribution.version must be exactly "
+            f"{SDK_COMPATIBLE_VERSION} for the current Node/Electron SDK contract"
+        )
     if (
         not isinstance(expected_hash, str)
         or SHA256_PATTERN.fullmatch(expected_hash) is None
@@ -200,6 +374,10 @@ def verify_sdk_distribution(
         hash_algorithm = TREE_HASH_ALGORITHM
 
     _validate_package_identity(package_json, version)
+    if kind == "versioned_tarball":
+        _validate_npm_tgz_public_api(artifact_path, package_json)
+    else:
+        _validate_directory_public_api(artifact_path, package_json)
     return {
         "artifact_sha256": actual_hash,
         "distribution_kind": kind,
@@ -208,6 +386,7 @@ def verify_sdk_distribution(
         "source": normalized_source,
         "verification_mode": verification_mode,
         "artifact_bytes_verified": True,
+        "artifact_contract_verified": True,
         "verification_status": "artifact_verified",
         "version": version,
     }
@@ -508,6 +687,324 @@ def _validate_package_identity(package_json: Mapping[str, Any], version: str) ->
         )
 
 
+def _validate_directory_public_api(
+    root: Path, package_json: Mapping[str, Any]
+) -> None:
+    runtime_entry, declaration_entry = _package_public_entries(package_json)
+    runtime_text = _read_directory_text_entry(
+        root, runtime_entry, "SDK public runtime entry"
+    )
+    declaration_text = _read_directory_text_entry(
+        root, declaration_entry, "SDK public declaration entry"
+    )
+    _validate_public_api(runtime_text, declaration_text)
+
+
+def _validate_npm_tgz_public_api(
+    path: Path, package_json: Mapping[str, Any]
+) -> None:
+    runtime_entry, declaration_entry = _package_public_entries(package_json)
+    expected_members = {
+        f"package/{runtime_entry}": "SDK public runtime entry",
+        f"package/{declaration_entry}": "SDK public declaration entry",
+    }
+    try:
+        with tarfile.open(path, mode="r:gz") as archive:
+            members = {
+                PurePosixPath(member.name).as_posix(): member
+                for member in archive.getmembers()
+            }
+            loaded: dict[str, str] = {}
+            for member_name, label in expected_members.items():
+                member = members.get(member_name)
+                if member is None or not member.isfile():
+                    raise SDKDistributionVerificationError(
+                        f"npm tgz is missing {label}: {member_name}"
+                    )
+                loaded[label] = _read_tar_text_member(archive, member, label)
+    except SDKDistributionVerificationError:
+        raise
+    except (OSError, EOFError, tarfile.TarError) as error:
+        raise SDKDistributionVerificationError(
+            "versioned_tarball public API could not be inspected"
+        ) from error
+
+    _validate_public_api(
+        loaded["SDK public runtime entry"],
+        loaded["SDK public declaration entry"],
+    )
+
+
+def _package_public_entries(package_json: Mapping[str, Any]) -> tuple[str, str]:
+    exports = package_json.get("exports")
+    root_export: Any = None
+    if exports is not None:
+        if not isinstance(exports, Mapping) or "." not in exports:
+            raise SDKDistributionVerificationError(
+                "package exports must expose the package root"
+            )
+        root_export = exports.get(".")
+
+    runtime_value: Any = None
+    declaration_value: Any = None
+    if isinstance(root_export, str):
+        runtime_value = root_export
+    elif isinstance(root_export, Mapping):
+        runtime_value = root_export.get("import")
+        declaration_value = root_export.get("types")
+    elif root_export is not None:
+        raise SDKDistributionVerificationError(
+            "package root export must be a string or condition object"
+        )
+
+    if runtime_value is None:
+        runtime_value = package_json.get("module", package_json.get("main"))
+    if declaration_value is None:
+        declaration_value = package_json.get("types", package_json.get("typings"))
+
+    runtime_entry = _normalize_package_entry(
+        runtime_value,
+        "package public runtime entry",
+        (".js", ".mjs", ".cjs"),
+    )
+    declaration_entry = _normalize_package_entry(
+        declaration_value,
+        "package public declaration entry",
+        (".d.ts", ".d.mts", ".d.cts"),
+    )
+    return runtime_entry, declaration_entry
+
+
+def _normalize_package_entry(
+    value: Any, label: str, allowed_suffixes: tuple[str, ...]
+) -> str:
+    if not isinstance(value, str) or not value.startswith("./"):
+        raise SDKDistributionVerificationError(
+            f"{label} must be an explicit package-relative path"
+        )
+    normalized = _validate_relative_path_text(value[2:], label)
+    if not normalized.endswith(allowed_suffixes):
+        raise SDKDistributionVerificationError(
+            f"{label} must use one of: {', '.join(allowed_suffixes)}"
+        )
+    return normalized
+
+
+def _read_directory_text_entry(root: Path, relative: str, label: str) -> str:
+    path, _normalized = resolve_project_relative_path(root, relative, field=label)
+    _reject_link(path, label)
+    try:
+        file_stat = path.stat()
+    except OSError as error:
+        raise SDKDistributionVerificationError(f"{label} could not be inspected") from error
+    if not stat.S_ISREG(file_stat.st_mode):
+        raise SDKDistributionVerificationError(f"{label} must be a regular file")
+    if file_stat.st_size > MAX_PROFILE_BYTES:
+        raise SDKDistributionVerificationError(
+            f"{label} exceeds {MAX_PROFILE_BYTES} bytes"
+        )
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise SDKDistributionVerificationError(f"{label} could not be read") from error
+    return _decode_utf8_text(raw, label)
+
+
+def _read_tar_text_member(
+    archive: tarfile.TarFile, member: tarfile.TarInfo, label: str
+) -> str:
+    if member.size > MAX_PROFILE_BYTES:
+        raise SDKDistributionVerificationError(
+            f"{label} exceeds {MAX_PROFILE_BYTES} bytes"
+        )
+    extracted = archive.extractfile(member)
+    if extracted is None:
+        raise SDKDistributionVerificationError(f"{label} could not be read")
+    raw = extracted.read(MAX_PROFILE_BYTES + 1)
+    return _decode_utf8_text(raw, label)
+
+
+def _decode_utf8_text(raw: bytes, label: str) -> str:
+    if len(raw) > MAX_PROFILE_BYTES:
+        raise SDKDistributionVerificationError(
+            f"{label} exceeds {MAX_PROFILE_BYTES} bytes"
+        )
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise SDKDistributionVerificationError(f"{label} must be UTF-8") from error
+
+
+def _validate_public_api(runtime_text: str, declaration_text: str) -> None:
+    inspection = _inspect_public_api_ast(runtime_text, declaration_text)
+    runtime = inspection["runtime"]
+    declarations = inspection["declarations"]
+    if runtime["unresolved_export"] or declarations["unresolved_export"]:
+        raise SDKDistributionVerificationError(
+            "SDK public entries contain an export-star or namespace export that "
+            "cannot be verified from the package entry"
+        )
+    runtime_exports = runtime["exported_names"]
+    declaration_exports = declarations["exported_names"]
+
+    missing_runtime = sorted(_REQUIRED_RUNTIME_EXPORTS - runtime_exports)
+    if missing_runtime:
+        raise SDKDistributionVerificationError(
+            "SDK public runtime entry is missing application-version exports: "
+            + ", ".join(missing_runtime)
+        )
+    missing_declarations = sorted(
+        _REQUIRED_DECLARATION_EXPORTS - declaration_exports
+    )
+    if missing_declarations:
+        raise SDKDistributionVerificationError(
+            "SDK public declaration entry is missing application-version declarations: "
+            + ", ".join(missing_declarations)
+        )
+
+    legacy_markers = sorted(
+        _STATIC_MANIFEST_PUBLIC_MARKERS
+        & (runtime_exports | declarations["public_identifiers"])
+    )
+    if legacy_markers:
+        raise SDKDistributionVerificationError(
+            "SDK public surface still exposes obsolete static-manifest API: "
+            + ", ".join(legacy_markers)
+        )
+
+
+def _inspect_public_api_ast(
+    runtime_text: str, declaration_text: str
+) -> dict[str, dict[str, set[str] | bool]]:
+    if not isinstance(runtime_text, str) or not isinstance(declaration_text, str):
+        raise SDKDistributionVerificationError("SDK public entries must contain text")
+    if (
+        len(runtime_text.encode("utf-8")) > MAX_PROFILE_BYTES
+        or len(declaration_text.encode("utf-8")) > MAX_PROFILE_BYTES
+    ):
+        raise SDKDistributionVerificationError(
+            "SDK public entries exceed the static inspection limit"
+        )
+
+    compiler_path = _find_trusted_typescript_compiler()
+    payload = json.dumps(
+        {"runtime": runtime_text, "declarations": declaration_text},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    environment = dict(os.environ)
+    environment.pop("NODE_OPTIONS", None)
+    environment.pop("NODE_PATH", None)
+    try:
+        completed = subprocess.run(
+            [
+                "node",
+                "--max-old-space-size=96",
+                "-e",
+                _TYPESCRIPT_AST_INSPECTOR,
+                str(compiler_path),
+            ],
+            input=payload,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            timeout=_TYPESCRIPT_AST_TIMEOUT_SECONDS,
+            check=False,
+            env=environment,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired as error:
+        raise SDKDistributionVerificationError(
+            "SDK public API static inspection timed out"
+        ) from error
+    except (OSError, UnicodeError) as error:
+        raise SDKDistributionVerificationError(
+            "SDK public API static inspector could not run"
+        ) from error
+    if completed.returncode != 0 or len(completed.stdout) > 256 * 1024:
+        raise SDKDistributionVerificationError(
+            "SDK public API could not be parsed safely"
+        )
+    try:
+        parsed = json.loads(completed.stdout)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise SDKDistributionVerificationError(
+            "SDK public API inspector returned an invalid result"
+        ) from error
+    if (
+        not isinstance(parsed, dict)
+        or parsed.get("compilerVersion") != _TYPESCRIPT_COMPILER_VERSION
+    ):
+        raise SDKDistributionVerificationError(
+            "SDK public API inspector used an unexpected compiler"
+        )
+
+    normalized: dict[str, dict[str, set[str] | bool]] = {}
+    for label in ("runtime", "declarations"):
+        value = parsed.get(label)
+        if not isinstance(value, dict) or set(value) != {
+            "exportedNames",
+            "publicIdentifiers",
+            "unresolvedExport",
+        }:
+            raise SDKDistributionVerificationError(
+                "SDK public API inspector returned an invalid result"
+            )
+        exported_names = value.get("exportedNames")
+        public_identifiers = value.get("publicIdentifiers")
+        unresolved_export = value.get("unresolvedExport")
+        if (
+            not isinstance(exported_names, list)
+            or not isinstance(public_identifiers, list)
+            or not isinstance(unresolved_export, bool)
+            or any(not isinstance(name, str) for name in exported_names)
+            or any(not isinstance(name, str) for name in public_identifiers)
+            or len(set(exported_names)) != len(exported_names)
+            or len(set(public_identifiers)) != len(public_identifiers)
+        ):
+            raise SDKDistributionVerificationError(
+                "SDK public API inspector returned an invalid result"
+            )
+        normalized[label] = {
+            "exported_names": set(exported_names),
+            "public_identifiers": set(public_identifiers),
+            "unresolved_export": unresolved_export,
+        }
+    return normalized
+
+
+def _find_trusted_typescript_compiler() -> Path:
+    roots: list[Path] = []
+    for start in (Path(__file__).resolve().parent, Path.cwd().resolve()):
+        roots.extend((start, *start.parents))
+    seen: set[Path] = set()
+    for root in roots:
+        candidate = root / "node_modules" / "typescript" / "lib" / "typescript.js"
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            if not candidate.is_file() or candidate.is_symlink():
+                continue
+            if sha256_file(candidate) != _TYPESCRIPT_COMPILER_SHA256:
+                continue
+            package_json = read_json_file(candidate.parent.parent / "package.json")
+        except (OSError, ValueError, SDKDistributionVerificationError):
+            continue
+        if (
+            isinstance(package_json, dict)
+            and package_json.get("name") == "typescript"
+            and package_json.get("version") == _TYPESCRIPT_COMPILER_VERSION
+        ):
+            return candidate
+    raise SDKDistributionVerificationError(
+        "trusted TypeScript 5.9.3 parser is unavailable; install the locked "
+        "workspace dependencies before verifying the SDK public API"
+    )
+
+
 def _require_matching_hash(actual: str, expected: str) -> None:
     if actual != expected:
         raise SDKDistributionVerificationError(
@@ -620,6 +1117,7 @@ def _verify_private_package(
     return {
         "artifact_sha256": expected_hash,
         "artifact_bytes_verified": False,
+        "artifact_contract_verified": False,
         "distribution_kind": "private_package",
         "immutable_reference": immutable_reference,
         "package": PACKAGE_NAME,

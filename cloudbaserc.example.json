@@ -60,23 +60,11 @@
       "memorySize": 256,
       "installDependency": true,
       "envVariables": {
-        "CLOUDBASE_ENV_ID": "{{env.ENV_ID}}",
-        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"]}]\"",
+        "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
+        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-mouse-clicker\\\"}]}]\"",
         "DASHBOARD_PATH": "/admin/v1/metrics",
-        "DASHBOARD_TOKEN_SHA256": "{{env.DASHBOARD_TOKEN_SHA256}}",
-        "DASHBOARD_UPDATES_BASE_URL": "{{env.DASHBOARD_UPDATES_BASE_URL}}"
+        "DASHBOARD_TOKEN_SHA256": "{{env.DASHBOARD_TOKEN_SHA256}}"
       }
-    }
-  ],
-  "hosting": [
-    {
-      "name": "updates",
-      "root": "./cloudbase/updates",
-      "framework": "static",
-      "installCommand": "",
-      "buildCommand": "",
-      "outputDir": ".",
-      "deployPath": "/updates"
     }
   ],
   "gateway": {
@@ -130,17 +118,12 @@
         "enablePathTransmission": true,
         "enableAuth": false,
         "qpsPolicy": {
-          "qpsTotal": 5,
+          "qpsTotal": 100,
           "qpsPerClient": {
             "limitBy": "ClientIP",
             "limitValue": 2
           }
         }
-      },
-      {
-        "path": "/updates",
-        "target": "hosting:updates",
-        "enableAuth": false
       }
     ]
   }

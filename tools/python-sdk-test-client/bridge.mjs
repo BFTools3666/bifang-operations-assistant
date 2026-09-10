@@ -3,21 +3,17 @@ import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  ApplicationVersionChecker,
   FetchTelemetryTransport,
-  InstallIdentity,
   SDK_VERSION,
   TelemetryClient,
-  UpdateChecker,
-  buildUpdateUrl,
+  buildApplicationVersionCheckUrl,
   isSafeExternalUrl,
-  parseUpdateConfig,
 } from "@bifang/telemetry-update-sdk";
 import { NodeFileIdentityStorage } from "@bifang/telemetry-update-sdk/node";
 
 const CAPTURE_ENDPOINT =
-  "https://telemetry.example.invalid/python-sdk-test-client/capture";
-const PREVIEW_UPDATE_BASE_URL =
-  "https://updates.example.invalid/python-sdk-test-client/preview";
+  "https://telemetry.example.com/python-sdk-test-client/capture";
 // The ten-device diagnostic is deliberately slow. It is an optional acceptance
 // test, not production telemetry, and must not create a burst against a free
 // CloudBase gateway.
@@ -34,12 +30,12 @@ const SIMULATED_DEVICE_PLANS = Object.freeze([
   { platform: "linux", arch: "x64" },
   { platform: "windows", arch: "x64" },
 ]);
-const SERIAL_TELEMETRY_ACTIONS = new Set([
+const SERIAL_ACTIONS = new Set([
   "init_capture",
   "init_live",
   "send_daily_active",
   "simulate_devices",
-  "check_update_url",
+  "check_application_version",
   "reset_sessions",
 ]);
 
@@ -181,32 +177,6 @@ function requireCanonicalExternalUrl(value, name) {
   return candidate;
 }
 
-function deriveExactUpdateBaseUrl(updateUrl, appId, platform) {
-  const parsed = new URL(updateUrl);
-  const suffix = `/${appId}/${platform}.json`;
-  if (parsed.search !== "" || !parsed.pathname.endsWith(suffix)) {
-    throw new BridgeRequestError(
-      "unsafe_update_url",
-      "update_url must end with the canonical app_id/platform.json path",
-    );
-  }
-
-  const base = new URL(parsed.toString());
-  const basePath = parsed.pathname.slice(0, -suffix.length);
-  base.pathname = basePath === "" ? "/" : basePath;
-  base.search = "";
-  base.hash = "";
-  const baseUrl = base.toString();
-  const rebuilt = buildUpdateUrl(baseUrl, appId, platform);
-  if (rebuilt !== updateUrl) {
-    throw new BridgeRequestError(
-      "unsafe_update_url",
-      "update_url must exactly match the SDK canonical update URL",
-    );
-  }
-  return baseUrl;
-}
-
 function abortableDelay(delayMs, signal) {
   if (signal.aborted) {
     return Promise.reject(new Error("telemetry_aborted"));
@@ -258,37 +228,6 @@ function publicDelivery(result, metadata = {}) {
   };
 }
 
-function safeUpdateConfig(config) {
-  if (!config) {
-    return null;
-  }
-  return {
-    app_id: config.app_id,
-    platform: config.platform,
-    enabled: config.enabled,
-    latest_version: config.latest_version,
-    min_supported_version: config.min_supported_version,
-    force_update: config.force_update,
-    rollout: config.rollout,
-    title: config.title,
-    message: config.message,
-    download_url: config.download_url,
-    release_notes_url: config.release_notes_url,
-    published_at: config.published_at,
-  };
-}
-
-function parseCheckedUpdateConfig(responseText, appId, platform) {
-  if (typeof responseText !== "string" || responseText.length > 16_384) {
-    return null;
-  }
-  try {
-    return parseUpdateConfig(JSON.parse(responseText), appId, platform);
-  } catch {
-    return null;
-  }
-}
-
 function telemetryConfig(request, identityStorage, extras) {
   return {
     appId: request.app_id,
@@ -314,17 +253,6 @@ function publicClientState(client) {
   };
 }
 
-function currentInstallId(state) {
-  const client = state.live?.client ?? state.capture?.client;
-  if (!client) {
-    throw new BridgeRequestError(
-      "sdk_not_initialized",
-      "initialize a capture or live SDK session first",
-    );
-  }
-  return client.installId;
-}
-
 export function createBridgeDispatcher(options = {}) {
   const state = {
     capture: null,
@@ -342,7 +270,7 @@ export function createBridgeDispatcher(options = {}) {
     options.simulationPostIntervalMs <= 5_000
       ? options.simulationPostIntervalMs
       : SIMULATION_POST_INTERVAL_MS;
-  let telemetryQueue = Promise.resolve();
+  let actionQueue = Promise.resolve();
 
   const dispatch = async function dispatch(rawRequest) {
     const request = requireObject(rawRequest);
@@ -481,52 +409,55 @@ export function createBridgeDispatcher(options = {}) {
       };
     }
 
-    if (action === "check_update_url") {
+    if (action === "check_application_version") {
       requireNetworkConsent(request, "GET");
-      const updateUrl = requireCanonicalExternalUrl(
-        request.update_url,
-        "update_url",
+      const baseUrl = requireCanonicalExternalUrl(
+        request.version_base_url,
+        "version_base_url",
       );
-      const updateBaseUrl = deriveExactUpdateBaseUrl(
-        updateUrl,
-        request.app_id,
-        request.platform,
+      const code = requireString(request.application_code, "application_code");
+      const currentVersion = requireString(
+        request.current_version,
+        "current_version",
       );
-      const stateDirectory = resolve(
-        requireString(request.state_dir, "state_dir"),
+      const appKey = requireString(request.app_key, "app_key");
+      const appSecret = requireString(request.app_secret, "app_secret");
+      const requestUrl = buildApplicationVersionCheckUrl(
+        baseUrl,
+        code,
+        currentVersion,
       );
+      if (!requestUrl) {
+        throw new BridgeRequestError(
+          "invalid_version_api_config",
+          "version_base_url must end at exactly /tools/version-control/v1 and code/version must be valid",
+        );
+      }
       const logger = new BufferLogger();
-      const identity = await new InstallIdentity(
-        appIdentityStorage(request, stateDirectory),
-        { logger },
-      ).initialize();
       const fetchDiagnostic = {
-        original_url: updateUrl,
-        actual_url: updateUrl,
+        request_url: requestUrl,
         attempted: false,
+        credentials_redacted: true,
       };
-      let responseText = null;
-      let responseWasOk = false;
-      const checker = new UpdateChecker({
-        baseUrl: updateBaseUrl,
-        appId: request.app_id,
-        platform: request.platform,
-        currentVersion: request.app_version,
-        installId: identity.installId,
+      const checker = new ApplicationVersionChecker({
+        baseUrl,
+        code,
+        currentVersion,
+        appKey,
+        appSecret,
         enabled: true,
         logger,
         fetch: async (sdkRequestUrl, init) => {
-          if (sdkRequestUrl !== updateUrl) {
+          if (sdkRequestUrl !== requestUrl) {
             throw new BridgeRequestError(
-              "unsafe_update_url",
-              "SDK update URL does not exactly match update_url",
+              "unsafe_version_api_url",
+              "SDK request URL does not exactly match the frozen application-version API URL",
             );
           }
           fetchDiagnostic.attempted = true;
-          fetchDiagnostic.sdk_request_url = sdkRequestUrl;
           fetchDiagnostic.method = init.method;
           fetchDiagnostic.cache = init.cache ?? "no-store";
-          fetchDiagnostic.headers = structuredClone(init.headers);
+          fetchDiagnostic.request_headers = Object.keys(init.headers).sort();
           if (typeof globalThis.fetch !== "function") {
             fetchDiagnostic.error = { code: "fetch_unavailable" };
             throw new Error("fetch_unavailable");
@@ -547,12 +478,11 @@ export function createBridgeDispatcher(options = {}) {
             fetchDiagnostic.error = { code: "network_error" };
             throw new Error("network_error");
           }
-          responseWasOk = response.ok === true;
           fetchDiagnostic.http_status = Number.isInteger(response.status)
             ? response.status
             : null;
-          fetchDiagnostic.http_ok = responseWasOk;
-          if (!responseWasOk) {
+          fetchDiagnostic.http_ok = response.ok === true;
+          if (!response.ok) {
             fetchDiagnostic.error = {
               code: "http_error",
               ...(Number.isInteger(response.status)
@@ -561,11 +491,10 @@ export function createBridgeDispatcher(options = {}) {
             };
           }
           return {
-            ok: responseWasOk,
+            ok: response.ok === true,
             text: async () => {
               try {
-                responseText = await response.text();
-                return responseText;
+                return await response.text();
               } catch {
                 fetchDiagnostic.error = { code: "network_error" };
                 throw new Error("network_error");
@@ -575,20 +504,8 @@ export function createBridgeDispatcher(options = {}) {
         },
       });
       const decision = await checker.check();
-      const parsedConfig = responseWasOk
-        ? parseCheckedUpdateConfig(
-            responseText,
-            request.app_id,
-            request.platform,
-          )
-        : null;
       return {
         decision,
-        config: safeUpdateConfig(parsedConfig),
-        install_id: identity.installId,
-        is_first_install: identity.isFirstInstall,
-        original_url: updateUrl,
-        actual_url: updateUrl,
         fetch_diagnostic: fetchDiagnostic,
         debug: structuredClone(logger.records),
         network_performed: fetchDiagnostic.attempted,
@@ -649,92 +566,6 @@ export function createBridgeDispatcher(options = {}) {
       };
     }
 
-    if (action === "preview_update") {
-      requireObject(request.manifest, "manifest");
-      const requests = [];
-      const logger = new BufferLogger();
-      const checker = new UpdateChecker({
-        baseUrl: PREVIEW_UPDATE_BASE_URL,
-        appId: request.app_id,
-        platform: request.platform,
-        currentVersion: request.app_version,
-        installId: currentInstallId(state),
-        enabled: true,
-        logger,
-        fetch: async (url, init) => {
-          requests.push({
-            url,
-            method: init.method,
-            headers: structuredClone(init.headers),
-            cache: init.cache,
-          });
-          return {
-            ok: true,
-            text: async () => JSON.stringify(request.manifest),
-          };
-        },
-      });
-      const decision = await checker.check();
-      return {
-        decision,
-        sdk_requests: requests,
-        debug: structuredClone(logger.records),
-        network_performed: false,
-      };
-    }
-
-    if (action === "build_update_url") {
-      const baseUrl = requireString(request.base_url, "base_url");
-      const requestUrl = buildUpdateUrl(
-        baseUrl,
-        request.app_id,
-        request.platform,
-      );
-      if (!requestUrl) {
-        throw new BridgeRequestError(
-          "unsafe_update_url",
-          "base_url must build an SDK-approved public HTTPS update URL",
-        );
-      }
-      return {
-        request_url: requestUrl,
-        network_performed: false,
-      };
-    }
-
-    if (action === "check_update_live") {
-      requireNetworkConsent(request, "GET");
-      const baseUrl = requireString(request.base_url, "base_url");
-      const requestUrl = buildUpdateUrl(
-        baseUrl,
-        request.app_id,
-        request.platform,
-      );
-      if (!requestUrl) {
-        throw new BridgeRequestError(
-          "unsafe_update_url",
-          "base_url must build an SDK-approved public HTTPS update URL",
-        );
-      }
-      const logger = new BufferLogger();
-      const checker = new UpdateChecker({
-        baseUrl,
-        appId: request.app_id,
-        platform: request.platform,
-        currentVersion: request.app_version,
-        installId: currentInstallId(state),
-        enabled: true,
-        logger,
-      });
-      const decision = await checker.check();
-      return {
-        decision,
-        request_url: requestUrl,
-        debug: structuredClone(logger.records),
-        network_authorized: true,
-      };
-    }
-
     throw new BridgeRequestError(
       "unknown_action",
       `unsupported action: ${action}`,
@@ -744,15 +575,15 @@ export function createBridgeDispatcher(options = {}) {
   return async function queuedDispatch(rawRequest) {
     const request = requireObject(rawRequest);
     const action = requireString(request.action, "action");
-    if (!SERIAL_TELEMETRY_ACTIONS.has(action)) {
+    if (!SERIAL_ACTIONS.has(action)) {
       return dispatch(request);
     }
 
-    const pending = telemetryQueue.then(
+    const pending = actionQueue.then(
       () => dispatch(request),
       () => dispatch(request),
     );
-    telemetryQueue = pending.then(
+    actionQueue = pending.then(
       () => undefined,
       () => undefined,
     );

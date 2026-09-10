@@ -1,156 +1,158 @@
-# CloudBase 每日启动统计资源说明
+# CloudBase 3.0 资源说明
 
-本目录保存可重复部署的源码和静态配置。仓库当前协议已收缩为固定的 `daily_active`：它表示软件在北京时间当天第一次启动使用，**不是安装事件**。同一个匿名 `install_id` 每天最多保存一条，不再接收渠道、功能、任务或更新交互统计。
+本目录是毕方公共服务的可维护源码：保留每个小工具隔离的 `daily_active` 遥测，并统一提供 application-version API v1。基础设施 3.0 不包含静态更新清单、静态更新 hosting、旧版本路由、灰度清单或兼容回退。
 
-Task4/Task8 部署及验收的是历史 v1 多事件协议，记录见 [`docs/cloudbase-deployment.md`](../docs/cloudbase-deployment.md)。它不证明当前 `daily_active` 代码已经上线。发布新版客户端前必须先部署新版云函数并重新验收；否则旧函数会拒绝新请求。完整协议、SDK 和维护说明见 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md)。
+旧静态协议的部署回执和截图已从 3.0 工作树删除，避免被误当成当前部署输入；需要追溯时只从 Git 历史读取。当前协议与验收要求以 [`docs/telemetry-and-update.md`](../docs/telemetry-and-update.md) 为准。
 
-## 目录
+## 目录与权威源
 
-- `apps.json`：全部工具及其 Windows/macOS 更新平台的唯一登记表；部署模板同时保留这里列出的所有工具。
-- `add-app.mjs`：安全追加一个工具，并为明确登记的平台创建默认关闭的更新清单。
-- `add-app-platform.mjs`：为已登记工具安全追加一个更新平台，不覆盖既有清单。
-- `generate-cloudbaserc.mjs`：根据登记表生成根目录 `cloudbaserc.json.example`，并校验所有登记平台清单。
-- `plan-app-deployment.mjs`：只读生成单个目标应用的资源级阶段 4 计划，不执行命令。
-- `plan-application-version-api-deployment.mjs`：读取未提交的 Base64 凭据配置，只输出摘要与共享版本服务的阶段 4 预览，不回显凭据、不执行云端写入。
-- `functions/telemetry/`：所有工具实例复用的 Node.js 20 CommonJS Event 函数源码，入口 `index.main`。
-- `functions/application-version-api/`：固定入口 `/tools/version-control/v1` 的 Node.js 20 Event 函数；实现版本与广告十个端点，`v1` 只出现一次。
-- `updates/update.schema.json`：更新清单 v1 JSON Schema。
-- `updates/<app_id>/<platform>.json`：每个工具、每个平台独立的更新清单；当前支持 `windows.json` 和 `macos.json`，禁用清单使用当前默认 HTTPS 域名下的 `not-published` 404 地址，正式发布前必须替换。
-- `updates/WINDOWS_JSON_FIELDS.zh-CN.md`：平台更新清单全部 14 个字段的中文说明；文件名作为历史兼容入口保留。
+- `apps.json`：schema v3 应用与发布流登记表，是 APP_ID、平台、架构、渠道和 version `code` 的唯一非敏感权威。
+- `add-app.mjs`：一次登记应用及至少一条发布流。
+- `add-release-stream.mjs`：给已登记应用追加发布流。
+- `generate-cloudbaserc.mjs`：生成并校验根目录 `cloudbaserc.example.json`。
+- `plan-app-deployment.mjs`：只生成单应用 telemetry 的只读部署计划。
+- `plan-application-version-api-deployment.mjs`：校验未提交的凭据配置与最新云端只读实况，生成共享版本服务的严格预览。
+- `functions/telemetry/`：Node.js 20 `daily_active` Event 函数源码。
+- `functions/application-version-api/`：application-version API v1 十个端点的 Event 函数源码。
+- `functions/operations-dashboard/`：私有只读运营看板聚合接口。
 
-生成器为每个工具创建一个 `telemetry-<app_id>` 配置，并由 HTTP 网关映射到 `/apps/<app_id>/v1/track`。这些都是普通 Event 云函数，不是监听 9000 端口的 HTTP Web 云函数。
+仓库中没有 `cloudbase/updates/`。生成配置没有 `hosting`，也没有 `/updates` 路由或 `DASHBOARD_UPDATES_BASE_URL`。
 
-## 目标拓扑与历史部署边界
+## 当前资源拓扑
 
-当前目标是在同一个免费 CloudBase 环境内做业务资源隔离。每个工具都有：
-
-1. 唯一 `app_id`，只含小写字母、数字和短横线，长度 1–50，且首尾是字母或数字。
-2. `telemetry-<app_id>` Event 云函数，Node.js 20，入口 `index.main`。
-3. `telemetry_<规范化app_id>` NoSQL 集合；规范化只把每个短横线替换为下划线，权限必须是 `ADMINONLY` 或控制台中含义相同的仅管理员可读写。
-4. 匿名 HTTP 网关路由 `POST/OPTIONS /apps/<app_id>/v1/track`，只指向该工具函数并透传路径。
-5. 静态清单 `/updates/<app_id>/<platform>.json`。
-
-所有工具只共享环境、平台默认 HTTPS 域名、`/updates` 静态托管入口、免费额度和平台故障域。自定义域名、EdgeOne 或套餐升级不属于本阶段；一旦出现非零价格或按量付费，必须先提醒负责人并停止。
-
-应用版本 API 使用一个共享函数 `application-version-api` 和一个固定网关前缀 `/tools/version-control/v1`。函数先用 `x-app-key`、`x-app-secret` 的不可逆摘要完成鉴权，再按凭据绑定的 `app_id + codes + scopes` 选择集合；不能根据客户端自由输入动态拼集合名。每个已登记应用由 `apps.json` 自动派生三套 `ADMINONLY` 集合：
+每个应用独立拥有：
 
 ```text
+telemetry-<app_id>
+/apps/<app_id>/v1/track
+telemetry_<规范化app_id>
 versions_<规范化app_id>
 ads_<规范化app_id>
 audit_<规范化app_id>
 ```
 
-版本写入、规范化版本唯一占位和审计写入使用同一数据库事务。原程序运行凭据只给 `versions:check`、`ads:show`，因此只能调用更新判定和广告展示两个 GET；管理列表/详情另用 `versions:read`、`ads:read`，写入另用 `versions:write`、`ads:write`。实际凭据配置通过 `APPLICATION_VERSION_CREDENTIALS_B64` 注入，格式含 schema 版本、凭据 ID、key/secret 的 SHA-256、应用、code 和 scopes；Key 与 Secret 原值都必须由密码学安全随机源生成，不能使用文档示例或人工短口令。配置及其源文件都不得提交或输出。推荐把本地 Base64 文件固定为已被 Git 忽略的 `cloudbase/application-version-credentials.b64`。短期轮换允许一个凭据 ID 同时登记两个 Secret 摘要。
-
-共享函数模板固定为 Node.js 20.19、256MB、3 秒，并通过 `{{tcb.envId}}` 读取命令行锁定的目标环境；这与当前免费体验版的函数上限对齐，但不能替代部署当天对实际环境套餐、资源点和收费提示的只读核验。
-
-每个函数必须配置三个由生成器写入的值：
+前三项用于 `daily_active`；后三个 `ADMINONLY` 集合由共享版本服务使用。共享资源为：
 
 ```text
-ALLOWED_APP_IDS=<该函数唯一app_id>
-TELEMETRY_COLLECTION=telemetry_<规范化app_id>
-TRACK_PATH=/apps/<app_id>/v1/track
+application-version-api  -> /tools/version-control/v1
+operations-dashboard-api -> /admin/v1/metrics
 ```
 
-虽然保留了历史变量名 `ALLOWED_APP_IDS`，新模板中它是单值，不能使用逗号列表。缺少或格式非法的 `TELEMETRY_COLLECTION`、`TRACK_PATH` 会 fail closed，函数不会回退到历史共享集合或共享路径；生成检查用于防止三个合法值彼此漂移。普通 Event 函数默认使用当前 CloudBase 环境访问数据库；只有确实要覆盖时才设置 `CLOUDBASE_ENV_ID`。公共客户端不使用腾讯云 secret。
+`v1` 是 API 版本，只出现一次。版本请求使用 `GET /tools/version-control/v1/versions/{code}/{version}` 和 `x-app-key`、`x-app-secret`；200 响应是契约定义的裸七字段对象。
 
-Task4/Task8 创建并验收的是下面“历史验收”章节所述的旧单函数拓扑。迁移时不要直接覆盖或先删除旧资源：先保留旧资源，部署并验证独立资源，再切换客户端，观察迁移期后才人工下线，避免旧客户端 404 或新旧集合统计分裂。
+`apps.json` 中每条 `release_streams` 都必须唯一声明：
 
-数据库适配器固定使用官方 `@cloudbase/js-sdk@3.8.2`；该包自 v3.1 起内置 Node.js 适配器。本仓库有意不使用旧的 `@cloudbase/node-sdk@3.18.3`，因为实现阶段的 `npm audit` 显示其旧依赖链存在 4 个 high severity 漏洞。Task4 已在真实 Event 函数中复核当前环境鉴权、数据库写入和重复事件幂等；后续升级依赖仍必须重新运行测试与审计。
-
-## 部署模板
-
-仓库根目录的 `cloudbaserc.json.example` 由 `apps.json` 生成，是包含全部已登记工具的可重复部署起点，不是已验证的生产配置。新增工具例如 `bifang-tools-pdf`：
-
-```powershell
-npm run cloudbase:app:add -- bifang-tools-pdf
+```json
+{
+  "platform": "windows",
+  "architecture": "x64",
+  "channel": "stable",
+  "code": "example-tool-windows-x64"
+}
 ```
 
-默认只登记 Windows；新应用同时支持 Windows 和 macOS 时在命令末尾追加 `windows macos`。已登记应用新增 macOS 时使用：
+Version 请求本身没有平台字段，因此不同平台或架构不能共用同一个 `code`，也不能依赖 User-Agent 猜测。
+
+## 登记应用与发布流
+
+新增应用时同时给出一条或多条四元组：
 
 ```powershell
-npm run cloudbase:app:platform:add -- bifang-tools-pdf macos
+npm run cloudbase:app:add -- <app_id> <platform> <architecture> <channel> <code>
 ```
 
-两个命令都会拒绝非法或重复编号/平台，不覆盖已有目录或清单，并创建 `enabled=false`、`rollout=0`、使用当前默认 HTTPS 域名下 `not-published` 404 地址的安全禁用清单。随后修改真实清单并执行：
+追加发布流：
 
 ```powershell
-npm ci
+npm run cloudbase:app:stream:add -- <app_id> <platform> <architecture> <channel> <code>
+```
+
+两个命令只修改登记表与生成配置，不创建本地清单，也不访问 CloudBase。它们会拒绝重复 APP_ID、重复 code、重复平台/架构/渠道组合和非法派生名。
+
+修改登记后运行：
+
+```powershell
 npm run cloudbase:config:check
-Copy-Item -LiteralPath .\cloudbaserc.json.example -Destination .\cloudbaserc.json
-$env:ENV_ID = "<YOUR_CLOUDBASE_ENV_ID>"
-
 npm run check
-tcb login
-tcb validate
-tcb deploy --dry-run
 ```
 
-生成器不会创建数据库集合。每个新工具都要先在 CloudBase 数据库页面手工创建派生集合并设为仅管理员可读写。
+## 单应用 telemetry 计划
 
-模板刻意不固定地域。CloudBase CLI 3.8.1 允许本次上海环境省略 `region`，其他地域必须按真实环境与当日配置 Schema 补入该字段。必须确认 validate 通过，且 dry-run 保留所有已登记工具，没有删除旧函数/路由、陌生资源或收费项。新增、改名或删除工具时还要人工核对云端集合和孤儿更新目录；`apps.json` 不会自动清理云端。CLI/控制台字段如与模板不一致，以执行当日同版本官方文档为准。
-
-顶层 `tcb deploy` 会协调所有登记应用和共享 `/updates`，不能用于“只部署一个新应用”。阶段 3 只生成以下只读计划：
+单应用计划只覆盖该应用的 telemetry 函数、路由和集合：
 
 ```powershell
-npm run cloudbase:app:deploy:plan -- bifang-tools-pdf --env-id <现有免费环境ID> --origin https://<平台默认域名>
+npm run cloudbase:app:deploy:plan -- <app_id> --env-id <现有免费环境ID> --origin https://<平台默认域名>
 ```
 
-计划输出使用参数数组固化目标集合、单个函数、单条路由和逐平台单文件上传，并禁止 `--all`、`--force`、`--prune`、目录级托管上传与删除命令。它不会执行任何 CloudBase 写入。进入阶段 4 后仍须先读取云端现状、确认免费额度和零删除，再展示最终参数并等待负责人明确继续。
+它不得创建或修改 `versions_*`、`ads_*`、`audit_*`、共享版本函数、看板、静态 hosting 或其他应用资源，也不直接执行命令。
 
-共享应用版本服务有独立的服务级计划，不能混入上述单应用 telemetry 计划。准备一个未提交的、只含 Base64 文本的凭据配置文件后运行：
+## application-version 服务计划
+
+凭据原值不得进入 Git、命令输出或回执。在 Windows 运行生成器；摘要配置写入已忽略文件，Key/Secret 原值由当前用户 DPAPI 加密保存在 `%LOCALAPPDATA%\Bifang\OperationsAssistant\`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/application-version-credentials.ps1 -Mode generate
+```
+
+每次生成可执行的 application-version 计划前，必须紧接着按锁文件重新执行一次 `npm ci`；从这次 `npm ci` 到生成计划之间，不得修改 `package-lock.json`、`package.json` 或 `node_modules/@cloudbase/cli`。
+
+先生成无写步骤的只读预检要求：
 
 ```powershell
 npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --origin https://<平台默认域名> --credentials-b64-file cloudbase/application-version-credentials.b64
 ```
 
-输出只包含凭据配置 SHA-256、凭据 ID、应用/code/scopes 绑定和 Secret 版本数量，不包含 Key、Secret 或其摘要。它会列出共享函数、单一版本路由、每个登记应用的三个集合与索引，以及明确排除的 telemetry、看板、静态更新和客户端范围。计划按四个自定义环境变量的最终 UTF-8 总字节核算 SCF 的 4KB 平台上限，并预留 512 字节余量；超限时直接失败。函数预检和部署均显式绑定目标环境，部署命令只读取受 Git 管理的 `cloudbaserc.json.example`，不读取本机可能陈旧的 `cloudbaserc.json`。集合/索引创建、环境变量配置、函数/路由部署和测试数据写入仍须在最新云端/费用预检后再次等待明确“继续”。
+没有完整 live-state 时，`reconciliation.status` 必须是 `live-state-required`，`write_steps_after_confirmation` 必须为空。将函数、路由、集合、网关默认域名、费用门禁和历史对象库存保存到被 Git 忽略的 `cloudbase/application-version-live-state.json` 后再运行：
 
-## 公网地址模板
-
-```text
-Telemetry: https://<YOUR_HTTPS_DOMAIN>/apps/<YOUR_REAL_APP_ID>/v1/track
-Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.json
-Version:   https://<YOUR_HTTPS_DOMAIN>/tools/version-control/v1
+```powershell
+npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --origin https://<平台默认域名> --credentials-b64-file cloudbase/application-version-credentials.b64 --live-state-file cloudbase/application-version-live-state.json
 ```
 
-历史 `example-tool` smoke test 的实际 HTTPS 地址是：
+计划只允许输出 credential ID、APP_ID、codes、scopes、Secret 版本数和配置/部署材料 SHA-256；Key、Secret 及其摘要都不得显示。凭据 code 必须属于 `apps.json` 中对应应用的发布流。每份客户端运行凭据只绑定一个 code 且只有 `versions:check`；每条发布流必须同时有客户端运行、独立管理读取（`versions:read + ads:read`）和独立管理写入（`versions:write + ads:write`）覆盖；全局还必须恰好有一份不可导出的 `contract-ads-*` 凭据用于 `ads:show` 契约测试。任何角色或 scope 混用都会阻塞。
 
-- Telemetry: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/v1/track>
-- Updates: <https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com/updates/example-tool/windows.json>
+负责人确认写入后，只执行计划中列出的 credential-bound helper。部署材料摘要绑定 `cloudbaserc.example.json`、`cloudbase/apps.json`、部署/计划/生成脚本、根 `package.json` 与锁文件、完整 application-version 函数树和完整 `node_modules/@cloudbase/cli` 树。Helper 会在私有临时目录建立并复核同一份 staging 快照，按实际环境 ID 重新校验凭据覆盖和 3840 字节门禁，再从 staging 启动仓库内固定的 `@cloudbase/cli@3.8.1`；version/deploy 子进程都有有限时，设置 `NO_UPDATE_NOTIFIER`，不接受 PATH 中的 `tcb` 或命令 shell，原始输出保持抑制，最终精确清理 staging。失败回执不声称不存在的 request ID。部署后用计划中的只读轮询重新取得可分享证据。
 
-这些是系统默认域名上的 Task4/Task8 历史 smoke 地址。当前线上 `/v1/track` 仍按历史 v1 验收，不能拿它证明新版 `daily_active` 已部署；静态清单中的 `.example.invalid` 下载/发布说明地址也不能上线。
+首次部署只能创建缺失的共享函数、固定路由、逐应用三类 `ADMINONLY` 集合及所需索引。已有部署只允许保留非冲突对象并追加缺失项：移除应用、code、凭据、Secret 摘要或改变集合 ACL 都会阻塞。计划会核算自定义环境变量总字节并为平台上限预留余量。
 
-## 安全与容量边界
+## 写入与费用门禁
 
-- `POST /apps/<app_id>/v1/track` 只接受 JSON，原始 body 最大 4096 字节。
-- 只接受固定事件 `daily_active`。请求中不再有 `channel`、`session_id`、`properties`、功能 ID、任务结果或更新交互。
-- 客户端提供的业务识别字段只有 `app_id`、`app_version`、匿名 `install_id`、`platform`、`arch`；协议还带固定版本/事件名、一次性 `event_id`、SDK 版本和客户端发生时间用于验证与诊断。
-- 服务端按 `Asia/Shanghai` 生成 `active_date`，并生成 `received_at`；`source_ip` 只从 CloudBase 可信请求上下文提取，忽略客户端可伪造的转发请求头，取不到时保存 `null`。
-- 文档 `_id` 由 `app_id + active_date + install_id` 计算；同一匿名安装在同一北京时间日期即使请求重放，也只保存一条。
-- 客户端在联网前先原子落盘当天标记；即使发送失败，当天也不重试。这里优先保护免费网关，接受偶发少计。
-- 函数内 burst guard 默认每个 warm instance、每个 app ID、10 秒 120 次；它不是全局限流。网关模板的总 QPS 100、单 IP 10 只是需按真实流量调整的起点。
-- 更新 JSON 建议 `Cache-Control: max-age=300`；紧急停更或回滚后刷新对应 CDN 路径。
-- 应用版本 API 的全部响应使用 `Cache-Control: no-store`；函数内按凭据与可信来源 IP 做每秒 10 次的 warm-instance 防护，网关另按来源 IP 限制。客户端伪造的转发头不参与限流或审计来源。
-- 版本号按任意精度数字点分比较，前导零与尾随零归一；服务端另存只含数字的内部排序键，通过组合索引单次读取最高版本，不做多页竞态扫描。三个更新状态最多一个为 true。
-- 下载和广告 URL 只允许无凭据 HTTPS，并拒绝显式本地、单标签及已知特殊用途域名/IP；正式数据仍应在部署验收时按实际下载与广告域名建立运营白名单。富文本通过解析器重建为无属性的安全标签子集，数据库读取时再次验证，异常记录失败关闭而不下发。
+这里只允许复用负责人已确认的一个免费 CloudBase 环境和平台默认 HTTPS 域名。不创建第二环境，不购买域名、证书、套餐或资源包，不开启按量超限、自动续费或超限扣费。
 
-统计口径是“当天实际启动使用过的设备数”，可近似观察每天有多少人在用，但不是账号人数。同一人多台设备会多计，重装或清除本地标记也可能产生新 ID；IP 不能用于人数去重，同一公网 IP 下可能有多台设备。`source_ip` 属于个人信息，必须在隐私说明中告知用途，设置满足业务所需的最短保留期限，并在截图、日志、导出和分享前遮挡。
+任何部署前都必须重新只读确认：
 
-## 历史验收与新版待办
+1. 精确环境 ID、默认域名及证书状态；
+2. 免费/体验状态、到期时间、剩余额度与最终应付 `0` 元；
+3. 每个函数、路由、集合、ACL、索引的当前状态；
+4. 计划要创建、更新、保留和明确不碰的资源；
+5. 无顶层 `deploy`、`--all`、`--force`、`--prune` 或删除命令；
+6. 失败恢复方式。
 
-Task4/Task8 曾针对历史 v1 多事件协议完成下列验收，详细证据见部署回执。这些结果不可直接继承给新版：
+出现非零金额、升级、连续包月、自动续费、按量超限或资源不足提示时立即停止。完成最新预检并展示最终参数后，仍须等待负责人明确“继续”才可写入。
 
-- 函数类型确为 Event、入口正确、依赖已安装、数据库插入权限正常。
-- `OPTIONS /v1/track` 返回 204，合法 POST 返回 202。
-- 非法 payload 返回 400、未知 app 返回 403，并且两者都没有数据库写入。
-- 历史协议曾验证重复事件幂等；新版必须改验同一 `install_id + active_date` 只保存一条。
-- 历史协议不保存 IP；新版必须验证 `source_ip` 只来自可信上下文，客户端伪造头无效。
-- 更新 URL 曾返回 14 字段 JSON；本地示例现已改为中文标题/正文，重新部署后还要逐字段复验。系统默认域名可能强制 `no-store`。
-- optional/required 的宿主 UI、真实下载 URL、安装包签名与退出路径由业务客户端另行人工测试。
+## 旧线上静态资源退役
 
-新版部署后至少验收：当天同一安装反复启动最多一次 POST/一条记录；第二天可再上报一次；十台模拟设备最多 10 次 POST 且在同一电脑测试时可能同公网 IP；渠道/功能/任务/更新交互字段均被拒绝；`active_date`、`received_at`、`source_ip` 均由服务端决定。
+当前源码和生成配置已经删除旧静态协议；线上资源的删除是后续独立门禁。退役预览只承认以下固定历史 allowlist：
 
-本轮简化不新增付费服务，但不能据此保证平台未来价格。看到套餐升级、非零订单、自动续费、超限按量或收费域名/加速产品时，先告知负责人，不要继续。
+```text
+/updates/bifang-mouse-clicker/windows.json
+/updates/bifang-screen-recorder/windows.json
+/updates/bifang-screen-recorder/macos.json
+/updates/example-tool/windows.json
+/updates/update.schema.json
+```
 
-Windows PowerShell 公网验证请显式使用 `curl.exe`，具体命令见完整文档。不要把本地 mock 测试称作真实 CloudBase 或真实宿主验收。
+live inventory 必须完整，并把每项分类为 `present` 或 `already-absent`。还要精确核对旧 `/updates` 网关路由和 `updates` hosting deploy path。发现 allowlist 外对象、路由冲突、hosting 冲突或库存不完整时，整组退役阻塞且删除目标清空；计划永远不生成删除命令。
+
+只有两个真实 Windows 客户端都完成新 API E2E、确认无旧客户端流量、重新展示上述精确目标与恢复材料，并再次得到负责人明确“继续”后，才能执行删除。`telemetry-*`、`/apps/<app_id>/v1/track`、`telemetry_*`、application-version 服务、看板和其他应用永不进入退役范围。
+
+## 安全与数据边界
+
+- Telemetry 只接受固定 `daily_active`；同一匿名安装按北京时间每天最多一条，服务端生成 `active_date`、`received_at` 和可信上下文 `source_ip`。
+- 客户端联网前先原子认领当天，失败当天不重试，以保护免费额度。
+- Version 函数只根据已验证凭据绑定的 `app_id + codes + scopes` 选择固定集合，不能用客户端输入动态拼集合名。
+- 运行客户端只给 `versions:check`；`ads:show` 仅由不可导出的专用契约测试凭据验证，管理读写使用分离凭据。
+- 版本号按任意精度数字点分比较；下载和广告 URL 只允许安全 HTTPS；富文本经过允许标签重建并在读取时再次校验。
+- 看板只读固定 `ADMINONLY` 集合，只返回聚合遥测与发布流摘要；不得返回安装标识、来源 IP、下载地址、提示正文、富文本或凭据。
+- 所有 application-version API 响应使用 `Cache-Control: no-store`，鉴权失败、字段异常、跨应用访问与未知 code 都失败关闭。
+
+本地 mock、localhost、单元测试或历史回执都不能代替本次真实 CloudBase、公网 HTTP 和客户端 GUI E2E。

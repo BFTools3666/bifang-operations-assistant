@@ -11,8 +11,10 @@ const { createMemoryRepository } = require("../src/memory-repository");
 const BASE_PATH = "/tools/version-control/v1";
 const APP_ID = "bifang-mouse-clicker";
 const CODE = "original-tool";
-const MANAGEMENT_KEY = "local-e2e-management-key";
-const MANAGEMENT_SECRET = "local-e2e-management-secret";
+const MANAGEMENT_READ_KEY = "local-e2e-management-read-key";
+const MANAGEMENT_READ_SECRET = "local-e2e-management-read-secret";
+const MANAGEMENT_WRITE_KEY = "local-e2e-management-write-key";
+const MANAGEMENT_WRITE_SECRET = "local-e2e-management-write-secret";
 const RUNTIME_KEY = "local-e2e-runtime-key";
 const RUNTIME_SECRET = "local-e2e-runtime-secret";
 
@@ -33,17 +35,16 @@ test("real local HTTP requests traverse the unchanged v1 URL/header/JSON boundar
       schema_version: 1,
       credentials: [
         createCredential(
-          "local-management",
-          MANAGEMENT_KEY,
-          MANAGEMENT_SECRET,
-          [
-            "versions:check",
-            "versions:read",
-            "versions:write",
-            "ads:show",
-            "ads:read",
-            "ads:write",
-          ],
+          "local-management-read",
+          MANAGEMENT_READ_KEY,
+          MANAGEMENT_READ_SECRET,
+          ["versions:read", "ads:read"],
+        ),
+        createCredential(
+          "local-management-write",
+          MANAGEMENT_WRITE_KEY,
+          MANAGEMENT_WRITE_SECRET,
+          ["versions:write", "ads:write"],
         ),
         createCredential("local-runtime", RUNTIME_KEY, RUNTIME_SECRET, [
           "versions:check",
@@ -85,37 +86,59 @@ test("real local HTTP requests traverse the unchanged v1 URL/header/JSON boundar
   try {
     const address = server.address();
     const origin = `http://127.0.0.1:${address.port}`;
-    const managementHeaders = {
+    const managementReadHeaders = {
+      "x-app-key": MANAGEMENT_READ_KEY,
+      "x-app-secret": MANAGEMENT_READ_SECRET,
+    };
+    const managementWriteHeaders = {
       "content-type": "application/json",
-      "x-app-key": MANAGEMENT_KEY,
-      "x-app-secret": MANAGEMENT_SECRET,
+      "x-app-key": MANAGEMENT_WRITE_KEY,
+      "x-app-secret": MANAGEMENT_WRITE_SECRET,
     };
     const runtimeHeaders = {
       "x-app-key": RUNTIME_KEY,
       "x-app-secret": RUNTIME_SECRET,
     };
 
+    const versionPayload = {
+      name: "原程序",
+      code: CODE,
+      codeVersion: "2.0.0",
+      downloadUrl: "https://downloads.example.com/original-tool/2.0.0.exe",
+      promptContent: "发现新版本",
+      forcedUpdate: false,
+      promptUpdate: true,
+      stopUpdate: false,
+      updateContent: "<div>本次更新内容</div>",
+    };
     const createVersion = await fetch(`${origin}${BASE_PATH}/versions`, {
       method: "POST",
-      headers: managementHeaders,
-      body: JSON.stringify({
-        name: "原程序",
-        code: CODE,
-        codeVersion: "2.0.0",
-        downloadUrl: "https://downloads.example.com/original-tool/2.0.0.exe",
-        promptContent: "发现新版本",
-        forcedUpdate: false,
-        promptUpdate: true,
-        stopUpdate: false,
-        updateContent: "<div>本次更新内容</div>",
-      }),
+      headers: managementWriteHeaders,
+      body: JSON.stringify(versionPayload),
     });
     assert.equal(createVersion.status, 200);
     assert.equal(await createVersion.text(), "");
 
+    const listVersions = await fetch(`${origin}${BASE_PATH}/versions`, {
+      headers: managementReadHeaders,
+    });
+    assert.equal(listVersions.status, 200);
+    const versions = await listVersions.json();
+    const versionId = versions.result.datas[0].id;
+
+    const updateVersion = await fetch(
+      `${origin}${BASE_PATH}/versions/${versionId}`,
+      {
+        method: "PUT",
+        headers: managementWriteHeaders,
+        body: JSON.stringify({ ...versionPayload, name: "原程序更新" }),
+      },
+    );
+    assert.equal(updateVersion.status, 200);
+
     const createAd = await fetch(`${origin}${BASE_PATH}/app/${CODE}/ads`, {
       method: "POST",
-      headers: managementHeaders,
+      headers: managementWriteHeaders,
       body: JSON.stringify({
         title: "测试广告",
         url: "https://www.example.com/campaign",
@@ -124,6 +147,32 @@ test("real local HTTP requests traverse the unchanged v1 URL/header/JSON boundar
       }),
     });
     assert.equal(createAd.status, 200);
+
+    const listAds = await fetch(`${origin}${BASE_PATH}/app/${CODE}/ads`, {
+      headers: managementReadHeaders,
+    });
+    assert.equal(listAds.status, 200);
+    const listedAds = await listAds.json();
+    const adId = listedAds.result.datas[0].id;
+
+    const adDetail = await fetch(`${origin}${BASE_PATH}/app/ads/${adId}`, {
+      headers: managementReadHeaders,
+    });
+    assert.equal(adDetail.status, 200);
+
+    const updateAd = await fetch(
+      `${origin}${BASE_PATH}/app/${CODE}/ads/${adId}`,
+      {
+        method: "PUT",
+        headers: managementWriteHeaders,
+        body: JSON.stringify({
+          title: "测试广告更新",
+          url: "",
+          content: "纯文本",
+        }),
+      },
+    );
+    assert.equal(updateAd.status, 200);
 
     const check = await fetch(`${origin}${BASE_PATH}/versions/${CODE}/1.0.0`, {
       headers: runtimeHeaders,
@@ -152,6 +201,12 @@ test("real local HTTP requests traverse the unchanged v1 URL/header/JSON boundar
       "url",
     ]);
 
+    const deleteAd = await fetch(
+      `${origin}${BASE_PATH}/app/${CODE}/ads/${adId}`,
+      { method: "DELETE", headers: managementWriteHeaders },
+    );
+    assert.equal(deleteAd.status, 200);
+
     const doubled = await fetch(
       `${origin}${BASE_PATH}/v1/versions/${CODE}/1.0.0`,
       { headers: runtimeHeaders },
@@ -161,9 +216,15 @@ test("real local HTTP requests traverse the unchanged v1 URL/header/JSON boundar
       observed.map(({ method, url }) => `${method} ${url}`),
       [
         `POST ${BASE_PATH}/versions`,
+        `GET ${BASE_PATH}/versions`,
+        `PUT ${BASE_PATH}/versions/${versionId}`,
         `POST ${BASE_PATH}/app/${CODE}/ads`,
+        `GET ${BASE_PATH}/app/${CODE}/ads`,
+        `GET ${BASE_PATH}/app/ads/${adId}`,
+        `PUT ${BASE_PATH}/app/${CODE}/ads/${adId}`,
         `GET ${BASE_PATH}/versions/${CODE}/1.0.0`,
         `GET ${BASE_PATH}/app/${CODE}/ads/show`,
+        `DELETE ${BASE_PATH}/app/${CODE}/ads/${adId}`,
         `GET ${BASE_PATH}/v1/versions/${CODE}/1.0.0`,
       ],
     );

@@ -1,13 +1,33 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "apps": [
     {
       "app_id": "bifang-screen-recorder",
-      "platforms": ["windows", "macos"]
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-screen-recorder-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-screen-recorder-macos-arm64"
+        }
+      ]
     },
     {
       "app_id": "bifang-mouse-clicker",
-      "platforms": ["windows"]
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-mouse-clicker"
+        }
+      ]
     }
   ]
 }
