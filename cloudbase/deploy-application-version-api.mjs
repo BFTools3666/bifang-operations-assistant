@@ -98,6 +98,7 @@ function createLocalTcbSpawnSpec({
             "fn",
             "deploy",
             "application-version-api",
+            "--force",
             "--config-file",
             "cloudbaserc.example.json",
             "-e",

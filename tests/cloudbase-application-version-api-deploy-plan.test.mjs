@@ -633,7 +633,7 @@ test("credential material is validated but only a fingerprint and binding summar
   assert.doesNotMatch(serialized, /key_sha256|secret_sha256/);
 });
 
-test("a reconciled first deployment contains no broad, delete, telemetry, hosting, or dashboard writes", () => {
+test("a reconciled first deployment contains no top-level broad, delete, telemetry, hosting, or dashboard writes", () => {
   const plan = createApplicationVersionDeploymentPlan(
     registry(),
     twoAppCredentialsBase64(),
@@ -687,9 +687,18 @@ test("a reconciled first deployment contains no broad, delete, telemetry, hostin
     argvValues.some((value) => /^telemetry-/.test(value)),
     false,
   );
-  for (const forbidden of ["--all", "--force", "--prune", "delete"]) {
+  for (const forbidden of ["--all", "--prune", "delete"]) {
     assert.equal(serialized.toLowerCase().includes(forbidden), false);
   }
+  assert.match(
+    plan.safety_notes.join("\n"),
+    /--force only for the literal tcb fn deploy application-version-api create or update/u,
+  );
+  assert.ok(
+    plan.forbidden_scope.includes(
+      "--force outside the exact tcb fn deploy application-version-api create or update",
+    ),
+  );
 
   const routeBody = JSON.parse(commands[1][commands[1].indexOf("--body") + 1]);
   assert.equal(routeBody.EnvId, ENV_ID);
@@ -1264,6 +1273,7 @@ test("credential-bound deploy helper verifies reviewed materials and uses only t
       "fn",
       "deploy",
       "application-version-api",
+      "--force",
       "--config-file",
       "cloudbaserc.example.json",
       "-e",
@@ -1743,6 +1753,7 @@ test(
         "fn",
         "deploy",
         "application-version-api",
+        "--force",
         "--config-file",
         "cloudbaserc.example.json",
         "-e",

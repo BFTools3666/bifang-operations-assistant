@@ -124,7 +124,7 @@ npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --o
 2. 免费/体验状态、到期时间、剩余额度与最终应付 `0` 元；
 3. 每个函数、路由、集合、ACL、索引的当前状态；
 4. 计划要创建、更新、保留和明确不碰的资源；
-5. 无顶层 `deploy`、`--all`、`--force`、`--prune` 或删除命令；
+5. 无顶层 `deploy`、`--all`、`--prune` 或删除命令；`--force` 仅由 credential-bound helper 用于固定的 `tcb fn deploy application-version-api` 精确创建或更新，不允许通配、目录推断、批量或其他目标；
 6. 失败恢复方式。
 
 出现非零金额、升级、连续包月、自动续费、按量超限或资源不足提示时立即停止。完成最新预检并展示最终参数后，仍须等待负责人明确“继续”才可写入。

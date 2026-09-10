@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const {
   createCloudBaseRepository,
+  createDefaultCloudBaseApp,
   adDocumentId,
   extractRuntimeSdkContext,
   fromAdDocument,
@@ -30,6 +31,20 @@ const RESOURCES = [
     auditCollection: "audit_bifang_screen_recorder",
   },
 ];
+
+test("the production adapter loads the CloudBase Node SDK with transaction support", () => {
+  const app = createDefaultCloudBaseApp({ envOverride: "test-environment" });
+  const database = app.database();
+  const document = database
+    .collection("test_collection")
+    .doc("0123456789abcdef01234567");
+
+  assert.equal(typeof database.runTransaction, "function");
+  assert.equal(typeof document.create, "function");
+  assert.equal(typeof document.get, "function");
+  assert.equal(typeof document.set, "function");
+  assert.equal(typeof document.delete, "function");
+});
 
 test("the CloudBase adapter writes transactional records, uniqueness keys and audits per app", async () => {
   const database = createFakeDatabase();

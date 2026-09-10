@@ -462,8 +462,8 @@ function versionKeyDocumentId(code, versionKey) {
 }
 
 function internalDocumentId(kind, value) {
-  // Transaction document references in the CloudBase Web v3 SDK require a
-  // 24-hex document id. The full external id/code remain fields in the record.
+  // Keep stable compact internal ids while the full external id/code remain
+  // fields in the record.
   return createHash("sha256")
     .update(`${kind}\u0000${value}`, "utf8")
     .digest("hex")
@@ -563,7 +563,7 @@ function translateWriteError(error) {
 
 function createDefaultCloudBaseApp(options = {}) {
   const cloudbaseModule =
-    options.cloudbaseModule || require("@cloudbase/js-sdk");
+    options.cloudbaseModule || require("@cloudbase/node-sdk");
   const cloudbase = cloudbaseModule.default || cloudbaseModule;
   const configuredEnv =
     options.envOverride === undefined

@@ -285,6 +285,13 @@ test("the generated template preserves telemetry and application-version boundar
   const applicationVersionFunctionPackage = await readJson(
     "cloudbase/functions/application-version-api/package.json",
   );
+  const applicationVersionRepository = await readFile(
+    new URL(
+      "../cloudbase/functions/application-version-api/src/repository.js",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const telemetrySdkPackage = await readJson(
     "packages/telemetry-update-sdk/package.json",
   );
@@ -327,8 +334,23 @@ test("the generated template preserves telemetry and application-version boundar
     "3.8.2",
   );
   assert.equal(
-    applicationVersionFunctionPackage.dependencies["@cloudbase/js-sdk"],
-    "3.8.2",
+    applicationVersionFunctionPackage.dependencies["@cloudbase/node-sdk"],
+    "3.18.3",
+  );
+  assert.equal(
+    Object.hasOwn(
+      applicationVersionFunctionPackage.dependencies,
+      "@cloudbase/js-sdk",
+    ),
+    false,
+  );
+  assert.match(
+    applicationVersionRepository,
+    /require\("@cloudbase\/node-sdk"\)/u,
+  );
+  assert.doesNotMatch(
+    applicationVersionRepository,
+    /require\("@cloudbase\/js-sdk"\)/u,
   );
   assert.equal(
     applicationVersionFunctionPackage.dependencies.htmlparser2,

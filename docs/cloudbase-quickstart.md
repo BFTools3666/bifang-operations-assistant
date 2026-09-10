@@ -155,7 +155,7 @@ Telemetry 函数每个只允许自己的 APP_ID、集合与路由。Version 函�
 3. APP_ID、三条发布流 code 与凭据 scope 摘要；
 4. 不会改动的 telemetry、看板和其他应用；
 5. 失败回滚方式；
-6. 写入步骤中无顶层 deploy、`--all`、`--force`、`--prune` 或删除命令。
+6. 写入步骤中无顶层 deploy、`--all`、`--prune` 或删除命令；`--force` 只能由 credential-bound helper 用于固定的 `tcb fn deploy application-version-api` 精确创建或更新，不得用于通配、目录推断或批量目标。
 
 等待负责人明确“继续”后，才执行审查过的精确步骤。失败后重新读取状态，不自动重试有副作用操作。
 
