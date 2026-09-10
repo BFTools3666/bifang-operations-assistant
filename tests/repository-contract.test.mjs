@@ -230,6 +230,9 @@ test("the CloudBase template keeps the Event-function deployment boundary", asyn
   const functionPackage = await readJson(
     "cloudbase/functions/telemetry/package.json",
   );
+  const applicationVersionFunctionPackage = await readJson(
+    "cloudbase/functions/application-version-api/package.json",
+  );
   const telemetryFunction = config.functions.find(
     (candidate) => candidate.name === "telemetry-bifang-screen-recorder",
   );
@@ -255,4 +258,12 @@ test("the CloudBase template keeps the Event-function deployment boundary", asyn
   assert.equal(telemetryRoute.enableAuth, false);
   assert.equal(functionPackage.dependencies["@cloudbase/js-sdk"], "3.8.2");
   assert.equal("@cloudbase/node-sdk" in functionPackage.dependencies, false);
+  assert.equal(
+    applicationVersionFunctionPackage.dependencies["@cloudbase/js-sdk"],
+    "3.8.2",
+  );
+  assert.equal(
+    applicationVersionFunctionPackage.dependencies.htmlparser2,
+    "10.1.0",
+  );
 });

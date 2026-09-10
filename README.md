@@ -45,11 +45,11 @@ npm run check
 
 这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
 
-## 应用版本 API 零代码替代目标（尚未实施）
+## 应用版本 API v1 服务端（本地实现完成，尚未部署）
 
-仓库已单独冻结一套面向现有第三方小工具的[零代码接入目标契约](docs/application-version-api-zero-code-contract.md)：目标是让既有程序只修改服务地址、TLS/证书信任和凭据配置，不修改程序代码，即可改用毕方运营精灵提供的版本检查与广告展示服务。对应的机器契约位于 [`contracts/application-version-api-v1`](contracts/application-version-api-v1)。
+仓库已实现一套面向现有第三方小工具的[零代码接入契约](docs/application-version-api-zero-code-contract.md)：目标是让既有程序只修改服务地址、TLS/证书信任和凭据配置，不修改程序代码，即可改用毕方运营精灵提供的版本检查与广告展示服务。规范 Base URL 是 `https://<host>/tools/version-control/v1`，`v1` 只出现一次。机器契约位于 [`contracts/application-version-api-v1`](contracts/application-version-api-v1)，CloudBase Event 函数位于 [`cloudbase/functions/application-version-api`](cloudbase/functions/application-version-api)。
 
-这是一份待实施、待真实客户端验证的目标，不是当前线上协议。当前 SDK、`/updates/<app_id>/<platform>.json`、CloudBase 资源和两个业务客户端均未因此改变；真正切换时不为尚未公开发布的旧毕方更新协议建设长期兼容层，但仍需在独立任务中完成服务端实现、真实客户端请求观测和两个本地项目的升级。
+服务端已通过本地单元、CloudBase 数据库适配器和 localhost HTTP E2E，但尚未登录、部署或进行原程序测试域名 E2E，因此不是当前线上协议。现有 SDK、`/updates/<app_id>/<platform>.json`、线上 CloudBase 资源和两个业务客户端均未因此改变；下一步必须先完成云端只读预检并再次确认，才能在既有免费环境中部署测试。原程序验证通过后，鼠标精灵和录屏助手再分别进入第二阶段升级，不为尚未公开发布的旧毕方更新协议建设长期兼容层。
 
 ## 跨项目接入向导 Skill
 

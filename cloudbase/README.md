@@ -11,7 +11,9 @@ Task4/Task8 部署及验收的是历史 v1 多事件协议，记录见 [`docs/cl
 - `add-app-platform.mjs`：为已登记工具安全追加一个更新平台，不覆盖既有清单。
 - `generate-cloudbaserc.mjs`：根据登记表生成根目录 `cloudbaserc.json.example`，并校验所有登记平台清单。
 - `plan-app-deployment.mjs`：只读生成单个目标应用的资源级阶段 4 计划，不执行命令。
+- `plan-application-version-api-deployment.mjs`：读取未提交的 Base64 凭据配置，只输出摘要与共享版本服务的阶段 4 预览，不回显凭据、不执行云端写入。
 - `functions/telemetry/`：所有工具实例复用的 Node.js 20 CommonJS Event 函数源码，入口 `index.main`。
+- `functions/application-version-api/`：固定入口 `/tools/version-control/v1` 的 Node.js 20 Event 函数；实现版本与广告十个端点，`v1` 只出现一次。
 - `updates/update.schema.json`：更新清单 v1 JSON Schema。
 - `updates/<app_id>/<platform>.json`：每个工具、每个平台独立的更新清单；当前支持 `windows.json` 和 `macos.json`，禁用清单使用当前默认 HTTPS 域名下的 `not-published` 404 地址，正式发布前必须替换。
 - `updates/WINDOWS_JSON_FIELDS.zh-CN.md`：平台更新清单全部 14 个字段的中文说明；文件名作为历史兼容入口保留。
@@ -29,6 +31,18 @@ Task4/Task8 部署及验收的是历史 v1 多事件协议，记录见 [`docs/cl
 5. 静态清单 `/updates/<app_id>/<platform>.json`。
 
 所有工具只共享环境、平台默认 HTTPS 域名、`/updates` 静态托管入口、免费额度和平台故障域。自定义域名、EdgeOne 或套餐升级不属于本阶段；一旦出现非零价格或按量付费，必须先提醒负责人并停止。
+
+应用版本 API 使用一个共享函数 `application-version-api` 和一个固定网关前缀 `/tools/version-control/v1`。函数先用 `x-app-key`、`x-app-secret` 的不可逆摘要完成鉴权，再按凭据绑定的 `app_id + codes + scopes` 选择集合；不能根据客户端自由输入动态拼集合名。每个已登记应用由 `apps.json` 自动派生三套 `ADMINONLY` 集合：
+
+```text
+versions_<规范化app_id>
+ads_<规范化app_id>
+audit_<规范化app_id>
+```
+
+版本写入、规范化版本唯一占位和审计写入使用同一数据库事务。原程序运行凭据只给 `versions:check`、`ads:show`，因此只能调用更新判定和广告展示两个 GET；管理列表/详情另用 `versions:read`、`ads:read`，写入另用 `versions:write`、`ads:write`。实际凭据配置通过 `APPLICATION_VERSION_CREDENTIALS_B64` 注入，格式含 schema 版本、凭据 ID、key/secret 的 SHA-256、应用、code 和 scopes；Key 与 Secret 原值都必须由密码学安全随机源生成，不能使用文档示例或人工短口令。配置及其源文件都不得提交或输出。推荐把本地 Base64 文件固定为已被 Git 忽略的 `cloudbase/application-version-credentials.b64`。短期轮换允许一个凭据 ID 同时登记两个 Secret 摘要。
+
+共享函数模板固定为 Node.js 20.19、256MB、3 秒，并通过 `{{tcb.envId}}` 读取命令行锁定的目标环境；这与当前免费体验版的函数上限对齐，但不能替代部署当天对实际环境套餐、资源点和收费提示的只读核验。
 
 每个函数必须配置三个由生成器写入的值：
 
@@ -84,11 +98,20 @@ npm run cloudbase:app:deploy:plan -- bifang-tools-pdf --env-id <现有免费环�
 
 计划输出使用参数数组固化目标集合、单个函数、单条路由和逐平台单文件上传，并禁止 `--all`、`--force`、`--prune`、目录级托管上传与删除命令。它不会执行任何 CloudBase 写入。进入阶段 4 后仍须先读取云端现状、确认免费额度和零删除，再展示最终参数并等待负责人明确继续。
 
+共享应用版本服务有独立的服务级计划，不能混入上述单应用 telemetry 计划。准备一个未提交的、只含 Base64 文本的凭据配置文件后运行：
+
+```powershell
+npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --origin https://<平台默认域名> --credentials-b64-file cloudbase/application-version-credentials.b64
+```
+
+输出只包含凭据配置 SHA-256、凭据 ID、应用/code/scopes 绑定和 Secret 版本数量，不包含 Key、Secret 或其摘要。它会列出共享函数、单一版本路由、每个登记应用的三个集合与索引，以及明确排除的 telemetry、看板、静态更新和客户端范围。计划按四个自定义环境变量的最终 UTF-8 总字节核算 SCF 的 4KB 平台上限，并预留 512 字节余量；超限时直接失败。函数预检和部署均显式绑定目标环境，部署命令只读取受 Git 管理的 `cloudbaserc.json.example`，不读取本机可能陈旧的 `cloudbaserc.json`。集合/索引创建、环境变量配置、函数/路由部署和测试数据写入仍须在最新云端/费用预检后再次等待明确“继续”。
+
 ## 公网地址模板
 
 ```text
 Telemetry: https://<YOUR_HTTPS_DOMAIN>/apps/<YOUR_REAL_APP_ID>/v1/track
 Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.json
+Version:   https://<YOUR_HTTPS_DOMAIN>/tools/version-control/v1
 ```
 
 历史 `example-tool` smoke test 的实际 HTTPS 地址是：
@@ -108,6 +131,9 @@ Updates:   https://<YOUR_HTTPS_DOMAIN>/updates/<YOUR_REAL_APP_ID>/<platform>.jso
 - 客户端在联网前先原子落盘当天标记；即使发送失败，当天也不重试。这里优先保护免费网关，接受偶发少计。
 - 函数内 burst guard 默认每个 warm instance、每个 app ID、10 秒 120 次；它不是全局限流。网关模板的总 QPS 100、单 IP 10 只是需按真实流量调整的起点。
 - 更新 JSON 建议 `Cache-Control: max-age=300`；紧急停更或回滚后刷新对应 CDN 路径。
+- 应用版本 API 的全部响应使用 `Cache-Control: no-store`；函数内按凭据与可信来源 IP 做每秒 10 次的 warm-instance 防护，网关另按来源 IP 限制。客户端伪造的转发头不参与限流或审计来源。
+- 版本号按任意精度数字点分比较，前导零与尾随零归一；服务端另存只含数字的内部排序键，通过组合索引单次读取最高版本，不做多页竞态扫描。三个更新状态最多一个为 true。
+- 下载和广告 URL 只允许无凭据 HTTPS，并拒绝显式本地、单标签及已知特殊用途域名/IP；正式数据仍应在部署验收时按实际下载与广告域名建立运营白名单。富文本通过解析器重建为无属性的安全标签子集，数据库读取时再次验证，异常记录失败关闭而不下发。
 
 统计口径是“当天实际启动使用过的设备数”，可近似观察每天有多少人在用，但不是账号人数。同一人多台设备会多计，重装或清除本地标记也可能产生新 ID；IP 不能用于人数去重，同一公网 IP 下可能有多台设备。`source_ip` 属于个人信息，必须在隐私说明中告知用途，设置满足业务所需的最短保留期限，并在截图、日志、导出和分享前遮挡。
 

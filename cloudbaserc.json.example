@@ -35,6 +35,22 @@
       }
     },
     {
+      "name": "application-version-api",
+      "dir": "./cloudbase/functions/application-version-api",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 3,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
+        "APPLICATION_VERSION_API_PATH": "/tools/version-control/v1",
+        "APPLICATION_VERSION_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"adCollection\\\":\\\"ads_bifang_screen_recorder\\\",\\\"auditCollection\\\":\\\"audit_bifang_screen_recorder\\\"},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"adCollection\\\":\\\"ads_bifang_mouse_clicker\\\",\\\"auditCollection\\\":\\\"audit_bifang_mouse_clicker\\\"}]\"",
+        "APPLICATION_VERSION_CREDENTIALS_B64": "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}"
+      }
+    },
+    {
       "name": "operations-dashboard-api",
       "dir": "./cloudbase/functions/operations-dashboard",
       "type": "Event",
@@ -82,6 +98,20 @@
       {
         "path": "/apps/bifang-mouse-clicker/v1/track",
         "target": "function:telemetry-bifang-mouse-clicker",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/tools/version-control/v1",
+        "target": "function:application-version-api",
         "protocol": "HTTP_TO_HTTPS",
         "enablePathTransmission": true,
         "enableAuth": false,

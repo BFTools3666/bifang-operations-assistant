@@ -37,7 +37,7 @@ test("the target contract is valid JSON with exactly the documented endpoint set
   assert.equal(fixtures.contract_version, openapi.info.version);
   assert.equal(
     openapi["x-bifang-target-state"],
-    "not-implemented-not-deployed",
+    "implemented-local-not-deployed",
   );
   assert.equal(
     openapi["x-bifang-source-document"].sha256,
@@ -104,7 +104,7 @@ test("runtime operations use bare exact response shapes and management remains l
     assert.deepEqual(operation.tags, ["runtime"]);
     assert.equal(
       operation["x-bifang-contract-status"],
-      "frozen-runtime-pending-client-probe",
+      "implemented-local-pending-original-client-e2e",
     );
   }
   assert.equal(
@@ -149,7 +149,7 @@ test("runtime operations use bare exact response shapes and management remains l
       if (operation.tags.includes("management")) {
         assert.equal(
           operation["x-bifang-contract-status"],
-          "provisional-management",
+          "implemented-local-provisional-management",
           path,
         );
       }
@@ -186,6 +186,20 @@ test("version format, criteria pairing, and mutually exclusive write states are 
     readJson(`${CONTRACT_ROOT}/fixtures/runtime-decision-cases.json`),
   ]);
   const versionPattern = new RegExp(schema.$defs.VersionNumber.pattern);
+  const pathCodePattern = new RegExp(
+    schema.$defs.ApplicationCodePath.pattern,
+    "u",
+  );
+  const writeCodePattern = new RegExp(
+    schema.$defs.ApplicationCodeWrite.pattern,
+    "u",
+  );
+  for (const pattern of [pathCodePattern, writeCodePattern]) {
+    assert.equal(pattern.test("example-tool"), true);
+    assert.equal(pattern.test("."), false);
+    assert.equal(pattern.test(".."), false);
+    assert.equal(pattern.test("safe\\evil"), false);
+  }
 
   for (const accepted of ["1", "1.2", "1.2.3.4", "01.002"]) {
     assert.match(accepted, versionPattern, accepted);
@@ -210,6 +224,51 @@ test("version format, criteria pairing, and mutually exclusive write states are 
   assert.ok(
     fixtures.invalid_flag_states.every((flags) => !isValidFlagState(flags)),
   );
+  for (const plainTextDefinition of [
+    schema.$defs.Text50,
+    schema.$defs.Text100,
+    schema.$defs.AdTitle,
+  ]) {
+    const pattern = new RegExp(plainTextDefinition.pattern, "u");
+    assert.equal(pattern.test("普通文本"), true);
+    assert.equal(pattern.test("<img src=x onerror=run()>"), false);
+  }
+});
+
+test("URL schemes and the provisional advertisement search grammar stay narrow", async () => {
+  const [openapi, schema] = await Promise.all([
+    readJson(`${CONTRACT_ROOT}/openapi.json`),
+    readJson(`${CONTRACT_ROOT}/schema.json`),
+  ]);
+  const downloadPattern = new RegExp(schema.$defs.HttpsUrl500.pattern);
+  assert.equal(
+    downloadPattern.test("https://downloads.example.com/app.exe"),
+    true,
+  );
+  assert.equal(
+    downloadPattern.test("HTTPS://downloads.example.com/app.exe"),
+    true,
+  );
+  assert.equal(
+    downloadPattern.test("http://downloads.example.com/app.exe"),
+    false,
+  );
+  assert.equal(downloadPattern.test("javascript:alert(1)"), false);
+  assert.equal(
+    downloadPattern.test("https://user:pass@downloads.example.com/app.exe"),
+    false,
+  );
+
+  for (const name of ["AdUrl", "AdImage"]) {
+    assert.deepEqual(schema.$defs[name].oneOf[0], { const: "" });
+    const pattern = new RegExp(schema.$defs[name].oneOf[1].pattern);
+    assert.equal(pattern.test("https://www.example.com/value"), true);
+    assert.equal(pattern.test("http://www.example.com/value"), false);
+  }
+  assert.deepEqual(openapi.components.parameters.AdSearch.schema.enum, [
+    "createdTime=sort=asc",
+    "createdTime=sort=desc",
+  ]);
 });
 
 test("numeric dotted comparison and update decisions match every frozen vector", async () => {
@@ -283,9 +342,9 @@ test("the source error wrapper and target-only repository boundary remain explic
     "#/$defs/ErrorItem",
   );
 
-  assert.match(rootReadme, /应用版本 API 零代码替代目标（尚未实施）/);
+  assert.match(rootReadme, /应用版本 API v1 服务端（本地实现完成，尚未部署）/);
   assert.match(rootReadme, /contracts\/application-version-api-v1/);
-  assert.match(contractReadme, /尚未实现、部署或经真实客户端验证/);
+  assert.match(contractReadme, /本地实现与测试已完成；尚未部署或经原程序验证/);
   assert.match(report, /不建设长期双协议兼容层/);
   assert.match(report, /真实原程序请求观测/);
   assert.match(report, /鼠标精灵、录屏助手或第三方程序修改/);

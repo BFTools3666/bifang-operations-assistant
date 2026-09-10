@@ -12,9 +12,12 @@ import {
 } from "../cloudbase/add-app.mjs";
 import { addAppPlatform } from "../cloudbase/add-app-platform.mjs";
 import { parseDashboardApps } from "../cloudbase/functions/operations-dashboard/src/handler.js";
+import { parseApplicationResources } from "../cloudbase/functions/application-version-api/src/repository.js";
 import {
+  APPLICATION_VERSION_API,
   OPERATIONS_DASHBOARD,
   createCloudBaseConfig,
+  deriveApplicationVersionResources,
   deriveAppResources,
   validateRegistry,
   validateUpdateManifest,
@@ -37,7 +40,7 @@ test("the app registry exactly generates the checked-in CloudBase template", asy
   await validateUpdateManifests(validateRegistry(registry));
 });
 
-test("each registered app gets one function, route, collection, and update path", () => {
+test("each registered app stays isolated while shared services keep fixed routes", () => {
   const appIds = ["bifang-tools", "image-helper"];
   const registry = {
     schema_version: 2,
@@ -48,8 +51,8 @@ test("each registered app gets one function, route, collection, and update path"
   };
   const config = createCloudBaseConfig(registry);
 
-  assert.equal(config.functions.length, appIds.length + 1);
-  assert.equal(config.gateway.routes.length, appIds.length + 2);
+  assert.equal(config.functions.length, appIds.length + 2);
+  assert.equal(config.gateway.routes.length, appIds.length + 3);
   assert.equal(
     config.gateway.routes.some((route) => route.path === "/v1/track"),
     false,
@@ -76,6 +79,44 @@ test("each registered app gets one function, route, collection, and update path"
     assert.equal(route.enableAuth, false);
     assert.equal(resources.updatePath, `/updates/${appId}`);
   }
+
+  const versionFunction = config.functions.find(
+    (candidate) => candidate.name === APPLICATION_VERSION_API.functionName,
+  );
+  const versionRoute = config.gateway.routes.find(
+    (candidate) => candidate.path === APPLICATION_VERSION_API.path,
+  );
+  assert.ok(versionFunction);
+  assert.equal(
+    versionFunction.dir,
+    "./cloudbase/functions/application-version-api",
+  );
+  assert.equal(versionFunction.runtime, "Nodejs20.19");
+  assert.equal(versionFunction.timeout, 3);
+  assert.equal(versionFunction.envVariables.CLOUDBASE_ENV_ID, "{{tcb.envId}}");
+  assert.equal(
+    versionFunction.envVariables.APPLICATION_VERSION_API_PATH,
+    "/tools/version-control/v1",
+  );
+  assert.equal(
+    versionFunction.envVariables.APPLICATION_VERSION_CREDENTIALS_B64,
+    "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}",
+  );
+  assert.deepEqual(
+    parseApplicationResources(
+      versionFunction.envVariables.APPLICATION_VERSION_APPS_JSON,
+    ),
+    appIds.map(deriveApplicationVersionResources),
+  );
+  assert.equal(versionRoute.target, "function:application-version-api");
+  assert.equal(versionRoute.protocol, "HTTP_TO_HTTPS");
+  assert.equal(versionRoute.enablePathTransmission, true);
+  assert.equal(versionRoute.enableAuth, false);
+  assert.equal(versionRoute.qpsPolicy.qpsPerClient.limitValue, 10);
+  assert.equal(
+    config.gateway.routes.some(({ path }) => path.includes("/v1/v1")),
+    false,
+  );
 
   const dashboardFunction = config.functions.find(
     (candidate) => candidate.name === OPERATIONS_DASHBOARD.functionName,
@@ -164,6 +205,16 @@ test("generated dashboard env stays a string through CLI 3.8.1 and parses in the
   assert.equal(deployed.CLOUDBASE_ENV_ID, config.envId);
   assert.equal("DASHBOARD_TOKEN" in deployed, false);
   assert.equal("CLOUDBASE_METRICS_TOKEN" in deployed, false);
+
+  const versionFunction = config.functions.find(
+    (candidate) => candidate.name === APPLICATION_VERSION_API.functionName,
+  );
+  const deployedVersion = cliParse(versionFunction).envVariables;
+  assert.equal(typeof deployedVersion.APPLICATION_VERSION_APPS_JSON, "string");
+  assert.deepEqual(
+    parseApplicationResources(deployedVersion.APPLICATION_VERSION_APPS_JSON),
+    [deriveApplicationVersionResources("dashboard-tool")],
+  );
 });
 
 test("the registry rejects ambiguous or unsafe deployment app ids", () => {

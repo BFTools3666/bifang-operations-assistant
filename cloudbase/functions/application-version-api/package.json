@@ -1,0 +1,20 @@
+{
+  "name": "@bifang/cloudbase-application-version-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CloudBase implementation of the application version API v1 contract",
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node --check index.js && node --check src/auth.js && node --check src/errors.js && node --check src/handler.js && node --check src/memory-repository.js && node --check src/rate-limit.js && node --check src/repository.js && node --check src/validation.js && node --check src/version.js",
+    "check": "npm run build",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "3.8.2",
+    "htmlparser2": "10.1.0"
+  }
+}

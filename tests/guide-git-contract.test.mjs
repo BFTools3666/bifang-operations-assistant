@@ -35,6 +35,7 @@ const requiredGuideFiles = [
   "docs/CloudBase免费额度内部署新手图文版.docx",
   "docs/multi-tool-isolation.md",
   "docs/telemetry-and-update.md",
+  "docs/application-version-api-zero-code-contract.md",
   "examples/host-integration.ts",
   "cloudbase/apps.json",
   "cloudbase/generate-cloudbaserc.mjs",
@@ -45,6 +46,24 @@ const requiredGuideFiles = [
   "tests/guide-git-contract.test.mjs",
 ];
 
+const requiredApplicationVersionFiles = [
+  "cloudbase/plan-application-version-api-deployment.mjs",
+  "cloudbase/functions/application-version-api/package.json",
+  "cloudbase/functions/application-version-api/index.js",
+  "cloudbase/functions/application-version-api/src/auth.js",
+  "cloudbase/functions/application-version-api/src/errors.js",
+  "cloudbase/functions/application-version-api/src/handler.js",
+  "cloudbase/functions/application-version-api/src/memory-repository.js",
+  "cloudbase/functions/application-version-api/src/rate-limit.js",
+  "cloudbase/functions/application-version-api/src/repository.js",
+  "cloudbase/functions/application-version-api/src/validation.js",
+  "cloudbase/functions/application-version-api/src/version.js",
+  "contracts/application-version-api-v1/README.md",
+  "contracts/application-version-api-v1/openapi.json",
+  "contracts/application-version-api-v1/schema.json",
+  "contracts/application-version-api-v1/fixtures/runtime-decision-cases.json",
+];
+
 test("the complete onboarding guide has tracked human and AI entrypoints", async () => {
   const screenshotFiles = await listFiles("docs/images/cloudbase");
   const skillFiles = await listFiles(
@@ -52,6 +71,7 @@ test("the complete onboarding guide has tracked human and AI entrypoints", async
   );
   const trackedGuideFiles = [
     ...requiredGuideFiles,
+    ...requiredApplicationVersionFiles,
     ...screenshotFiles,
     ...skillFiles,
   ];

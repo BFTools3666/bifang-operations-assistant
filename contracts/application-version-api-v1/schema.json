@@ -2,20 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contracts.example.invalid/bifang/application-version-api/v1/schema.json",
   "title": "Bifang application version API v1 schema catalog",
-  "description": "Target external contract only. It is not evidence of implementation or deployment.",
+  "description": "External contract implemented and tested locally. It is not evidence of CloudBase deployment or original-client E2E.",
   "$defs": {
     "ApplicationCodePath": {
       "type": "string",
       "minLength": 1,
       "maxLength": 100,
-      "pattern": "^[^\\s/?#]+$",
-      "description": "Case-sensitive application code after URL decoding."
+      "pattern": "^(?!\\.{1,2}$)[^\\s\\\\/?#\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$",
+      "description": "Case-sensitive application code after URL decoding; dot path segments and backslashes are forbidden."
     },
     "ApplicationCodeWrite": {
       "type": "string",
       "minLength": 1,
       "maxLength": 50,
-      "pattern": "^[^\\s/?#]+$"
+      "pattern": "^(?!\\.{1,2}$)[^\\s\\\\/?#\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$"
     },
     "VersionNumber": {
       "type": "string",
@@ -43,15 +43,27 @@
       "minLength": 1,
       "maxLength": 500,
       "format": "uri",
-      "pattern": "^https://[^\\s]+$"
+      "pattern": "^[Hh][Tt][Tt][Pp][Ss]://(?![^/?#]*@)[^\\s]+$",
+      "description": "HTTPS URL without user info whose host passes the service's explicit local and special-use address exclusions. DNS rebinding and application-specific host authorization require a deployment allowlist."
     },
     "Text100": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 100
+      "maxLength": 100,
+      "pattern": "^[^<>\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$",
+      "description": "Plain display text; markup and invisible control or bidirectional formatting characters are rejected."
+    },
+    "Text50": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[^<>\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]+$",
+      "description": "Plain display text; markup and invisible control or bidirectional formatting characters are rejected."
     },
     "UpdateContent": {
       "type": "string",
+      "maxLength": 10000,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$",
       "description": "The source document gives no field limit. Bound the complete HTTP body and sanitize this compatibility string with an allowlist before storage or output."
     },
     "VersionWriteRequest": {
@@ -68,11 +80,7 @@
         "stopUpdate"
       ],
       "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 50
-        },
+        "name": { "$ref": "#/$defs/Text50" },
         "code": { "$ref": "#/$defs/ApplicationCodeWrite" },
         "codeVersion": { "$ref": "#/$defs/VersionNumber" },
         "downloadUrl": { "$ref": "#/$defs/HttpsUrl500" },
@@ -136,11 +144,7 @@
       ],
       "properties": {
         "id": { "$ref": "#/$defs/VersionId" },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 50
-        },
+        "name": { "$ref": "#/$defs/Text50" },
         "code": { "$ref": "#/$defs/ApplicationCodeWrite" },
         "codeVersion": { "$ref": "#/$defs/VersionNumber" },
         "downloadUrl": { "$ref": "#/$defs/HttpsUrl500" },
@@ -181,21 +185,40 @@
     },
     "AdTitle": {
       "type": "string",
-      "maxLength": 100
+      "maxLength": 100,
+      "pattern": "^[^<>\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$",
+      "description": "Plain display text; markup and invisible control or bidirectional formatting characters are rejected."
     },
     "AdUrl": {
-      "type": "string",
       "maxLength": 255,
-      "description": "The service must only publish a validated public HTTPS URL; empty strings remain accepted for source compatibility."
+      "oneOf": [
+        { "const": "" },
+        {
+          "type": "string",
+          "minLength": 1,
+          "format": "uri",
+          "pattern": "^[Hh][Tt][Tt][Pp][Ss]://(?![^/?#]*@)[^\\s]+$"
+        }
+      ],
+      "description": "Empty for source compatibility, otherwise the same validated HTTPS policy as downloads."
     },
     "AdImage": {
-      "type": "string",
       "maxLength": 255,
-      "description": "The service must only publish a validated public HTTPS URL; an empty string means no image."
+      "oneOf": [
+        { "const": "" },
+        {
+          "type": "string",
+          "minLength": 1,
+          "format": "uri",
+          "pattern": "^[Hh][Tt][Tt][Pp][Ss]://(?![^/?#]*@)[^\\s]+$"
+        }
+      ],
+      "description": "Empty means no image; otherwise the same validated HTTPS policy as downloads."
     },
     "AdContent": {
       "type": "string",
       "maxLength": 1000,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$",
       "description": "Untrusted compatibility content; sanitize before storage or output."
     },
     "AdCreateRequest": {

@@ -4,7 +4,7 @@
   "info": {
     "title": "Bifang application version API compatibility target",
     "version": "1.0.0",
-    "description": "Target-only contract for zero-code migration of an existing application-version client. It is not implemented or deployed yet. Runtime operations are frozen pending one real-client request probe; management response details remain provisional."
+    "description": "Locally implemented contract for zero-code migration of an existing application-version client. The canonical Base URL contains one v1 segment. Runtime operations await an unchanged original-client E2E on a test domain; management response details remain provisional."
   },
   "servers": [
     {
@@ -40,7 +40,7 @@
         "operationId": "createVersion",
         "tags": ["management"],
         "summary": "Create a version record",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "requestBody": {
           "required": true,
@@ -68,7 +68,7 @@
         "operationId": "listVersions",
         "tags": ["management"],
         "summary": "List version records",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [
           { "$ref": "#/components/parameters/VersionPage" },
@@ -98,7 +98,7 @@
         "operationId": "updateVersion",
         "tags": ["management"],
         "summary": "Update a version record",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [{ "$ref": "#/components/parameters/VersionId" }],
         "requestBody": {
@@ -131,7 +131,7 @@
         "tags": ["runtime"],
         "summary": "Check whether an application version should update",
         "description": "Returns exactly seven compatibility fields in a bare JSON object. The current version is the left operand for criteria evaluation.",
-        "x-bifang-contract-status": "frozen-runtime-pending-client-probe",
+        "x-bifang-contract-status": "implemented-local-pending-original-client-e2e",
         "x-bifang-qps": 10,
         "parameters": [
           { "$ref": "#/components/parameters/ApplicationCode" },
@@ -149,7 +149,7 @@
                   "promptUpdate": {
                     "value": {
                       "update": true,
-                      "downloadUrl": "https://downloads.example.invalid/example-tool/2.0.0.exe",
+                      "downloadUrl": "https://downloads.example.com/example-tool/2.0.0.exe",
                       "promptContent": "发现新版本",
                       "forcedUpdate": false,
                       "promptUpdate": true,
@@ -175,7 +175,7 @@
         "operationId": "createAd",
         "tags": ["management"],
         "summary": "Create an application advertisement",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [{ "$ref": "#/components/parameters/ApplicationCode" }],
         "requestBody": {
@@ -202,7 +202,7 @@
         "operationId": "listAds",
         "tags": ["management"],
         "summary": "List advertisements for an application",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [
           { "$ref": "#/components/parameters/ApplicationCode" },
@@ -232,7 +232,7 @@
         "operationId": "updateAd",
         "tags": ["management"],
         "summary": "Update an application advertisement",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [
           { "$ref": "#/components/parameters/ApplicationCode" },
@@ -263,7 +263,7 @@
         "operationId": "deleteAd",
         "tags": ["management"],
         "summary": "Delete an application advertisement",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [
           { "$ref": "#/components/parameters/ApplicationCode" },
@@ -289,7 +289,7 @@
         "tags": ["management"],
         "summary": "Get an advertisement by identifier",
         "description": "The source path omits application code. The service must still enforce the credential-to-application binding.",
-        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-contract-status": "implemented-local-provisional-management",
         "x-bifang-qps": 10,
         "parameters": [{ "$ref": "#/components/parameters/AdId" }],
         "responses": {
@@ -316,7 +316,7 @@
         "tags": ["runtime"],
         "summary": "Return advertisements for the existing client",
         "description": "Returns a bare JSON array. No advertisements is HTTP 200 with an empty array.",
-        "x-bifang-contract-status": "frozen-runtime-pending-client-probe",
+        "x-bifang-contract-status": "implemented-local-pending-original-client-e2e",
         "x-bifang-qps": 10,
         "parameters": [{ "$ref": "#/components/parameters/ApplicationCode" }],
         "responses": {
@@ -421,8 +421,8 @@
         "description": "Provisional source-compatible sort expression; the complete grammar requires a management-client probe.",
         "schema": {
           "type": "string",
-          "maxLength": 100,
-          "examples": ["createdTime=sort=desc"]
+          "enum": ["createdTime=sort=asc", "createdTime=sort=desc"],
+          "default": "createdTime=sort=desc"
         }
       }
     },
@@ -496,5 +496,5 @@
     "documentVersion": "v1",
     "sha256": "6721cd6fe03db65847b7d64d8bd65c102c67b0a3563ef8803475a3ce5ebda8c7"
   },
-  "x-bifang-target-state": "not-implemented-not-deployed"
+  "x-bifang-target-state": "implemented-local-not-deployed"
 }

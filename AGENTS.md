@@ -8,8 +8,9 @@
 2. `docs/毕方小工具公共服务分步接入指南.md`：面向小工具开发者的完整分阶段接入流程。
 3. `docs/multi-tool-isolation.md`：APP_ID、函数、集合、路由和更新清单的隔离规则。
 4. `docs/telemetry-and-update.md`：统计/更新协议、客户端时序、隐私要求和验收标准。
-5. `examples/host-integration.ts`、`packages/telemetry-update-sdk`：协议的示例与公共 SDK 实现。
-6. `cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`：已登记应用与资源配置的机器权威源。
+5. 涉及应用版本 API 时，再读 `docs/application-version-api-zero-code-contract.md`、`contracts/application-version-api-v1/`、`cloudbase/functions/application-version-api/` 和 `cloudbase/plan-application-version-api-deployment.mjs`。
+6. `examples/host-integration.ts`、`packages/telemetry-update-sdk`：协议的示例与公共 SDK 实现。
+7. `cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`：已登记应用与资源配置的机器权威源。
 
 需要给新手查看 CloudBase 控制台位置时，再读 `docs/cloudbase-quickstart.md`。它的真实截图位于 `docs/images/cloudbase/`，可分享 Word 版为 `docs/CloudBase免费额度内部署新手图文版.docx`，生成器为 `tools/build_cloudbase_guide_docx.py`，文档构建依赖锁定在 `tools/docx-requirements.txt`。
 

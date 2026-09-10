@@ -2,9 +2,9 @@
 
 ## 结论
 
-多个小工具可以共用同一个免费 CloudBase 环境和平台默认 HTTPS 域名。每个工具使用独立的应用编号、云函数、HTTP 路由、数据库集合、本地状态目录和更新文件，因此统计与版本发布不会串用。这是业务资源隔离，不是 CloudBase 环境级完全隔离。
+多个小工具可以共用同一个免费 CloudBase 环境和平台默认 HTTPS 域名。每个工具使用独立的应用编号、统计云函数与路由、数据库集合、本地状态目录和更新文件，因此统计与版本发布不会串用。固定路径的应用版本 API 使用一个共享函数和路由，但函数必须先鉴权，再按凭据绑定的应用选择独立集合。这是业务资源隔离，不是 CloudBase 环境级完全隔离。
 
-共享的只有 CloudBase 环境、默认域名、`/updates` 静态托管入口、免费额度和平台故障域。任一工具消耗的请求、函数、数据库、存储和流量都会计入同一环境额度；这不是额度或故障层面的完全隔离。若要连额度和故障域也隔离，就需要多个 CloudBase 环境，可能涉及付费，不能自行创建或升级。
+共享的只有 CloudBase 环境、默认域名、`/updates` 静态托管入口、`application-version-api` 及其 `/tools/version-control/v1` 路由、免费额度和平台故障域。任一工具消耗的请求、函数、数据库、存储和流量都会计入同一环境额度；这不是额度或故障层面的完全隔离。若要连额度和故障域也隔离，就需要多个 CloudBase 环境，可能涉及付费，不能自行创建或升级。
 
 在其他小工具仓库开始接入时，显式调用 `$bifang-public-services-onboarding`。向导会先读取目标项目和已有 `.bifang/public-services-profile.json`，只询问无法确认的信息；APP_ID 与资源映射确认后仍按八个独立阶段推进，不会把登记、部署、客户端修改、构建、发布和旧资源清理合成一次操作。
 
@@ -24,6 +24,9 @@
 | 应用编号         | `<app_id>`                           | `bifang-pdf-tool`                       |
 | Event 云函数     | `telemetry-<app_id>`                 | `telemetry-bifang-pdf-tool`             |
 | 数据库集合       | `telemetry_` + 把每个 `-` 替换为 `_` | `telemetry_bifang_pdf_tool`             |
+| 版本记录集合     | `versions_` + 把每个 `-` 替换为 `_`  | `versions_bifang_pdf_tool`              |
+| 广告记录集合     | `ads_` + 把每个 `-` 替换为 `_`       | `ads_bifang_pdf_tool`                   |
+| 版本审计集合     | `audit_` + 把每个 `-` 替换为 `_`     | `audit_bifang_pdf_tool`                 |
 | 数据接收路由     | `/apps/<app_id>/v1/track`            | `/apps/bifang-pdf-tool/v1/track`        |
 | 更新目录         | `/updates/<app_id>`                  | `/updates/bifang-pdf-tool`              |
 | Windows 更新文件 | `/updates/<app_id>/windows.json`     | `/updates/bifang-pdf-tool/windows.json` |
@@ -39,6 +42,12 @@ TRACK_PATH=/apps/bifang-pdf-tool/v1/track
 ```
 
 `ALLOWED_APP_IDS` 这个历史变量名仍被保留，但新模板中每个函数只允许填写一个 `app_id`，不能写逗号分隔的多工具名单。
+
+## 共享应用版本 API 的隔离边界
+
+应用版本 API 的规范 Base URL 是 `https://<平台默认域名>/tools/version-control/v1`，`v1` 只出现一次；不创建 `/v1/v1` 别名。共享函数 `application-version-api` 不能把请求中的 `code` 当成集合名，也不能跨集合搜索：`x-app-key` 与 `x-app-secret` 先解析为一个已登记 `app_id`、允许的 `codes` 和最小权限 `scopes`，随后只选择该应用从 `cloudbase/apps.json` 派生出的 `versions_*`、`ads_*`、`audit_*` 三个 `ADMINONLY` 集合。
+
+该共享服务已在仓库中本地实现，但尚未部署或经未修改原程序的测试域名 E2E。当前 `$bifang-public-services-onboarding` 仍对应基础设施 `2.1.0` 的 telemetry 与静态 `/updates` 接入，不得借它把两个业务客户端提前切到新 API。共享服务先用独立的 `cloudbase:version-api:deploy:plan` 完成远程只读预检、费用复核和明确确认；原程序验收后，再分别升级接入 Skill、鼠标精灵和录屏助手。
 
 ## 新增一个工具
 

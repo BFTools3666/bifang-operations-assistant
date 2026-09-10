@@ -16,6 +16,10 @@ export const OPERATIONS_DASHBOARD = Object.freeze({
   functionName: "operations-dashboard-api",
   path: "/admin/v1/metrics",
 });
+export const APPLICATION_VERSION_API = Object.freeze({
+  functionName: "application-version-api",
+  path: "/tools/version-control/v1",
+});
 const UPDATE_MANIFEST_KEYS = [
   "app_id",
   "download_url",
@@ -51,6 +55,17 @@ export function deriveAppResources(appId) {
   };
 }
 
+export function deriveApplicationVersionResources(appId) {
+  assertDeploymentAppId(appId);
+  const normalized = appId.replaceAll("-", "_");
+  return {
+    appId,
+    versionCollection: `versions_${normalized}`,
+    adCollection: `ads_${normalized}`,
+    auditCollection: `audit_${normalized}`,
+  };
+}
+
 export function createCloudBaseConfig(registry) {
   const applications = validateRegistry(registry);
   const resources = applications.map(({ appId }) => deriveAppResources(appId));
@@ -59,6 +74,9 @@ export function createCloudBaseConfig(registry) {
     collectionName: deriveAppResources(appId).collectionName,
     platforms,
   }));
+  const applicationVersionApps = applications.map(({ appId }) =>
+    deriveApplicationVersionResources(appId),
+  );
 
   return {
     $schema: "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
@@ -84,6 +102,30 @@ export function createCloudBaseConfig(registry) {
           TRACK_PATH: resource.trackPath,
         },
       })),
+      {
+        name: APPLICATION_VERSION_API.functionName,
+        dir: "./cloudbase/functions/application-version-api",
+        type: "Event",
+        runtime: "Nodejs20.19",
+        handler: "index.main",
+        timeout: 3,
+        memorySize: 256,
+        installDependency: true,
+        envVariables: {
+          // Use the CLI-selected target environment directly. The deployment
+          // plan also passes -e, so no separate ENV_ID template variable can
+          // drift from the reviewed target.
+          CLOUDBASE_ENV_ID: "{{tcb.envId}}",
+          APPLICATION_VERSION_API_PATH: APPLICATION_VERSION_API.path,
+          // This mapping contains collection names only. Credentials and their
+          // digests are injected separately and are never written to Git.
+          APPLICATION_VERSION_APPS_JSON: JSON.stringify(
+            JSON.stringify(applicationVersionApps),
+          ),
+          APPLICATION_VERSION_CREDENTIALS_B64:
+            "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}",
+        },
+      },
       {
         name: OPERATIONS_DASHBOARD.functionName,
         dir: "./cloudbase/functions/operations-dashboard",
@@ -131,6 +173,20 @@ export function createCloudBaseConfig(registry) {
             },
           },
         })),
+        {
+          path: APPLICATION_VERSION_API.path,
+          target: `function:${APPLICATION_VERSION_API.functionName}`,
+          protocol: "HTTP_TO_HTTPS",
+          enablePathTransmission: true,
+          enableAuth: false,
+          qpsPolicy: {
+            qpsTotal: 100,
+            qpsPerClient: {
+              limitBy: "ClientIP",
+              limitValue: 10,
+            },
+          },
+        },
         {
           path: OPERATIONS_DASHBOARD.path,
           target: `function:${OPERATIONS_DASHBOARD.functionName}`,
