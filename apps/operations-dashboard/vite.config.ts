@@ -46,6 +46,18 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
+    // Pre-bundle the Base UI modules that are reached through lazy dashboard
+    // states.  Without this list Vite discovers them after the first render,
+    // reloads with a second optimized React module graph, and the live preview
+    // can fail with "Invalid hook call" until the dev server is restarted.
+    optimizeDeps: {
+      include: [
+        '@base-ui/react/dialog',
+        '@base-ui/react/merge-props',
+        '@base-ui/react/progress',
+        '@base-ui/react/use-render',
+      ],
+    },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
