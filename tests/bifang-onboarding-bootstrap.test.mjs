@@ -72,7 +72,12 @@ async function createAuthorityFixture(t, options = {}) {
     join(authority, "package.json"),
   );
   git(authority, ["add", "package.json"]);
-  git(authority, ["commit", "-m", "test: infrastructure 3.0 fixture"]);
+  git(authority, [
+    "commit",
+    "--allow-empty",
+    "-m",
+    "test: infrastructure 3.0 fixture",
+  ]);
   const infrastructureSourceCommit = git(authority, ["rev-parse", "HEAD"]);
 
   const installedSkillSource = join(authority, "skills", skillName);
@@ -600,16 +605,34 @@ test("infrastructure provenance commit must carry the declared package version",
   const fixture = await createAuthorityFixture(t);
   const client = await createClient(fixture.root);
   const codexHome = join(fixture.root, "codex-provenance-version");
+  const packagePath = join(fixture.authority, "package.json");
+  const validPackage = await readFile(packagePath, "utf8");
+  const wrongPackage = JSON.parse(validPackage);
+  wrongPackage.version = "2.9.0";
+  await writeFile(
+    packagePath,
+    `${JSON.stringify(wrongPackage, null, 2)}\n`,
+    "utf8",
+  );
+  git(fixture.authority, ["add", "package.json"]);
+  git(fixture.authority, ["commit", "-m", "test: wrong provenance version"]);
+  const wrongVersionCommit = git(fixture.authority, ["rev-parse", "HEAD"]);
+
+  await writeFile(packagePath, validPackage, "utf8");
   const skillMd = join(fixture.authority, "skills", skillName, "SKILL.md");
   await writeFile(
     skillMd,
     (await readFile(skillMd, "utf8")).replace(
       /^  infrastructure-source-commit:.*$/m,
-      '  infrastructure-source-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"',
+      `  infrastructure-source-commit: "${wrongVersionCommit}"`,
     ),
     "utf8",
   );
-  git(fixture.authority, ["add", `skills/${skillName}/SKILL.md`]);
+  git(fixture.authority, [
+    "add",
+    "package.json",
+    `skills/${skillName}/SKILL.md`,
+  ]);
   git(fixture.authority, ["commit", "-m", "test: invalid version provenance"]);
   fixture.head = git(fixture.authority, ["rev-parse", "HEAD"]);
 
