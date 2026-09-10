@@ -31,6 +31,14 @@ const powershellPath = join(
   "v1.0",
   "powershell.exe",
 );
+const pwshProbe = spawnSync("where.exe", ["pwsh.exe"], {
+  encoding: "utf8",
+  windowsHide: true,
+});
+const pwshPath =
+  pwshProbe.status === 0
+    ? pwshProbe.stdout.split(/\r?\n/u).find((line) => line.trim().length > 0)
+    : null;
 
 function minimalWindowsEnvironment(additions = {}) {
   const allowed = [
@@ -63,7 +71,7 @@ function minimalWindowsEnvironment(additions = {}) {
   ]);
 }
 
-function runTool(args, additions = {}) {
+function runTool(args, additions = {}, executable = powershellPath) {
   const invocation = [
     "-NoProfile",
     "-NonInteractive",
@@ -75,7 +83,7 @@ function runTool(args, additions = {}) {
   ];
   return {
     invocation,
-    result: spawnSync(powershellPath, invocation, {
+    result: spawnSync(executable, invocation, {
       encoding: "utf8",
       env: minimalWindowsEnvironment(additions),
       timeout: 30_000,
@@ -394,6 +402,36 @@ test(
       );
       assert.equal(runtimeFile.code, runtimeCredential.codes[0]);
       assertExclusiveCurrentUserAcl(readAcl(runtimeOutputPath, false));
+
+      if (pwshPath) {
+        const pwshRuntimeOutputPath = join(
+          directory,
+          "exports",
+          "runtime-pwsh.json",
+        );
+        const pwshRuntimeArgs = [
+          "-Mode",
+          "export-runtime",
+          "-VaultPath",
+          vaultPath,
+          "-CredentialId",
+          runtimeCredential.credential_id,
+          "-OutputPath",
+          pwshRuntimeOutputPath,
+        ];
+        const pwshExported = runTool(pwshRuntimeArgs, {}, pwshPath);
+        assert.equal(pwshExported.result.status, 0, pwshExported.result.stderr);
+        assert.equal(pwshExported.result.stderr, "");
+        const pwshRuntimeFile = JSON.parse(
+          await readFile(pwshRuntimeOutputPath, "utf8"),
+        );
+        assert.equal(
+          pwshRuntimeFile.credential_id,
+          runtimeCredential.credential_id,
+        );
+        assert.equal(pwshRuntimeFile.app_key, runtimeCredential.app_key);
+        assert.equal(pwshRuntimeFile.app_secret, runtimeCredential.app_secret);
+      }
 
       for (const sensitiveValue of [
         ...allSecretValues,

@@ -78,6 +78,16 @@ function Test-ExactStringArray {
     return $true
 }
 
+function ConvertFrom-JsonPreservingDateStrings {
+    param([Parameter(Mandatory = $true)][string]$Json)
+
+    $convertFromJson = Get-Command ConvertFrom-Json -CommandType Cmdlet -ErrorAction Stop
+    if ($convertFromJson.Parameters.ContainsKey("DateKind")) {
+        return $Json | ConvertFrom-Json -DateKind String
+    }
+    return $Json | ConvertFrom-Json
+}
+
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][byte[]]$Bytes)
 
@@ -150,7 +160,20 @@ function Set-CurrentUserExclusiveAcl {
         [System.Security.AccessControl.AccessControlType]::Allow
     )
     [void]$security.AddAccessRule($rule)
-    if ($Directory) {
+    $aclExtensions = (
+        [System.Management.Automation.PSTypeName]"System.IO.FileSystemAclExtensions"
+    ).Type
+    if ($null -ne $aclExtensions) {
+        if ($Directory) {
+            $item = New-Object System.IO.DirectoryInfo($Path)
+            [System.IO.FileSystemAclExtensions]::SetAccessControl($item, $security)
+        }
+        else {
+            $item = New-Object System.IO.FileInfo($Path)
+            [System.IO.FileSystemAclExtensions]::SetAccessControl($item, $security)
+        }
+    }
+    elseif ($Directory) {
         [System.IO.Directory]::SetAccessControl($Path, $security)
     }
     else {
@@ -385,7 +408,7 @@ function Read-RawVault {
 
     $vaultJson = Unprotect-VaultJson $envelope.ciphertext_base64
     try {
-        $vault = $vaultJson | ConvertFrom-Json
+        $vault = ConvertFrom-JsonPreservingDateStrings $vaultJson
     }
     catch {
         throw "the decrypted credential vault is invalid"
