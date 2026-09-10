@@ -80,8 +80,8 @@ npm run cloudbase:version-api:deploy:plan -- --env-id <现有免费环境ID> --o
 
 ## 当前实施状态
 
-application-version API v1 的十个端点、鉴权、隔离存储、事务与本地 HTTP E2E 已在仓库实现。它仍需在现有免费环境完成最新只读预检、明确确认后的部署与公网 HTTP E2E；本地测试不能冒充线上结果。
+application-version API v1 的十个端点、鉴权、隔离存储与事务已经部署到负责人现有的免费环境，并完成公网 HTTP 与两款真实 Windows 客户端的更新检查 E2E。本地测试仍不能替代后续每个发布候选自己的线上验证。
 
 鼠标精灵与录屏助手是实际客户端验收对象。它们的旧版本未公开发布，因此各自迁移时直接删除静态更新实现。Windows 真实客户端 E2E 必须绑定本次构建的准确 EXE、SHA-256、进程/窗口和实际请求；录屏助手 macOS 结果必须在真实 Mac 上单独验证，Windows 证据不能替代。
 
-独立只读运营看板位于 `apps/operations-dashboard`。看板只消费服务端聚合数据，失败显示“生产数据暂时不可用”，真实零值按零显示；现行说明见 [运营看板规范](docs/operations-dashboard.md)。旧静态协议时期的回执和截图已从 3.0 工作树删除，完成新服务部署与真实 Edge E2E 后再生成新回执。
+独立只读运营看板位于 `apps/operations-dashboard`。看板只消费服务端聚合数据，失败显示“生产数据暂时不可用”，真实零值按零显示；现行说明见 [运营看板规范](docs/operations-dashboard.md)。旧静态协议时期的回执和截图已从 3.0 工作树删除；2026-09-10 两款真实客户端的 telemetry 落库、同日去重与 Edge 生产看板证据见 [E2E 回执](docs/operations-dashboard-e2e-20260910.md)。
