@@ -1,0 +1,223 @@
+{
+  "contract_version": "1.0.0",
+  "version_comparison_cases": [
+    { "left": "1", "right": "1.0.0", "expected": 0 },
+    { "left": "1.9", "right": "1.10", "expected": -1 },
+    { "left": "01.002", "right": "1.2.0", "expected": 0 },
+    { "left": "1.2.3.4", "right": "1.2.3.3", "expected": 1 },
+    {
+      "left": "9007199254740993.0",
+      "right": "9007199254740992.999999999999999999",
+      "expected": 1
+    }
+  ],
+  "criteria_cases": [
+    {
+      "current_version": "1.0",
+      "operator": "lt",
+      "version_criteria": "1.0.1",
+      "matches": true
+    },
+    {
+      "current_version": "1.0",
+      "operator": "le",
+      "version_criteria": "1",
+      "matches": true
+    },
+    {
+      "current_version": "2.0",
+      "operator": "gt",
+      "version_criteria": "1.9.9",
+      "matches": true
+    },
+    {
+      "current_version": "2.0.0",
+      "operator": "ge",
+      "version_criteria": "2",
+      "matches": true
+    },
+    {
+      "current_version": "2.0.0",
+      "operator": "lt",
+      "version_criteria": "2",
+      "matches": false
+    }
+  ],
+  "decision_cases": [
+    {
+      "name": "ordinary newer version",
+      "current_version": "1.0.0",
+      "code_version": "1.1.0",
+      "criteria": null,
+      "flags": {
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": true,
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": false
+      }
+    },
+    {
+      "name": "prompt newer version",
+      "current_version": "1.0.0",
+      "code_version": "2.0.0",
+      "criteria": {
+        "operator": "le",
+        "version_criteria": "1.5.0"
+      },
+      "flags": {
+        "forcedUpdate": false,
+        "promptUpdate": true,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": true,
+        "forcedUpdate": false,
+        "promptUpdate": true,
+        "stopUpdate": false
+      }
+    },
+    {
+      "name": "forced newer version",
+      "current_version": "1.5.0",
+      "code_version": "2.0.0",
+      "criteria": {
+        "operator": "ge",
+        "version_criteria": "1.0"
+      },
+      "flags": {
+        "forcedUpdate": true,
+        "promptUpdate": false,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": true,
+        "forcedUpdate": true,
+        "promptUpdate": false,
+        "stopUpdate": false
+      }
+    },
+    {
+      "name": "stopped release",
+      "current_version": "1.0.0",
+      "code_version": "2.0.0",
+      "criteria": null,
+      "flags": {
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": true
+      },
+      "expected": {
+        "update": false,
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": true
+      }
+    },
+    {
+      "name": "same version masks prompt flag",
+      "current_version": "2",
+      "code_version": "2.0.0",
+      "criteria": null,
+      "flags": {
+        "forcedUpdate": false,
+        "promptUpdate": true,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": false,
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": false
+      }
+    },
+    {
+      "name": "criteria miss masks force flag",
+      "current_version": "1.5.0",
+      "code_version": "2.0.0",
+      "criteria": {
+        "operator": "lt",
+        "version_criteria": "1.0.0"
+      },
+      "flags": {
+        "forcedUpdate": true,
+        "promptUpdate": false,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": false,
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": false
+      }
+    },
+    {
+      "name": "downgrade is never offered",
+      "current_version": "3.0.0",
+      "code_version": "2.9.9",
+      "criteria": {
+        "operator": "ge",
+        "version_criteria": "1.0.0"
+      },
+      "flags": {
+        "forcedUpdate": true,
+        "promptUpdate": false,
+        "stopUpdate": false
+      },
+      "expected": {
+        "update": false,
+        "forcedUpdate": false,
+        "promptUpdate": false,
+        "stopUpdate": false
+      }
+    }
+  ],
+  "valid_flag_states": [
+    {
+      "forcedUpdate": false,
+      "promptUpdate": false,
+      "stopUpdate": false
+    },
+    {
+      "forcedUpdate": true,
+      "promptUpdate": false,
+      "stopUpdate": false
+    },
+    {
+      "forcedUpdate": false,
+      "promptUpdate": true,
+      "stopUpdate": false
+    },
+    {
+      "forcedUpdate": false,
+      "promptUpdate": false,
+      "stopUpdate": true
+    }
+  ],
+  "invalid_flag_states": [
+    {
+      "forcedUpdate": true,
+      "promptUpdate": true,
+      "stopUpdate": false
+    },
+    {
+      "forcedUpdate": true,
+      "promptUpdate": false,
+      "stopUpdate": true
+    },
+    {
+      "forcedUpdate": false,
+      "promptUpdate": true,
+      "stopUpdate": true
+    },
+    {
+      "forcedUpdate": true,
+      "promptUpdate": true,
+      "stopUpdate": true
+    }
+  ]
+}

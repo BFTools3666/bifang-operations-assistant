@@ -1,0 +1,377 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.example.invalid/bifang/application-version-api/v1/schema.json",
+  "title": "Bifang application version API v1 schema catalog",
+  "description": "Target external contract only. It is not evidence of implementation or deployment.",
+  "$defs": {
+    "ApplicationCodePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[^\\s/?#]+$",
+      "description": "Case-sensitive application code after URL decoding."
+    },
+    "ApplicationCodeWrite": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[^\\s/?#]+$"
+    },
+    "VersionNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[0-9]+(?:\\.[0-9]+)*$",
+      "description": "Numeric dotted version; absent trailing segments compare as zero."
+    },
+    "VersionId": {
+      "type": "string",
+      "pattern": "^[0-9]{19}$",
+      "description": "The source contract requires a 19-digit version identifier; keep it as a JSON string."
+    },
+    "AdId": {
+      "type": "string",
+      "pattern": "^[0-9]{1,19}$",
+      "description": "Advertisement identifier kept as a JSON string to avoid precision loss."
+    },
+    "UpdateOperator": {
+      "type": "string",
+      "enum": ["ge", "gt", "le", "lt"]
+    },
+    "HttpsUrl500": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "format": "uri",
+      "pattern": "^https://[^\\s]+$"
+    },
+    "Text100": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "UpdateContent": {
+      "type": "string",
+      "description": "The source document gives no field limit. Bound the complete HTTP body and sanitize this compatibility string with an allowlist before storage or output."
+    },
+    "VersionWriteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "code",
+        "codeVersion",
+        "downloadUrl",
+        "promptContent",
+        "forcedUpdate",
+        "promptUpdate",
+        "stopUpdate"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "code": { "$ref": "#/$defs/ApplicationCodeWrite" },
+        "codeVersion": { "$ref": "#/$defs/VersionNumber" },
+        "downloadUrl": { "$ref": "#/$defs/HttpsUrl500" },
+        "promptContent": { "$ref": "#/$defs/Text100" },
+        "forcedUpdate": { "type": "boolean" },
+        "promptUpdate": { "type": "boolean" },
+        "stopUpdate": { "type": "boolean" },
+        "updateContent": { "$ref": "#/$defs/UpdateContent" },
+        "updateCriteria": { "$ref": "#/$defs/UpdateOperator" },
+        "versionCriteria": { "$ref": "#/$defs/VersionNumber" }
+      },
+      "dependentRequired": {
+        "updateCriteria": ["versionCriteria"],
+        "versionCriteria": ["updateCriteria"]
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "forcedUpdate": { "const": false },
+            "promptUpdate": { "const": false },
+            "stopUpdate": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "forcedUpdate": { "const": true },
+            "promptUpdate": { "const": false },
+            "stopUpdate": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "forcedUpdate": { "const": false },
+            "promptUpdate": { "const": true },
+            "stopUpdate": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "forcedUpdate": { "const": false },
+            "promptUpdate": { "const": false },
+            "stopUpdate": { "const": true }
+          }
+        }
+      ]
+    },
+    "VersionListRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "code",
+        "codeVersion",
+        "downloadUrl",
+        "promptContent",
+        "forcedUpdate",
+        "promptUpdate",
+        "stopUpdate",
+        "updateContent"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/VersionId" },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "code": { "$ref": "#/$defs/ApplicationCodeWrite" },
+        "codeVersion": { "$ref": "#/$defs/VersionNumber" },
+        "downloadUrl": { "$ref": "#/$defs/HttpsUrl500" },
+        "promptContent": { "$ref": "#/$defs/Text100" },
+        "forcedUpdate": { "type": "boolean" },
+        "promptUpdate": { "type": "boolean" },
+        "stopUpdate": { "type": "boolean" },
+        "updateContent": { "$ref": "#/$defs/UpdateContent" },
+        "updateCriteria": { "$ref": "#/$defs/UpdateOperator" },
+        "versionCriteria": { "$ref": "#/$defs/VersionNumber" }
+      },
+      "dependentRequired": {
+        "updateCriteria": ["versionCriteria"],
+        "versionCriteria": ["updateCriteria"]
+      }
+    },
+    "VersionCheckResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "update",
+        "downloadUrl",
+        "promptContent",
+        "forcedUpdate",
+        "promptUpdate",
+        "stopUpdate",
+        "updateContent"
+      ],
+      "properties": {
+        "update": { "type": "boolean" },
+        "downloadUrl": { "$ref": "#/$defs/HttpsUrl500" },
+        "promptContent": { "$ref": "#/$defs/Text100" },
+        "forcedUpdate": { "type": "boolean" },
+        "promptUpdate": { "type": "boolean" },
+        "stopUpdate": { "type": "boolean" },
+        "updateContent": { "$ref": "#/$defs/UpdateContent" }
+      }
+    },
+    "AdTitle": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "AdUrl": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "The service must only publish a validated public HTTPS URL; empty strings remain accepted for source compatibility."
+    },
+    "AdImage": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "The service must only publish a validated public HTTPS URL; an empty string means no image."
+    },
+    "AdContent": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "Untrusted compatibility content; sanitize before storage or output."
+    },
+    "AdCreateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "url"],
+      "properties": {
+        "title": { "$ref": "#/$defs/AdTitle" },
+        "url": { "$ref": "#/$defs/AdUrl" },
+        "image": { "$ref": "#/$defs/AdImage" },
+        "content": { "$ref": "#/$defs/AdContent" }
+      }
+    },
+    "AdUpdateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "url", "content"],
+      "properties": {
+        "title": { "$ref": "#/$defs/AdTitle" },
+        "url": { "$ref": "#/$defs/AdUrl" },
+        "image": {
+          "$ref": "#/$defs/AdImage",
+          "description": "Provisional compatibility extension: omitted means keep the stored image."
+        },
+        "content": { "$ref": "#/$defs/AdContent" }
+      }
+    },
+    "AdDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appCode", "title", "url", "image", "content"],
+      "properties": {
+        "id": { "$ref": "#/$defs/AdId" },
+        "appCode": { "$ref": "#/$defs/ApplicationCodePath" },
+        "title": { "$ref": "#/$defs/AdTitle" },
+        "url": { "$ref": "#/$defs/AdUrl" },
+        "image": { "$ref": "#/$defs/AdImage" },
+        "content": { "$ref": "#/$defs/AdContent" }
+      }
+    },
+    "AdListItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appCode", "title", "url", "image"],
+      "properties": {
+        "id": { "$ref": "#/$defs/AdId" },
+        "appCode": { "$ref": "#/$defs/ApplicationCodePath" },
+        "title": { "$ref": "#/$defs/AdTitle" },
+        "url": { "$ref": "#/$defs/AdUrl" },
+        "image": { "$ref": "#/$defs/AdImage" }
+      }
+    },
+    "AdShowItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "url", "image", "content"],
+      "properties": {
+        "id": { "$ref": "#/$defs/AdId" },
+        "url": { "$ref": "#/$defs/AdUrl" },
+        "image": { "$ref": "#/$defs/AdImage" },
+        "content": { "$ref": "#/$defs/AdContent" }
+      }
+    },
+    "AdShowResponse": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/AdShowItem" }
+    },
+    "PageMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "current", "total", "size"],
+      "properties": {
+        "model": { "const": "page" },
+        "current": { "type": "integer", "minimum": 1 },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total page count."
+        },
+        "size": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "total_page": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Provisional compatibility alias for total; confirm with a real management client."
+        }
+      }
+    },
+    "VersionGridResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "result", "page"],
+      "properties": {
+        "model": { "const": "grid.result" },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "datas", "total"],
+          "properties": {
+            "model": { "const": "data.set" },
+            "datas": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/VersionListRecord" }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total record count."
+            }
+          }
+        },
+        "page": { "$ref": "#/$defs/PageMetadata" }
+      }
+    },
+    "AdGridResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "result", "page"],
+      "properties": {
+        "model": { "const": "grid.result" },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "datas", "total"],
+          "properties": {
+            "model": { "const": "data.set" },
+            "datas": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AdListItem" }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total record count."
+            }
+          }
+        },
+        "page": { "$ref": "#/$defs/PageMetadata" }
+      }
+    },
+    "ErrorItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "code", "message"],
+      "properties": {
+        "model": { "const": "error" },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_.-]*$"
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "ErrorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "errors"],
+      "properties": {
+        "model": { "const": "errors" },
+        "errors": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "datas"],
+          "properties": {
+            "model": { "const": "data.set" },
+            "datas": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": { "$ref": "#/$defs/ErrorItem" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

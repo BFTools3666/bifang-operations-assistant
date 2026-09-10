@@ -1,0 +1,500 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Bifang application version API compatibility target",
+    "version": "1.0.0",
+    "description": "Target-only contract for zero-code migration of an existing application-version client. It is not implemented or deployed yet. Runtime operations are frozen pending one real-client request probe; management response details remain provisional."
+  },
+  "servers": [
+    {
+      "url": "https://{host}/tools/version-control/v1",
+      "description": "Canonical production shape; do not append a second /v1.",
+      "variables": {
+        "host": {
+          "default": "api.example.invalid",
+          "description": "Configured Bifang HTTPS host."
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "XAppKey": [],
+      "XAppSecret": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "runtime",
+      "description": "Zero-code client runtime surface."
+    },
+    {
+      "name": "management",
+      "description": "Document-compatible management surface; real-client probing is required before claiming management-client compatibility."
+    }
+  ],
+  "paths": {
+    "/versions": {
+      "post": {
+        "operationId": "createVersion",
+        "tags": ["management"],
+        "summary": "Create a version record",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/VersionWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. The source document does not define a success body, so this provisional contract emits an empty body."
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "get": {
+        "operationId": "listVersions",
+        "tags": ["management"],
+        "summary": "List version records",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [
+          { "$ref": "#/components/parameters/VersionPage" },
+          { "$ref": "#/components/parameters/PageSize" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Version grid. updateCriteria and pagination details require a real management-client probe.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/VersionGridResponse"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/versions/{id}": {
+      "put": {
+        "operationId": "updateVersion",
+        "tags": ["management"],
+        "summary": "Update a version record",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [{ "$ref": "#/components/parameters/VersionId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema.json#/$defs/VersionWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. The source document does not define a success body, so this provisional contract emits an empty body."
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/versions/{code}/{version}": {
+      "get": {
+        "operationId": "checkVersion",
+        "tags": ["runtime"],
+        "summary": "Check whether an application version should update",
+        "description": "Returns exactly seven compatibility fields in a bare JSON object. The current version is the left operand for criteria evaluation.",
+        "x-bifang-contract-status": "frozen-runtime-pending-client-probe",
+        "x-bifang-qps": 10,
+        "parameters": [
+          { "$ref": "#/components/parameters/ApplicationCode" },
+          { "$ref": "#/components/parameters/CurrentVersion" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Update decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema.json#/$defs/VersionCheckResponse"
+                },
+                "examples": {
+                  "promptUpdate": {
+                    "value": {
+                      "update": true,
+                      "downloadUrl": "https://downloads.example.invalid/example-tool/2.0.0.exe",
+                      "promptContent": "发现新版本",
+                      "forcedUpdate": false,
+                      "promptUpdate": true,
+                      "stopUpdate": false,
+                      "updateContent": "<div>本次更新内容</div>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/app/{code}/ads": {
+      "post": {
+        "operationId": "createAd",
+        "tags": ["management"],
+        "summary": "Create an application advertisement",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [{ "$ref": "#/components/parameters/ApplicationCode" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AdCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. The source document does not define a success body, so this provisional contract emits an empty body."
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "get": {
+        "operationId": "listAds",
+        "tags": ["management"],
+        "summary": "List advertisements for an application",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [
+          { "$ref": "#/components/parameters/ApplicationCode" },
+          { "$ref": "#/components/parameters/AdPage" },
+          { "$ref": "#/components/parameters/PageSize" },
+          { "$ref": "#/components/parameters/AdSearch" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Advertisement grid; the source example is ambiguous and requires a real management-client probe.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AdGridResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/app/{code}/ads/{id}": {
+      "put": {
+        "operationId": "updateAd",
+        "tags": ["management"],
+        "summary": "Update an application advertisement",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [
+          { "$ref": "#/components/parameters/ApplicationCode" },
+          { "$ref": "#/components/parameters/AdId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AdUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. The source document does not define a success body, so this provisional contract emits an empty body."
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAd",
+        "tags": ["management"],
+        "summary": "Delete an application advertisement",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [
+          { "$ref": "#/components/parameters/ApplicationCode" },
+          { "$ref": "#/components/parameters/AdId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted. The source document does not define a success body, so this provisional contract emits an empty body."
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/app/ads/{id}": {
+      "get": {
+        "operationId": "getAd",
+        "tags": ["management"],
+        "summary": "Get an advertisement by identifier",
+        "description": "The source path omits application code. The service must still enforce the credential-to-application binding.",
+        "x-bifang-contract-status": "provisional-management",
+        "x-bifang-qps": 10,
+        "parameters": [{ "$ref": "#/components/parameters/AdId" }],
+        "responses": {
+          "200": {
+            "description": "Advertisement detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AdDetail" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/app/{code}/ads/show": {
+      "get": {
+        "operationId": "showAds",
+        "tags": ["runtime"],
+        "summary": "Return advertisements for the existing client",
+        "description": "Returns a bare JSON array. No advertisements is HTTP 200 with an empty array.",
+        "x-bifang-contract-status": "frozen-runtime-pending-client-probe",
+        "x-bifang-qps": 10,
+        "parameters": [{ "$ref": "#/components/parameters/ApplicationCode" }],
+        "responses": {
+          "200": {
+            "description": "Advertisement display array",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AdShowResponse" },
+                "example": []
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "XAppKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-app-key",
+        "description": "Exact compatibility header. Keys are scoped internally by role and application code."
+      },
+      "XAppSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-app-secret",
+        "description": "Exact compatibility header. Never place a real value in source, examples, responses, or logs."
+      }
+    },
+    "parameters": {
+      "VersionId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "$ref": "./schema.json#/$defs/VersionId" }
+      },
+      "AdId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "$ref": "./schema.json#/$defs/AdId" }
+      },
+      "ApplicationCode": {
+        "name": "code",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "./schema.json#/$defs/ApplicationCodePath"
+        }
+      },
+      "CurrentVersion": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": { "$ref": "./schema.json#/$defs/VersionNumber" }
+      },
+      "VersionPage": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 1
+        }
+      },
+      "AdPage": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1
+        }
+      },
+      "PageSize": {
+        "name": "size",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        }
+      },
+      "AdSearch": {
+        "name": "search",
+        "in": "query",
+        "required": false,
+        "description": "Provisional source-compatible sort expression; the complete grammar requires a management-client probe.",
+        "schema": {
+          "type": "string",
+          "maxLength": 100,
+          "examples": ["createdTime=sort=desc"]
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed JSON, path, query, or field validation failure.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The required credential pair is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The credential is valid but lacks the operation or application-code scope.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested application code or resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "A uniqueness or concurrent modification conflict occurred.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The nominal 10 QPS limit was exceeded.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until a retry may be attempted.",
+            "schema": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Generic internal failure without private details.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "./schema.json#/$defs/ErrorEnvelope" }
+          }
+        }
+      }
+    }
+  },
+  "x-bifang-source-document": {
+    "title": "应用版本API",
+    "documentVersion": "v1",
+    "sha256": "6721cd6fe03db65847b7d64d8bd65c102c67b0a3563ef8803475a3ce5ebda8c7"
+  },
+  "x-bifang-target-state": "not-implemented-not-deployed"
+}

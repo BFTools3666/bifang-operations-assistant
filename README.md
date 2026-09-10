@@ -45,6 +45,12 @@ npm run check
 
 这次简化不新增付费服务；平台价格与免费额度以后可能变化。凡控制台出现非零金额、按量计费、自动续费或需要升级套餐，都必须先提醒负责人并停止操作。
 
+## 应用版本 API 零代码替代目标（尚未实施）
+
+仓库已单独冻结一套面向现有第三方小工具的[零代码接入目标契约](docs/application-version-api-zero-code-contract.md)：目标是让既有程序只修改服务地址、TLS/证书信任和凭据配置，不修改程序代码，即可改用毕方运营精灵提供的版本检查与广告展示服务。对应的机器契约位于 [`contracts/application-version-api-v1`](contracts/application-version-api-v1)。
+
+这是一份待实施、待真实客户端验证的目标，不是当前线上协议。当前 SDK、`/updates/<app_id>/<platform>.json`、CloudBase 资源和两个业务客户端均未因此改变；真正切换时不为尚未公开发布的旧毕方更新协议建设长期兼容层，但仍需在独立任务中完成服务端实现、真实客户端请求观测和两个本地项目的升级。
+
 ## 跨项目接入向导 Skill
 
 基础设施根版本 `2.1.0` 新增显式调用的 `$bifang-public-services-onboarding`，权威源码位于 [`skills/bifang-public-services-onboarding`](skills/bifang-public-services-onboarding)。它会先检查目标项目和已有 `.bifang/public-services-profile.json`，只分批询问无法从代码确认的信息，再给出独立资源映射、未满足门禁和八阶段接入任务；没有用户明确选择的阶段不会修改对应范围。
