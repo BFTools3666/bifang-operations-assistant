@@ -28,6 +28,17 @@
           "code": "bifang-mouse-clicker"
         }
       ]
+    },
+    {
+      "app_id": "bifang-tools",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-tools-windows-x64"
+        }
+      ]
     }
   ]
 }

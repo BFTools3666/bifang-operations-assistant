@@ -1,0 +1,41 @@
+{
+  "_comment": "小工具接入 CloudBase 所需的接入信息。当前值取自体验版环境 bftoos-sh（上海）；鉴权原值只从 Windows DPAPI Vault 导出，不写入本文件。",
+  "cloudbase": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "default_domain": "bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "base_url": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "protocol": "https"
+  },
+  "endpoints": {
+    "version_control": "/tools/version-control/v1",
+    "telemetry": "/apps/{app_id}/v1/track",
+    "dashboard_metrics": "/admin/v1/metrics"
+  },
+  "auth": {
+    "method": "app_key_secret",
+    "request_headers": {
+      "x-app-key": "<app_key>",
+      "x-app-secret": "<app_secret>"
+    },
+    "credentials_source": "cloudbase/application-version-credentials.b64",
+    "credentials_format": "Base64(紧凑 JSON schema_version=2；仅含 SHA-256 摘要和绑定，不含原始密钥)",
+    "dashboard_bearer_token_sha256_env": "DASHBOARD_TOKEN_SHA256"
+  },
+  "new_account_template": {
+    "_comment": "把下面 <> 占位换成新账号控制台「环境 → 概览」里的值。默认域名格式为 <envId>-<suffix>.ap-shanghai.app.tcloudbase.com，suffix 是平台自动生成的随机串，必须从控制台复制，不能自己拼。",
+    "cloudbase": {
+      "env_id": "<NEW_ENV_ID>",
+      "region": "<region, 如 ap-shanghai>",
+      "default_domain": "<NEW_ENV_ID>-<suffix>.ap-shanghai.app.tcloudbase.com",
+      "base_url": "https://<NEW_ENV_ID>-<suffix>.ap-shanghai.app.tcloudbase.com"
+    },
+    "auth": {
+      "method": "app_key_secret",
+      "request_headers": {
+        "x-app-key": "<NEW_APP_KEY>",
+        "x-app-secret": "<NEW_APP_SECRET>"
+      }
+    }
+  }
+}

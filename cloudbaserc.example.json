@@ -35,6 +35,21 @@
       }
     },
     {
+      "name": "telemetry-bifang-tools",
+      "dir": "./cloudbase/functions/telemetry",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 3,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ALLOWED_APP_IDS": "bifang-tools",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_tools",
+        "TRACK_PATH": "/apps/bifang-tools/v1/track"
+      }
+    },
+    {
       "name": "application-version-api",
       "dir": "./cloudbase/functions/application-version-api",
       "type": "Event",
@@ -46,7 +61,7 @@
       "envVariables": {
         "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
         "APPLICATION_VERSION_API_PATH": "/tools/version-control/v1",
-        "APPLICATION_VERSION_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"adCollection\\\":\\\"ads_bifang_screen_recorder\\\",\\\"auditCollection\\\":\\\"audit_bifang_screen_recorder\\\"},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"adCollection\\\":\\\"ads_bifang_mouse_clicker\\\",\\\"auditCollection\\\":\\\"audit_bifang_mouse_clicker\\\"}]\"",
+        "APPLICATION_VERSION_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"adCollection\\\":\\\"ads_bifang_screen_recorder\\\",\\\"auditCollection\\\":\\\"audit_bifang_screen_recorder\\\"},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"adCollection\\\":\\\"ads_bifang_mouse_clicker\\\",\\\"auditCollection\\\":\\\"audit_bifang_mouse_clicker\\\"},{\\\"appId\\\":\\\"bifang-tools\\\",\\\"versionCollection\\\":\\\"versions_bifang_tools\\\",\\\"adCollection\\\":\\\"ads_bifang_tools\\\",\\\"auditCollection\\\":\\\"audit_bifang_tools\\\"}]\"",
         "APPLICATION_VERSION_CREDENTIALS_B64": "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}"
       }
     },
@@ -61,7 +76,7 @@
       "installDependency": true,
       "envVariables": {
         "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
-        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-mouse-clicker\\\"}]}]\"",
+        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-mouse-clicker\\\"}]},{\\\"appId\\\":\\\"bifang-tools\\\",\\\"collectionName\\\":\\\"telemetry_bifang_tools\\\",\\\"versionCollection\\\":\\\"versions_bifang_tools\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-tools-windows-x64\\\"}]}]\"",
         "DASHBOARD_PATH": "/admin/v1/metrics",
         "DASHBOARD_TOKEN_SHA256": "{{env.DASHBOARD_TOKEN_SHA256}}"
       }
@@ -86,6 +101,20 @@
       {
         "path": "/apps/bifang-mouse-clicker/v1/track",
         "target": "function:telemetry-bifang-mouse-clicker",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/apps/bifang-tools/v1/track",
+        "target": "function:telemetry-bifang-tools",
         "protocol": "HTTP_TO_HTTPS",
         "enablePathTransmission": true,
         "enableAuth": false,

@@ -58,11 +58,11 @@ EXAMPLE_APPLICATION_ID = "bifang-tools"
 EXAMPLE_APPLICATION_CODE = "bifang-tools-windows-x64"
 EXAMPLE_CURRENT_VERSION = "0.1.0"
 EXAMPLE_TELEMETRY_URL = (
-    "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
+    "https://bftoos-sh-d3ga7hahz59229f0a-1484029710."
     "ap-shanghai.app.tcloudbase.com/apps/bifang-tools/v1/track"
 )
 EXAMPLE_VERSION_BASE_URL = (
-    "https://bifang-telemetry-prod-d8efa6a8d3-1251031333."
+    "https://bftoos-sh-d3ga7hahz59229f0a-1484029710."
     "ap-shanghai.app.tcloudbase.com/tools/version-control/v1"
 )
 

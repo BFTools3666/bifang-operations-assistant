@@ -84,10 +84,10 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
   assert.equal(output.version, "2.1");
   assert.deepEqual(output.errors, []);
   assert.deepEqual(output.summary, {
-    functions: 4,
+    functions: 5,
     hosting: 0,
     databases: 0,
-    gateways: 4,
+    gateways: 5,
   });
 });
 
@@ -115,6 +115,10 @@ test("release streams are the non-sensitive authority while telemetry remains is
       {
         appId: "bifang-mouse-clicker",
         codes: ["bifang-mouse-clicker"],
+      },
+      {
+        appId: "bifang-tools",
+        codes: ["bifang-tools-windows-x64"],
       },
     ],
   );
@@ -187,6 +191,7 @@ test("release streams are the non-sensitive authority while telemetry remains is
     [
       "/apps/bifang-screen-recorder/v1/track",
       "/apps/bifang-mouse-clicker/v1/track",
+      "/apps/bifang-tools/v1/track",
       "/tools/version-control/v1",
       "/admin/v1/metrics",
     ],

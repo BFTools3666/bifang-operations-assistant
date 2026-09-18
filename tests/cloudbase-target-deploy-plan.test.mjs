@@ -6,9 +6,9 @@ import {
   planAppDeployment,
 } from "../cloudbase/plan-app-deployment.mjs";
 
-const ENV_ID = "bifang-telemetry-prod-d8efa6a8d3";
+const ENV_ID = "bftoos-sh-d3ga7hahz59229f0a";
 const ORIGIN =
-  "https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com";
+  "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com";
 
 const releaseStream = (platform, architecture, code) => ({
   platform,
@@ -162,7 +162,7 @@ test("the target-only route command uses the exact default domain and isolated t
 
   assert.equal(
     routeData.Domain.Domain,
-    "bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com",
+    "bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
   );
   assert.equal(routeData.EnvId, ENV_ID);
   assert.equal(

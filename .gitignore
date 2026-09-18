@@ -9,6 +9,7 @@ coverage/
 cloudbaserc.json
 cloudbase/application-version-credentials.b64
 cloudbase/application-version-live-state.json
+cloudbase/*-build-vars.env
 .cloudbase/
 .tcb/
 __pycache__/

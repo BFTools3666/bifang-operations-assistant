@@ -101,6 +101,18 @@ function Get-Sha256Hex {
     }
 }
 
+function Get-Sha256Base64 {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [Convert]::ToBase64String($sha256.ComputeHash($Bytes))
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function New-StrongToken {
     $bytes = New-Object byte[] 32
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -322,18 +334,56 @@ function Read-Registry {
     return $normalizedApps.ToArray()
 }
 
-function ConvertTo-DigestCredential {
-    param([Parameter(Mandatory = $true)]$RawCredential)
+function ConvertTo-CompactDigestConfiguration {
+    param([Parameter(Mandatory = $true)][object[]]$RawCredentials)
 
-    return [pscustomobject]@{
-        credential_id = $RawCredential.credential_id
-        key_sha256 = Get-Sha256Hex $script:Utf8.GetBytes($RawCredential.app_key)
-        secret_sha256 = @(
-            Get-Sha256Hex $script:Utf8.GetBytes($RawCredential.app_secret)
+    $appIds = New-Object 'System.Collections.Generic.List[string]'
+    $codes = New-Object 'System.Collections.Generic.List[string]'
+    $appIndexes = New-Object 'System.Collections.Generic.Dictionary[string,int]' ([StringComparer]::Ordinal)
+    $codeIndexes = New-Object 'System.Collections.Generic.Dictionary[string,int]' ([StringComparer]::Ordinal)
+    foreach ($credential in $RawCredentials) {
+        if (-not $appIndexes.ContainsKey($credential.app_id)) {
+            $appIndexes.Add($credential.app_id, $appIds.Count)
+            [void]$appIds.Add($credential.app_id)
+        }
+        foreach ($code in @($credential.codes)) {
+            if (-not $codeIndexes.ContainsKey($code)) {
+                $codeIndexes.Add($code, $codes.Count)
+                [void]$codes.Add($code)
+            }
+        }
+    }
+
+    $compactCredentials = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($credential in $RawCredentials) {
+        $scopeMask = switch (@($credential.scopes) -join ",") {
+            "versions:check" { 1 }
+            "versions:check,ads:show" { 9 }
+            "versions:read,ads:read" { 18 }
+            "versions:write,ads:write" { 36 }
+            default { throw "the credential contains an unsupported scope bundle" }
+        }
+        $credentialCodeIndexes = @(
+            @($credential.codes) | ForEach-Object { $codeIndexes[$_] }
         )
-        app_id = $RawCredential.app_id
-        codes = @($RawCredential.codes)
-        scopes = @($RawCredential.scopes)
+        $secretHashes = @(
+            Get-Sha256Base64 $script:Utf8.GetBytes($credential.app_secret)
+        )
+        $compactCredential = [object[]]@(
+            $credential.credential_id,
+            $appIndexes[$credential.app_id],
+            [object[]]$credentialCodeIndexes,
+            (Get-Sha256Base64 $script:Utf8.GetBytes($credential.app_key)),
+            [object[]]$secretHashes,
+            $scopeMask
+        )
+        [void]$compactCredentials.Add($compactCredential)
+    }
+    return [pscustomobject]@{
+        schema_version = 2
+        app_ids = $appIds.ToArray()
+        codes = $codes.ToArray()
+        credentials = $compactCredentials.ToArray()
     }
 }
 
@@ -706,28 +756,26 @@ function Invoke-Generate {
     foreach ($app in $apps) {
         $appCodes = @($app.release_streams | ForEach-Object { $_.code })
         foreach ($stream in $app.release_streams) {
-            $isAdvertisementContractTest =
-                $stream.code -ceq $script:AdvertisementContractTestCode
-            $credentialScopes = if ($isAdvertisementContractTest) {
-                @("versions:check", "ads:show")
-            }
-            else {
-                @("versions:check")
-            }
             [void]$rawCredentials.Add([pscustomobject]@{
-                credential_id = if ($isAdvertisementContractTest) {
-                    "contract-ads-{0}" -f $stream.code
-                }
-                else {
-                    "runtime-{0}" -f $stream.code
-                }
-                role = if ($isAdvertisementContractTest) { "contract-test" } else { "runtime" }
+                credential_id = "runtime-{0}" -f $stream.code
+                role = "runtime"
                 app_id = $app.app_id
                 codes = @($stream.code)
-                scopes = @($credentialScopes)
+                scopes = @("versions:check")
                 app_key = New-StrongToken
                 app_secret = New-StrongToken
             })
+            if ($stream.code -ceq $script:AdvertisementContractTestCode) {
+                [void]$rawCredentials.Add([pscustomobject]@{
+                    credential_id = "contract-ads-{0}" -f $stream.code
+                    role = "contract-test"
+                    app_id = $app.app_id
+                    codes = @($stream.code)
+                    scopes = @("versions:check", "ads:show")
+                    app_key = New-StrongToken
+                    app_secret = New-StrongToken
+                })
+            }
         }
         [void]$rawCredentials.Add([pscustomobject]@{
             credential_id = "mgmt-read-{0}" -f $app.app_id
@@ -749,13 +797,7 @@ function Invoke-Generate {
         })
     }
 
-    $digestCredentials = @(
-        $rawCredentials | ForEach-Object { ConvertTo-DigestCredential $_ }
-    )
-    $digestConfiguration = [pscustomobject]@{
-        schema_version = 1
-        credentials = $digestCredentials
-    }
+    $digestConfiguration = ConvertTo-CompactDigestConfiguration $rawCredentials.ToArray()
     $digestJson = $digestConfiguration | ConvertTo-Json -Compress -Depth 10
     $digestBase64 = [Convert]::ToBase64String($script:Utf8.GetBytes($digestJson))
     $configurationSha256 = Get-Sha256Hex $script:Utf8.GetBytes($digestBase64)

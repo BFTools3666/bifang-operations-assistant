@@ -9,6 +9,11 @@ export const APP_OPTIONS = [
     label: '毕方鼠标精灵',
     shortLabel: '鼠标精灵',
   },
+  {
+    id: 'bifang-tools',
+    label: '毕方小工具',
+    shortLabel: '小工具',
+  },
 ] as const;
 
 export type AppId = (typeof APP_OPTIONS)[number]['id'];

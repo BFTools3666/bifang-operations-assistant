@@ -94,7 +94,7 @@ function fixture(selectedAppId = 'all') {
     mode: 'live',
     connection: 'connected',
     connectionNote: '生产集合',
-    environmentId: 'bifang-telemetry-prod-d8efa6a8d3',
+    environmentId: 'bftoos-sh-d3ga7hahz59229f0a',
     timezone: 'Asia/Shanghai',
     generatedAt: '2026-09-07T05:00:00Z',
     rangeDays: 7,
@@ -110,7 +110,11 @@ function fixture(selectedAppId = 'all') {
     trend: Array.from({ length: 7 }, (_, i) => ({
       date: `2026-09-0${i + 1}`,
       total: 0,
-      byApp: { 'bifang-screen-recorder': 0, 'bifang-mouse-clicker': 0 },
+      byApp: {
+        'bifang-screen-recorder': 0,
+        'bifang-mouse-clicker': 0,
+        'bifang-tools': 0,
+      },
     })),
     versions: [],
     platforms: [],
@@ -171,7 +175,7 @@ test('live response is explicitly rebuilt and credentials stay server-side', asy
     transport: async (url, options) => {
       assert.equal(
         url.origin,
-        'https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com',
+        'https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com',
       );
       assert.equal(url.search, '?days=7');
       assert.equal(options.headers.Authorization, 'Bearer offline-test-token');

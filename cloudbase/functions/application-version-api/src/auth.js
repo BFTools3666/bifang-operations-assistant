@@ -21,8 +21,15 @@ const SCOPE_BUNDLES = Object.freeze({
   managementWrite: [new Set(["versions:write", "ads:write"])],
 });
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
+const BASE64_HASH_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 const APP_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const MAX_CREDENTIAL_CONFIGURATION_BASE64_BYTES = 4_096;
+const COMPACT_SCOPE_MASKS = new Map([
+  [1, ["versions:check"]],
+  [9, ["versions:check", "ads:show"]],
+  [18, ["versions:read", "ads:read"]],
+  [36, ["versions:write", "ads:write"]],
+]);
 
 function parseCredentials(value, registeredAppIds) {
   const appIds = new Set(registeredAppIds || []);
@@ -47,16 +54,8 @@ function parseCredentials(value, registeredAppIds) {
       return null;
     }
   }
-  if (
-    !isPlainObject(parsed) ||
-    Object.keys(parsed).sort().join(",") !== "credentials,schema_version" ||
-    parsed.schema_version !== 1 ||
-    !Array.isArray(parsed.credentials) ||
-    parsed.credentials.length < 1 ||
-    parsed.credentials.length > 100
-  ) {
-    return null;
-  }
+  parsed = expandCredentialConfiguration(parsed);
+  if (!parsed) return null;
 
   const credentials = [];
   for (const value of parsed.credentials) {
@@ -128,6 +127,105 @@ function parseCredentials(value, registeredAppIds) {
     return null;
   }
   return credentials;
+}
+
+function expandCredentialConfiguration(value) {
+  if (!isPlainObject(value)) return null;
+  if (value.schema_version === 1) {
+    if (
+      Object.keys(value).sort().join(",") !== "credentials,schema_version" ||
+      !Array.isArray(value.credentials) ||
+      value.credentials.length < 1 ||
+      value.credentials.length > 100
+    ) {
+      return null;
+    }
+    return value;
+  }
+  if (
+    value.schema_version !== 2 ||
+    Object.keys(value).sort().join(",") !==
+      "app_ids,codes,credentials,schema_version" ||
+    !isUniqueStringArray(value.app_ids, 100) ||
+    value.app_ids.some((appId) => !APP_ID_PATTERN.test(appId)) ||
+    !isUniqueStringArray(value.codes, 100) ||
+    !Array.isArray(value.credentials) ||
+    value.credentials.length < 1 ||
+    value.credentials.length > 100
+  ) {
+    return null;
+  }
+  try {
+    return {
+      schema_version: 1,
+      credentials: value.credentials.map((entry) =>
+        expandCompactCredential(entry, value.app_ids, value.codes),
+      ),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function expandCompactCredential(value, appIds, codes) {
+  if (!Array.isArray(value) || value.length !== 6) {
+    throw new TypeError("compact credential must contain six fields");
+  }
+  const [
+    credentialId,
+    appIndex,
+    codeIndexes,
+    keyHash,
+    secretHashes,
+    scopeMask,
+  ] = value;
+  if (
+    !Number.isInteger(appIndex) ||
+    appIndex < 0 ||
+    appIndex >= appIds.length ||
+    !Array.isArray(codeIndexes) ||
+    codeIndexes.length < 1 ||
+    codeIndexes.length > 100 ||
+    codeIndexes.some(
+      (index) => !Number.isInteger(index) || index < 0 || index >= codes.length,
+    ) ||
+    new Set(codeIndexes).size !== codeIndexes.length ||
+    !Array.isArray(secretHashes) ||
+    secretHashes.length < 1 ||
+    secretHashes.length > 2 ||
+    !COMPACT_SCOPE_MASKS.has(scopeMask)
+  ) {
+    throw new TypeError("compact credential contains invalid indexes");
+  }
+  return {
+    credential_id: credentialId,
+    app_id: appIds[appIndex],
+    codes: codeIndexes.map((index) => codes[index]),
+    key_sha256: decodeCompactHash(keyHash),
+    secret_sha256: secretHashes.map(decodeCompactHash),
+    scopes: COMPACT_SCOPE_MASKS.get(scopeMask),
+  };
+}
+
+function decodeCompactHash(value) {
+  if (typeof value !== "string" || !BASE64_HASH_PATTERN.test(value)) {
+    throw new TypeError("compact credential hash is invalid");
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.length !== 32 || bytes.toString("base64") !== value) {
+    throw new TypeError("compact credential hash is not canonical");
+  }
+  return bytes.toString("hex");
+}
+
+function isUniqueStringArray(value, maximumLength) {
+  return (
+    Array.isArray(value) &&
+    value.length >= 1 &&
+    value.length <= maximumLength &&
+    value.every((item) => typeof item === "string" && item.length > 0) &&
+    new Set(value).size === value.length
+  );
 }
 
 function classifyScopeBundle(scopes) {

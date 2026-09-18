@@ -26,9 +26,9 @@ import {
 } from "../cloudbase/plan-application-version-api-deployment.mjs";
 import { deployApplicationVersionApi } from "../cloudbase/deploy-application-version-api.mjs";
 
-const ENV_ID = "bifang-telemetry-prod-d8efa6a8d3";
+const ENV_ID = "bftoos-sh-d3ga7hahz59229f0a";
 const ORIGIN =
-  "https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com";
+  "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com";
 const KEY = "test-management-key-never-deployed";
 const SECRET = "test-management-secret-never-deployed";
 
@@ -243,6 +243,14 @@ function credentialsBase64(credentialCount = 1) {
     JSON.stringify({
       schema_version: 1,
       credentials: [
+        {
+          credential_id: "mouse-runtime-2026-09",
+          key_sha256: sha256(`${KEY}-mouse-runtime`),
+          secret_sha256: [sha256(`${SECRET}-mouse-runtime`)],
+          app_id: "bifang-mouse-clicker",
+          codes: ["bifang-mouse-clicker"],
+          scopes: ["versions:check"],
+        },
         ...Array.from({ length: credentialCount }, (_, index) => {
           const suffix = index === 0 ? "" : `-${index}`;
           return {
@@ -282,75 +290,121 @@ function credentialsBase64(credentialCount = 1) {
   ).toString("base64");
 }
 
+function twoAppCredentialConfiguration() {
+  return {
+    schema_version: 1,
+    credentials: [
+      {
+        credential_id: "e2e-runtime-2026-09",
+        key_sha256: sha256(KEY),
+        secret_sha256: [sha256(SECRET)],
+        app_id: "bifang-mouse-clicker",
+        codes: ["bifang-mouse-clicker"],
+        scopes: ["versions:check"],
+      },
+      {
+        credential_id: "screen-windows-runtime-2026-09",
+        key_sha256: sha256(`${KEY}-screen-windows`),
+        secret_sha256: [sha256(`${SECRET}-screen-windows`)],
+        app_id: "bifang-screen-recorder",
+        codes: ["bifang-screen-recorder-windows-x64"],
+        scopes: ["versions:check"],
+      },
+      {
+        credential_id: "screen-macos-runtime-2026-09",
+        key_sha256: sha256(`${KEY}-screen-macos-runtime`),
+        secret_sha256: [sha256(`${SECRET}-screen-macos-runtime`)],
+        app_id: "bifang-screen-recorder",
+        codes: ["bifang-screen-recorder-macos-arm64"],
+        scopes: ["versions:check"],
+      },
+      {
+        credential_id: "contract-ads-screen-macos-2026-09",
+        key_sha256: sha256(`${KEY}-screen-macos`),
+        secret_sha256: [sha256(`${SECRET}-screen-macos`)],
+        app_id: "bifang-screen-recorder",
+        codes: ["bifang-screen-recorder-macos-arm64"],
+        scopes: ["versions:check", "ads:show"],
+      },
+      {
+        credential_id: "mouse-management-read-2026-09",
+        key_sha256: sha256(`${KEY}-mouse-management-read`),
+        secret_sha256: [sha256(`${SECRET}-mouse-management-read`)],
+        app_id: "bifang-mouse-clicker",
+        codes: ["bifang-mouse-clicker"],
+        scopes: ["versions:read", "ads:read"],
+      },
+      {
+        credential_id: "mouse-management-write-2026-09",
+        key_sha256: sha256(`${KEY}-mouse-management-write`),
+        secret_sha256: [sha256(`${SECRET}-mouse-management-write`)],
+        app_id: "bifang-mouse-clicker",
+        codes: ["bifang-mouse-clicker"],
+        scopes: ["versions:write", "ads:write"],
+      },
+      {
+        credential_id: "screen-management-read-2026-09",
+        key_sha256: sha256(`${KEY}-screen-management-read`),
+        secret_sha256: [sha256(`${SECRET}-screen-management-read`)],
+        app_id: "bifang-screen-recorder",
+        codes: [
+          "bifang-screen-recorder-windows-x64",
+          "bifang-screen-recorder-macos-arm64",
+        ],
+        scopes: ["versions:read", "ads:read"],
+      },
+      {
+        credential_id: "screen-management-write-2026-09",
+        key_sha256: sha256(`${KEY}-screen-management-write`),
+        secret_sha256: [sha256(`${SECRET}-screen-management-write`)],
+        app_id: "bifang-screen-recorder",
+        codes: [
+          "bifang-screen-recorder-windows-x64",
+          "bifang-screen-recorder-macos-arm64",
+        ],
+        scopes: ["versions:write", "ads:write"],
+      },
+    ],
+  };
+}
+
+function compactCredentialConfiguration(configuration) {
+  const appIds = [
+    ...new Set(configuration.credentials.map(({ app_id }) => app_id)),
+  ];
+  const codes = [
+    ...new Set(
+      configuration.credentials.flatMap((credential) => credential.codes),
+    ),
+  ];
+  const scopeMasks = new Map([
+    ["versions:check", 1],
+    ["versions:check,ads:show", 9],
+    ["versions:read,ads:read", 18],
+    ["versions:write,ads:write", 36],
+  ]);
+  return {
+    schema_version: 2,
+    app_ids: appIds,
+    codes,
+    credentials: configuration.credentials.map((value) => [
+      value.credential_id,
+      appIds.indexOf(value.app_id),
+      value.codes.map((code) => codes.indexOf(code)),
+      Buffer.from(value.key_sha256, "hex").toString("base64"),
+      value.secret_sha256.map((hash) =>
+        Buffer.from(hash, "hex").toString("base64"),
+      ),
+      scopeMasks.get(value.scopes.join(",")),
+    ]),
+  };
+}
+
 function twoAppCredentialsBase64() {
   return Buffer.from(
-    JSON.stringify({
-      schema_version: 1,
-      credentials: [
-        {
-          credential_id: "e2e-runtime-2026-09",
-          key_sha256: sha256(KEY),
-          secret_sha256: [sha256(SECRET)],
-          app_id: "bifang-mouse-clicker",
-          codes: ["bifang-mouse-clicker"],
-          scopes: ["versions:check"],
-        },
-        {
-          credential_id: "screen-windows-runtime-2026-09",
-          key_sha256: sha256(`${KEY}-screen-windows`),
-          secret_sha256: [sha256(`${SECRET}-screen-windows`)],
-          app_id: "bifang-screen-recorder",
-          codes: ["bifang-screen-recorder-windows-x64"],
-          scopes: ["versions:check"],
-        },
-        {
-          credential_id: "contract-ads-screen-macos-2026-09",
-          key_sha256: sha256(`${KEY}-screen-macos`),
-          secret_sha256: [sha256(`${SECRET}-screen-macos`)],
-          app_id: "bifang-screen-recorder",
-          codes: ["bifang-screen-recorder-macos-arm64"],
-          scopes: ["versions:check", "ads:show"],
-        },
-        {
-          credential_id: "mouse-management-read-2026-09",
-          key_sha256: sha256(`${KEY}-mouse-management-read`),
-          secret_sha256: [sha256(`${SECRET}-mouse-management-read`)],
-          app_id: "bifang-mouse-clicker",
-          codes: ["bifang-mouse-clicker"],
-          scopes: ["versions:read", "ads:read"],
-        },
-        {
-          credential_id: "mouse-management-write-2026-09",
-          key_sha256: sha256(`${KEY}-mouse-management-write`),
-          secret_sha256: [sha256(`${SECRET}-mouse-management-write`)],
-          app_id: "bifang-mouse-clicker",
-          codes: ["bifang-mouse-clicker"],
-          scopes: ["versions:write", "ads:write"],
-        },
-        {
-          credential_id: "screen-management-read-2026-09",
-          key_sha256: sha256(`${KEY}-screen-management-read`),
-          secret_sha256: [sha256(`${SECRET}-screen-management-read`)],
-          app_id: "bifang-screen-recorder",
-          codes: [
-            "bifang-screen-recorder-windows-x64",
-            "bifang-screen-recorder-macos-arm64",
-          ],
-          scopes: ["versions:read", "ads:read"],
-        },
-        {
-          credential_id: "screen-management-write-2026-09",
-          key_sha256: sha256(`${KEY}-screen-management-write`),
-          secret_sha256: [sha256(`${SECRET}-screen-management-write`)],
-          app_id: "bifang-screen-recorder",
-          codes: [
-            "bifang-screen-recorder-windows-x64",
-            "bifang-screen-recorder-macos-arm64",
-          ],
-          scopes: ["versions:write", "ads:write"],
-        },
-      ],
-    }),
+    JSON.stringify(
+      compactCredentialConfiguration(twoAppCredentialConfiguration()),
+    ),
     "utf8",
   ).toString("base64");
 }
@@ -606,6 +660,13 @@ test("credential material is validated but only a fingerprint and binding summar
   assert.equal(plan.credential_config_sha256, sha256(encoded));
   assert.deepEqual(plan.credential_bindings, [
     {
+      credential_id: "mouse-runtime-2026-09",
+      app_id: "bifang-mouse-clicker",
+      codes: ["bifang-mouse-clicker"],
+      scopes: ["versions:check"],
+      secret_versions: 1,
+    },
+    {
       credential_id: "contract-ads-mouse-2026-09",
       app_id: "bifang-mouse-clicker",
       codes: ["bifang-mouse-clicker"],
@@ -765,6 +826,7 @@ test("an existing compatible service is preserved while apps, credentials, colle
     preserve_credential_ids: ["e2e-runtime-2026-09"],
     add_credential_ids: [
       "screen-windows-runtime-2026-09",
+      "screen-macos-runtime-2026-09",
       "contract-ads-screen-macos-2026-09",
       "mouse-management-read-2026-09",
       "mouse-management-write-2026-09",
@@ -1012,6 +1074,8 @@ test("unsafe origins, unknown apps in credentials and malformed secret files fai
   try {
     const credentialsFile = join(directory, "credentials.b64");
     const liveStateFile = join(directory, "live-state.json");
+    const registryFile = join(directory, "apps.json");
+    await writeFile(registryFile, JSON.stringify(registry()), "utf8");
     await writeFile(credentialsFile, "not-base64", "utf8");
     await assert.rejects(
       planApplicationVersionDeployment({
@@ -1032,6 +1096,7 @@ test("unsafe origins, unknown apps in credentials and malformed secret files fai
       origin: ORIGIN,
       credentialsFile,
       liveStateFile,
+      registryUrl: registryFile,
     });
     assert.equal(plan.reconciliation.status, "ready-after-confirmation");
   } finally {
@@ -1040,16 +1105,14 @@ test("unsafe origins, unknown apps in credentials and malformed secret files fai
 });
 
 test("every release stream requires isolated runtime and management credential coverage", () => {
-  const decoded = JSON.parse(
-    Buffer.from(twoAppCredentialsBase64(), "base64").toString("utf8"),
-  );
+  const decoded = twoAppCredentialConfiguration();
 
   const missingRuntimeApp = structuredClone(decoded);
   missingRuntimeApp.credentials = missingRuntimeApp.credentials.filter(
     ({ credential_id: credentialId }) =>
       ![
         "screen-windows-runtime-2026-09",
-        "contract-ads-screen-macos-2026-09",
+        "screen-macos-runtime-2026-09",
       ].includes(credentialId),
   );
   assert.throws(
@@ -1067,7 +1130,7 @@ test("every release stream requires isolated runtime and management credential c
   const missingRuntimeCode = structuredClone(decoded);
   missingRuntimeCode.credentials = missingRuntimeCode.credentials.filter(
     ({ credential_id: credentialId }) =>
-      credentialId !== "contract-ads-screen-macos-2026-09",
+      credentialId !== "screen-macos-runtime-2026-09",
   );
   assert.throws(
     () =>
@@ -1103,7 +1166,7 @@ test("every release stream requires isolated runtime and management credential c
     ({ credential_id: credentialId }) =>
       ![
         "screen-windows-runtime-2026-09",
-        "contract-ads-screen-macos-2026-09",
+        "screen-macos-runtime-2026-09",
       ].includes(credentialId),
   );
   combinedRuntimeCodes.credentials.push({
@@ -1126,7 +1189,7 @@ test("every release stream requires isolated runtime and management credential c
         ),
         { envId: ENV_ID, origin: ORIGIN },
       ),
-    /runtime credential must bind exactly one release-stream code/u,
+    /credential configuration is invalid/u,
   );
 
   const missingManagement = structuredClone(decoded);
@@ -1329,7 +1392,7 @@ test("deploy helper independently enforces credential coverage and the 3840-byte
     await createDeploymentFixture(directory);
     const credentialsFile = join(directory, "credentials.b64");
     for (const [credentialText, expectedError] of [
-      [credentialsBase64(7), /3840-byte deployment safety limit/u],
+      [credentialsBase64(6), /3840-byte deployment safety limit/u],
       [
         Buffer.from(
           JSON.stringify({
@@ -1805,7 +1868,7 @@ test("the plan rejects credential bindings before the SCF environment reaches 4K
     () =>
       createApplicationVersionDeploymentPlan(
         mouseRegistry(),
-        credentialsBase64(7),
+        credentialsBase64(6),
         {
           envId: ENV_ID,
           origin: ORIGIN,

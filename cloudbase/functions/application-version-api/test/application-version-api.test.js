@@ -119,6 +119,38 @@ function credential({ credentialId, key, secrets, appId, codes, scopes }) {
   };
 }
 
+function compactCredentials(configuration) {
+  const appIds = [
+    ...new Set(configuration.credentials.map(({ app_id }) => app_id)),
+  ];
+  const codes = [
+    ...new Set(
+      configuration.credentials.flatMap((credential) => credential.codes),
+    ),
+  ];
+  const scopeMasks = new Map([
+    ["versions:check", 1],
+    ["versions:check,ads:show", 9],
+    ["versions:read,ads:read", 18],
+    ["versions:write,ads:write", 36],
+  ]);
+  return {
+    schema_version: 2,
+    app_ids: appIds,
+    codes,
+    credentials: configuration.credentials.map((value) => [
+      value.credential_id,
+      appIds.indexOf(value.app_id),
+      value.codes.map((code) => codes.indexOf(code)),
+      Buffer.from(value.key_sha256, "hex").toString("base64"),
+      value.secret_sha256.map((hash) =>
+        Buffer.from(hash, "hex").toString("base64"),
+      ),
+      scopeMasks.get(value.scopes.join(",")),
+    ]),
+  };
+}
+
 function createFixture(options = {}) {
   const repository = options.repository || createMemoryRepository();
   let versionId = 2_001_178_408_904_765_440n;
@@ -252,13 +284,57 @@ test("credential config is versioned, base64 encoded, exact, and app bound", () 
   assert.equal(parsed[0].codes.size, 2);
   assert.equal(parsed[0].secretHashes.length, 2);
 
+  const compact = compactCredentials(CREDENTIAL_CONFIG);
+  const compactEncoded = Buffer.from(JSON.stringify(compact), "utf8").toString(
+    "base64",
+  );
+  const compactParsed = parseCredentials(compactEncoded, [
+    APP_ID,
+    OTHER_APP_ID,
+  ]);
+  assert.equal(compactParsed.length, parsed.length);
+  assert.deepEqual(
+    compactParsed.map(({ fingerprint }) => fingerprint),
+    parsed.map(({ fingerprint }) => fingerprint),
+  );
+  assert.equal(
+    Buffer.byteLength(compactEncoded) < Buffer.byteLength(encoded),
+    true,
+  );
+
   assert.equal(parseCredentials("not-base64", [APP_ID]), null);
   assert.equal(parseCredentials("wyg=", [APP_ID]), null);
   assert.equal(parseCredentials("e31=", [APP_ID]), null);
-  assert.equal(
-    parseCredentials({ ...CREDENTIAL_CONFIG, schema_version: 2 }, [APP_ID]),
-    null,
-  );
+  for (const invalid of [
+    { ...compact, unknown: true },
+    { ...compact, app_ids: [...compact.app_ids, compact.app_ids[0]] },
+    {
+      ...compact,
+      credentials: [
+        [
+          ...compact.credentials[0].slice(0, 1),
+          999,
+          ...compact.credentials[0].slice(2),
+        ],
+      ],
+    },
+    {
+      ...compact,
+      credentials: [
+        [
+          ...compact.credentials[0].slice(0, 3),
+          "invalid",
+          ...compact.credentials[0].slice(4),
+        ],
+      ],
+    },
+    {
+      ...compact,
+      credentials: [[...compact.credentials[0].slice(0, 5), 2]],
+    },
+  ]) {
+    assert.equal(parseCredentials(invalid, [APP_ID, OTHER_APP_ID]), null);
+  }
   assert.equal(parseCredentials(CREDENTIAL_CONFIG, [APP_ID]), null);
 });
 

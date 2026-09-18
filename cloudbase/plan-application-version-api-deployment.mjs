@@ -248,7 +248,6 @@ export function validateApplicationVersionDeploymentInputs(
   const credentialText = normalizeCredentialConfiguration(
     credentialConfigurationBase64,
   );
-  assertRuntimeCredentialsUseSingleCodes(credentialText);
   const credentials = parseCredentials(
     credentialText,
     applications.map(({ appId }) => appId),
@@ -308,7 +307,7 @@ export function validateApplicationVersionDeploymentInputs(
               (credential) =>
                 credential.appId === appId &&
                 credential.codes.has(code) &&
-                credentialIsRuntime(credential),
+                credentialIsClientRuntime(credential),
             ),
         )
         .map(({ code }) => `${appId}/${code}`),
@@ -652,28 +651,6 @@ export function createApplicationVersionDeploymentPlan(
       "paid domains, certificates, plans, resource packs or overage",
     ],
   };
-}
-
-function assertRuntimeCredentialsUseSingleCodes(credentialText) {
-  let parsed;
-  try {
-    parsed = JSON.parse(Buffer.from(credentialText, "base64").toString("utf8"));
-  } catch {
-    return;
-  }
-  if (!Array.isArray(parsed?.credentials)) return;
-  if (
-    parsed.credentials.some(
-      (credential) =>
-        Array.isArray(credential?.scopes) &&
-        credential.scopes.includes("versions:check") &&
-        (!Array.isArray(credential.codes) || credential.codes.length !== 1),
-    )
-  ) {
-    throw new TypeError(
-      "each runtime credential must bind exactly one release-stream code",
-    );
-  }
 }
 
 export async function planApplicationVersionDeployment(options) {
@@ -1268,6 +1245,13 @@ function credentialHasExactScopes(credential, expectedScopes) {
 
 function credentialIsRuntime(credential) {
   return credential.codes.size === 1 && credentialHasRuntimeScopes(credential);
+}
+
+function credentialIsClientRuntime(credential) {
+  return (
+    credential.codes.size === 1 &&
+    credentialHasExactScopes(credential, ["versions:check"])
+  );
 }
 
 function credentialHasRuntimeScopes(credential) {

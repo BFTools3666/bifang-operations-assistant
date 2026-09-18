@@ -96,6 +96,41 @@ function sha256(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function expandCompactDigest(configuration) {
+  assert.equal(configuration.schema_version, 2);
+  assert.deepEqual(Object.keys(configuration).sort(), [
+    "app_ids",
+    "codes",
+    "credentials",
+    "schema_version",
+  ]);
+  const scopeBundles = new Map([
+    [1, ["versions:check"]],
+    [9, ["versions:check", "ads:show"]],
+    [18, ["versions:read", "ads:read"]],
+    [36, ["versions:write", "ads:write"]],
+  ]);
+  return configuration.credentials.map(
+    ([
+      credentialId,
+      appIndex,
+      codeIndexes,
+      keyHash,
+      secretHashes,
+      scopeMask,
+    ]) => ({
+      credential_id: credentialId,
+      app_id: configuration.app_ids[appIndex],
+      codes: codeIndexes.map((index) => configuration.codes[index]),
+      key_sha256: Buffer.from(keyHash, "base64").toString("hex"),
+      secret_sha256: secretHashes.map((hash) =>
+        Buffer.from(hash, "base64").toString("hex"),
+      ),
+      scopes: scopeBundles.get(scopeMask),
+    }),
+  );
+}
+
 function decodeBase64Url(value) {
   const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
   return Buffer.from(
@@ -219,7 +254,7 @@ test(
         summary.vault_path.toLowerCase(),
         (await realpath(vaultPath)).toLowerCase(),
       );
-      assert.equal(summary.credentials.length, 7);
+      assert.equal(summary.credentials.length, 11);
       assert.doesNotMatch(
         generated.result.stdout,
         /key_sha256|secret_sha256|app_key|app_secret/,
@@ -234,13 +269,15 @@ test(
       const digestConfiguration = JSON.parse(
         Buffer.from(digestBase64, "base64").toString("utf8"),
       );
+      const digestCredentials = expandCompactDigest(digestConfiguration);
+      assert.equal(Buffer.byteLength(digestBase64, "utf8") < 2_800, true);
       const deploymentPlan = createApplicationVersionDeploymentPlan(
         JSON.parse(await readFile(registryPath, "utf8")),
         digestBase64,
         {
-          envId: "bifang-telemetry-prod-d8efa6a8d3",
+          envId: "bftoos-sh-d3ga7hahz59229f0a",
           origin:
-            "https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com",
+            "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
         },
       );
       assert.equal(deploymentPlan.reconciliation.status, "live-state-required");
@@ -255,10 +292,7 @@ test(
       assert.equal(vaultEnvelope.protection, "Windows-DPAPI-CurrentUser");
       const rawVault = decryptVault(vaultPath);
       const rawCredentials = rawVault.credentials;
-      assert.equal(
-        rawCredentials.length,
-        digestConfiguration.credentials.length,
-      );
+      assert.equal(rawCredentials.length, digestCredentials.length);
 
       const registry = JSON.parse(await readFile(registryPath, "utf8"));
       const rawIds = new Set();
@@ -275,7 +309,7 @@ test(
         rawSecrets.add(raw.app_secret);
         assert.equal(decodeBase64Url(raw.app_key).length >= 32, true);
         assert.equal(decodeBase64Url(raw.app_secret).length >= 32, true);
-        const digest = digestConfiguration.credentials.find(
+        const digest = digestCredentials.find(
           (item) => item.credential_id === raw.credential_id,
         );
         assert.equal(Boolean(digest), true);
@@ -294,13 +328,8 @@ test(
         const runtime = rawCredentials.filter(
           (item) => item.role === "runtime" && item.app_id === app.app_id,
         );
-        const contractTest = rawCredentials.filter(
-          (item) => item.role === "contract-test" && item.app_id === app.app_id,
-        );
-        assert.deepEqual(
-          [...runtime, ...contractTest].flatMap((item) => item.codes).sort(),
-          codes,
-        );
+        assert.deepEqual(runtime.flatMap((item) => item.codes).sort(), codes);
+        assert.equal(runtime.length, codes.length);
         assert.equal(
           runtime.every((item) => item.codes.length === 1),
           true,

@@ -10,7 +10,7 @@ import appRegistry from '../../../../../cloudbase/apps.json';
 export const dynamic = 'force-dynamic';
 
 const CLOUDBASE_ORIGIN =
-  'https://bifang-telemetry-prod-d8efa6a8d3-1251031333.ap-shanghai.app.tcloudbase.com';
+  'https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com';
 const CLOUDBASE_METRICS_ENDPOINT = `${CLOUDBASE_ORIGIN}/admin/v1/metrics`;
 const MAX_RELEASE_STREAMS_PER_APP = 12;
 
@@ -133,6 +133,7 @@ function toSafeDashboardSnapshot(
       byApp: {
         'bifang-screen-recorder': point.byApp['bifang-screen-recorder'],
         'bifang-mouse-clicker': point.byApp['bifang-mouse-clicker'],
+        'bifang-tools': point.byApp['bifang-tools'],
       },
     })),
     versions: payload.versions.map((item) => ({
@@ -187,7 +188,7 @@ function isDashboardSnapshot(
     isShortText(item.connectionNote, 200) &&
     item.timezone === 'Asia/Shanghai' &&
     isIsoDate(item.generatedAt) &&
-    item.environmentId === 'bifang-telemetry-prod-d8efa6a8d3' &&
+    item.environmentId === 'bftoos-sh-d3ga7hahz59229f0a' &&
     item.rangeDays === expectedDays &&
     item.selectedAppId === expectedApp &&
     isTotals(item.totals) &&
