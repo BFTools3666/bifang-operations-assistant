@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "completed_through": "2026-09-28T17:24:28.6055741+08:00",
+  "owner_authorization": "User explicitly replied: 继续",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-codex-themes",
+    "branch": "master",
+    "commit": "53c03c0e583c0c9323299cb8c8728ff3e25f113d",
+    "checkout_clean_after_deployment": true,
+    "client_changes_executed": false
+  },
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "package_id": "baas_trial",
+    "package_status": "NORMAL",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "extension_packages": [],
+    "active_order_present": false,
+    "upgrade_tips": "",
+    "usage": {
+      "cycle_start": "2026-09-17",
+      "cycle_end": "2026-10-17",
+      "total_credits": 3000,
+      "used_credits": 8.22,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "deployment": {
+    "app_id": "bifang-codex-skins",
+    "function": {
+      "name": "telemetry-bifang-codex-skins",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "created_at": "2026-09-28 17:17:17",
+      "environment": {
+        "ALLOWED_APP_IDS": "bifang-codex-skins",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_codex_skins",
+        "TRACK_PATH": "/apps/bifang-codex-skins/v1/track"
+      }
+    },
+    "route": {
+      "path": "/apps/bifang-codex-skins/v1/track",
+      "target": "function:telemetry-bifang-codex-skins",
+      "created_at": "2026-09-28T17:17:53+08:00",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"]
+      },
+      {
+        "name": "versions_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "public_http_e2e": {
+      "app_version": "1.1.0+cloudbase-e2e",
+      "platform": "windows",
+      "architecture": "x64",
+      "first_status": 202,
+      "retry_status": 202,
+      "response": {
+        "ok": true
+      },
+      "stored_rows_after_retry": 1,
+      "synthetic_rows_added": 1,
+      "retention_days": 30
+    }
+  },
+  "dashboard": {
+    "function": "operations-dashboard-api",
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-28 17:20:38",
+    "app_count": 7,
+    "release_stream_count": 13,
+    "target_app_today_active": 1,
+    "target_release_streams": [
+      {
+        "code": "bifang-codex-skins-windows-x64",
+        "status": "empty"
+      },
+      {
+        "code": "bifang-codex-skins-macos-arm64",
+        "status": "empty"
+      }
+    ],
+    "materials_sha256": "6717536f6d320141f82a07d7ee1a993d92cf9e980a206154fd0ffca054f72016",
+    "backup_path": "C:\\Users\\aws-a\\AppData\\Local\\Temp\\bifang-dashboard-backup-20260928-171808",
+    "source_comparison": {
+      "local_files": 13,
+      "live_backup_files": 13,
+      "differences": 0,
+      "dependencies_compared": false
+    },
+    "http_verification": {
+      "status": "passed",
+      "page_and_assets": 200,
+      "authenticated_session_and_metrics": 200,
+      "correct_admin_token": 200,
+      "unauthenticated_or_wrong_authentication": 401,
+      "logout": 200
+    }
+  },
+  "preserved": {
+    "application_version_function_modified_at": "2026-09-17 16:32:11",
+    "application_version_live_app_count": 3,
+    "application_version_live_credential_count": 11,
+    "hosting_objects": 6,
+    "existing_application_resources_unchanged": true
+  },
+  "post_deployment_inventory": {
+    "functions": 9,
+    "routes": 10,
+    "collections": 28,
+    "hosting_objects": 6
+  },
+  "validation": {
+    "cloudbase_config_check": "passed",
+    "targeted_contract_tests": {
+      "passed": 25,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "live_route_readback": "passed",
+    "acl_readback": "passed for all four collections",
+    "index_readback": "passed for all reviewed indexes",
+    "idempotent_public_http_e2e": "passed",
+    "live_dashboard_verification": "passed"
+  },
+  "version_records_written": 0,
+  "ad_records_written": 0,
+  "credentials_generated": 0,
+  "purchases_executed": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "infrastructure_commit_created": false
+}

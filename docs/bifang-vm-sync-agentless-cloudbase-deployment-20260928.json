@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "status": "deployed-and-cloud-http-e2e-verified",
+  "completed_at": "2026-09-28T16:28:10.6615865+08:00",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-vm-sync-agentless",
+    "default_branch": "master",
+    "commit": "41da893edc0c3ab037ae000481179c1e310fb94e",
+    "version": "1.6.12",
+    "version_authority": "src/VmwareSync/App.cs AppEntry.Version",
+    "framework": "Windows C# / WPF / .NET Framework compiler",
+    "confirmed_release_architecture": "x64",
+    "client_modified": false
+  },
+  "owner_authorization": {
+    "action": "继续",
+    "reviewed_plan": "docs/bifang-vm-sync-agentless-cloudbase-reconciled-preflight-20260928.json",
+    "scope": [
+      "create the remaining ads and audit collections",
+      "deploy the VM telemetry function and track route",
+      "run one idempotent synthetic daily_active E2E"
+    ]
+  },
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing_after": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "expires_at": "2027-03-17 23:59:59",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "extension_packages": [],
+      "active_order_present": false,
+      "used_credits": 5.7,
+      "total_credits": 3000,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "deployment": {
+    "function": {
+      "name": "telemetry-bifang-vm-sync-agentless",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-28 16:21:25",
+      "environment": {
+        "ALLOWED_APP_IDS": "bifang-vm-sync-agentless",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_vm_sync_agentless",
+        "TRACK_PATH": "/apps/bifang-vm-sync-agentless/v1/track"
+      }
+    },
+    "route": {
+      "path": "/apps/bifang-vm-sync-agentless/v1/track",
+      "upstream_resource_type": "SCF",
+      "upstream_resource_name": "telemetry-bifang-vm-sync-agentless",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10,
+      "created_at": "2026-09-28T16:22:30+08:00"
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_vm_sync_agentless",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"],
+        "ttl": {
+          "key": { "expires_at": 1 },
+          "expire_after_seconds": 0
+        }
+      },
+      {
+        "name": "versions_bifang_vm_sync_agentless",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_vm_sync_agentless",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_vm_sync_agentless",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "parameter_validation_event": {
+      "operation": "CreateTable ads_bifang_vm_sync_agentless",
+      "result": "rejected before creation",
+      "error_code": "UnknownParameter",
+      "reason": "AclTag must be nested in PermissionInfo for the current CreateTable contract",
+      "cloud_write": false,
+      "target_absence_reverified_before_corrected_call": true
+    }
+  },
+  "public_http_e2e": {
+    "synthetic_version": "1.6.12+cloudbase-e2e",
+    "platform": "windows",
+    "architecture": "x64",
+    "sdk_version": "3.0.0",
+    "anonymous_identity": "random UUID v4",
+    "options_status": 204,
+    "unsupported_method_status": 405,
+    "cross_app_status": 403,
+    "unknown_field_status": 400,
+    "rows_after_negative_cases": 0,
+    "first_valid_status": 202,
+    "identical_retry_status": 202,
+    "response": { "ok": true },
+    "rows_after_retry": 1,
+    "idempotent": true,
+    "retention_days": 30
+  },
+  "post_deployment_inventory": {
+    "functions": 8,
+    "http_service_routes": 9,
+    "collections": 24,
+    "hosting_objects": 6
+  },
+  "dashboard": {
+    "updated_by_this_stage": false,
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-28 16:06:27",
+    "public_verifier": "passed-13-of-13",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer"
+    ],
+    "all_apps_today_active": 4,
+    "release_stream_count": 11,
+    "target": {
+      "today_active": 1,
+      "release_streams": [
+        {
+          "code": "bifang-vm-sync-agentless-windows-x64",
+          "status": "empty",
+          "highest_version": null
+        }
+      ]
+    }
+  },
+  "application_version_service": {
+    "updated_by_this_stage": false,
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-17 16:32:11",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools"
+    ],
+    "credential_count": 11,
+    "target_enabled": false,
+    "target_version_records": 0
+  },
+  "validation": {
+    "cloudbase_config_check": "passed",
+    "dashboard_http_checks": 13,
+    "dashboard_http_status": "passed",
+    "all_six_app_metrics": "passed",
+    "collection_acl_and_indexes": "passed",
+    "targeted_local_tests": {
+      "passed": 24,
+      "failed": 0
+    },
+    "receipt_format_check": "passed"
+  },
+  "unchanged_boundaries": {
+    "second_cloud_environment_created": false,
+    "client_code_modified": false,
+    "real_client_e2e_executed": false,
+    "production_credentials_created": false,
+    "version_service_activated_for_target": false,
+    "version_records_created": 0,
+    "advertisement_records_created": 0,
+    "hosting_writes_executed": false,
+    "purchases_executed": false,
+    "overrun_enabled": false,
+    "cloud_deletes_executed": false,
+    "git_commit_created": false,
+    "git_push_executed": false
+  },
+  "git": {
+    "base_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "preexisting_and_concurrent_changes_preserved": true
+  }
+}

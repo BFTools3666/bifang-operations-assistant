@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "status": "authorized-and-executed",
+  "checked_at": "2026-09-28T16:09:56.8965968+08:00",
+  "reason": "A concurrent LAN-file-transfer deployment changed the live inventory after the owner reviewed the original VM plan.",
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "package_id": "baas_trial",
+    "package_name": "体验版",
+    "status": "NORMAL",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "expires_at": "2027-03-17 23:59:59",
+    "extension_packages": [],
+    "active_order_present": false,
+    "usage": {
+      "billing_cycle_start": "2026-09-17",
+      "billing_cycle_end": "2026-10-17",
+      "used_credits": 5.66,
+      "total_credits": 3000,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "live_inventory": {
+    "functions": 7,
+    "http_service_routes": 8,
+    "collections": 22,
+    "target_function_present": false,
+    "target_route_present": false,
+    "target_collections": [
+      {
+        "name": "telemetry_bifang_vm_sync_agentless",
+        "present": true,
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["expires_at_ttl"],
+        "contract_matches": true
+      },
+      {
+        "name": "versions_bifang_vm_sync_agentless",
+        "present": true,
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"],
+        "contract_matches": true
+      },
+      {
+        "name": "ads_bifang_vm_sync_agentless",
+        "present": false
+      },
+      {
+        "name": "audit_bifang_vm_sync_agentless",
+        "present": false
+      }
+    ]
+  },
+  "dashboard": {
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-28 16:06:27",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer"
+    ],
+    "target_mapping_present": true,
+    "write_required": false,
+    "public_http_verifier": "passed-13-of-13"
+  },
+  "application_version_service": {
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-17 16:32:11",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools"
+    ],
+    "credential_count": 11,
+    "action": "preserve unchanged"
+  },
+  "reconciled_remaining_writes": [
+    {
+      "action": "create",
+      "target": "ads_bifang_vm_sync_agentless",
+      "permission": "ADMINONLY",
+      "indexes": ["idx_ads_created"],
+      "records_to_write": 0
+    },
+    {
+      "action": "create",
+      "target": "audit_bifang_vm_sync_agentless",
+      "permission": "ADMINONLY",
+      "indexes": ["idx_audit_occurred_at"],
+      "records_to_write": 0
+    },
+    {
+      "action": "create",
+      "target": "telemetry-bifang-vm-sync-agentless",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256
+    },
+    {
+      "action": "create",
+      "target": "/apps/bifang-vm-sync-agentless/v1/track",
+      "upstream": "telemetry-bifang-vm-sync-agentless",
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    {
+      "action": "public-http-e2e",
+      "target": "bifang-vm-sync-agentless",
+      "synthetic_version": "1.6.12+cloudbase-e2e",
+      "requests": 2,
+      "expected_stored_rows": 1,
+      "retention_days": 30
+    }
+  ],
+  "preserve": [
+    "telemetry_bifang_vm_sync_agentless and versions_bifang_vm_sync_agentless",
+    "operations-dashboard-api code, authentication, routes and current six-app mapping",
+    "application-version-api code, route, app mapping and 11 credentials",
+    "all LAN-file-transfer and existing application resources",
+    "all hosting objects and billing settings"
+  ],
+  "expected_inventory_after_remaining_plan": {
+    "functions": 8,
+    "http_service_routes": 9,
+    "collections": 24,
+    "target_synthetic_telemetry_rows": 1,
+    "new_version_records": 0,
+    "new_credentials": 0
+  },
+  "writes_executed_by_this_continuation": true,
+  "approval_status": "owner explicitly replied 继续 after reviewing the reconciled diff",
+  "executed_at": "2026-09-28T16:28:10.6615865+08:00",
+  "deployment_receipt": "docs/bifang-vm-sync-agentless-cloudbase-deployment-20260928.json"
+}

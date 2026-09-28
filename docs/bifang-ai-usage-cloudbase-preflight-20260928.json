@@ -1,0 +1,1369 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-ai-usage-collector",
+    "default_branch": "master",
+    "commit": "580a89fc711d87050306f8a77ef84803aa360ea7",
+    "checkout_clean": true,
+    "analysis_scope": "Tracked product source/configuration and current docs; no client code executed or changed",
+    "product_name": "毕方AI用量看板",
+    "version": "1.4.24",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust / React",
+    "tauri_identifier": "com.manonloki.bifang-codex-usage",
+    "declared_platforms": ["windows", "macos", "linux"],
+    "bifang_profile_present": false,
+    "app_id": null,
+    "release_streams": null,
+    "public_services_scope": null
+  },
+  "infrastructure": {
+    "commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "existing_user_changes_preserved": true,
+    "registered_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector"
+    ],
+    "local_change_validation": {
+      "existing_registry_entries_unchanged": true,
+      "existing_telemetry_function_configs_unchanged": true,
+      "shared_function_changes_only_append_app_mapping": true,
+      "existing_routes_unchanged": true
+    }
+  },
+  "cloud_preflight": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "checked_from": "2026-09-28T03:45:09.655Z",
+    "checked_through": "2026-09-28T03:47:01.224Z",
+    "billing": {
+      "package_id": "baas_trial",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "envId": "bftoos-sh-d3ga7hahz59229f0a",
+      "billingCycle": {
+        "startDate": "2026-09-17",
+        "endDate": "2026-10-17"
+      },
+      "summary": {
+        "totalCredits": 3000,
+        "usedCredits": 4.83,
+        "packageDeduct": 0,
+        "payAsYouGoDeduct": 0,
+        "totalUsage": 4.83
+      },
+      "usages": [
+        {
+          "module": "FLEXDB",
+          "moduleName": "NoSQL Database",
+          "creditsValue": 3.5,
+          "deductValue": 3.5,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "TDSQL",
+          "moduleName": "MySQL database",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "SCF",
+          "moduleName": "Cloud function",
+          "creditsValue": 0.75,
+          "deductValue": 0.75,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "EKS",
+          "moduleName": "Cloud hosting",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "COS",
+          "moduleName": "Cloud storage",
+          "creditsValue": 0.01,
+          "deductValue": 0.01,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "AI",
+          "moduleName": "AI",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "HOSTING",
+          "moduleName": "Static website hosting",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Auth",
+          "moduleName": "Authentication",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "APIInvocation",
+          "moduleName": "API calls",
+          "creditsValue": 0.51,
+          "deductValue": 0.51,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "HTTPInvocation",
+          "moduleName": "HTTP gateway",
+          "creditsValue": 0.06,
+          "deductValue": 0.06,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "VM",
+          "moduleName": "Cloud host",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Workflow",
+          "moduleName": "Workflow",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Other",
+          "moduleName": "Others",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        }
+      ]
+    },
+    "functions": [
+      {
+        "name": "operations-dashboard-api",
+        "runtime": "Nodejs20.19",
+        "status": "Deployment completed"
+      },
+      {
+        "name": "application-version-api",
+        "runtime": "Nodejs20.19",
+        "status": "Deployment completed"
+      },
+      {
+        "name": "telemetry-bifang-tools",
+        "runtime": "Nodejs20.19",
+        "status": "Deployment completed"
+      },
+      {
+        "name": "telemetry-bifang-mouse-clicker",
+        "runtime": "Nodejs20.19",
+        "status": "Deployment completed"
+      },
+      {
+        "name": "telemetry-bifang-screen-recorder",
+        "runtime": "Nodejs20.19",
+        "status": "Deployment completed"
+      }
+    ],
+    "version_function": {
+      "FunctionName": "application-version-api",
+      "Type": "Event",
+      "Runtime": "Nodejs20.19",
+      "Handler": "index.main",
+      "Timeout": 3,
+      "MemorySize": 256,
+      "Status": "Active",
+      "AvailableStatus": "Available",
+      "ModTime": "2026-09-17 16:32:11",
+      "applications": [
+        {
+          "appId": "bifang-screen-recorder",
+          "versionCollection": "versions_bifang_screen_recorder",
+          "adCollection": "ads_bifang_screen_recorder",
+          "auditCollection": "audit_bifang_screen_recorder"
+        },
+        {
+          "appId": "bifang-mouse-clicker",
+          "versionCollection": "versions_bifang_mouse_clicker",
+          "adCollection": "ads_bifang_mouse_clicker",
+          "auditCollection": "audit_bifang_mouse_clicker"
+        },
+        {
+          "appId": "bifang-tools",
+          "versionCollection": "versions_bifang_tools",
+          "adCollection": "ads_bifang_tools",
+          "auditCollection": "audit_bifang_tools"
+        }
+      ],
+      "credential_bindings": [
+        {
+          "credential_id": "runtime-bifang-screen-recorder-windows-x64",
+          "app_id": "bifang-screen-recorder",
+          "codes": ["bifang-screen-recorder-windows-x64"],
+          "scopes": ["versions:check"]
+        },
+        {
+          "credential_id": "runtime-bifang-screen-recorder-macos-arm64",
+          "app_id": "bifang-screen-recorder",
+          "codes": ["bifang-screen-recorder-macos-arm64"],
+          "scopes": ["versions:check"]
+        },
+        {
+          "credential_id": "contract-ads-bifang-screen-recorder-macos-arm64",
+          "app_id": "bifang-screen-recorder",
+          "codes": ["bifang-screen-recorder-macos-arm64"],
+          "scopes": ["versions:check", "ads:show"]
+        },
+        {
+          "credential_id": "mgmt-read-bifang-screen-recorder",
+          "app_id": "bifang-screen-recorder",
+          "codes": [
+            "bifang-screen-recorder-windows-x64",
+            "bifang-screen-recorder-macos-arm64"
+          ],
+          "scopes": ["versions:read", "ads:read"]
+        },
+        {
+          "credential_id": "mgmt-write-bifang-screen-recorder",
+          "app_id": "bifang-screen-recorder",
+          "codes": [
+            "bifang-screen-recorder-windows-x64",
+            "bifang-screen-recorder-macos-arm64"
+          ],
+          "scopes": ["versions:write", "ads:write"]
+        },
+        {
+          "credential_id": "runtime-bifang-mouse-clicker",
+          "app_id": "bifang-mouse-clicker",
+          "codes": ["bifang-mouse-clicker"],
+          "scopes": ["versions:check"]
+        },
+        {
+          "credential_id": "mgmt-read-bifang-mouse-clicker",
+          "app_id": "bifang-mouse-clicker",
+          "codes": ["bifang-mouse-clicker"],
+          "scopes": ["versions:read", "ads:read"]
+        },
+        {
+          "credential_id": "mgmt-write-bifang-mouse-clicker",
+          "app_id": "bifang-mouse-clicker",
+          "codes": ["bifang-mouse-clicker"],
+          "scopes": ["versions:write", "ads:write"]
+        },
+        {
+          "credential_id": "runtime-bifang-tools-windows-x64",
+          "app_id": "bifang-tools",
+          "codes": ["bifang-tools-windows-x64"],
+          "scopes": ["versions:check"]
+        },
+        {
+          "credential_id": "mgmt-read-bifang-tools",
+          "app_id": "bifang-tools",
+          "codes": ["bifang-tools-windows-x64"],
+          "scopes": ["versions:read", "ads:read"]
+        },
+        {
+          "credential_id": "mgmt-write-bifang-tools",
+          "app_id": "bifang-tools",
+          "codes": ["bifang-tools-windows-x64"],
+          "scopes": ["versions:write", "ads:write"]
+        }
+      ],
+      "local_credential_configuration_matches": true,
+      "environment_bytes": 3133
+    },
+    "domain": {
+      "domain": "bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+      "is_default": true,
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "routes": [
+        {
+          "path": "/admin/v1/metrics",
+          "target": "operations-dashboard-api",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 2
+            }
+          }
+        },
+        {
+          "path": "/apps/bifang-mouse-clicker/v1/track",
+          "target": "telemetry-bifang-mouse-clicker",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 10
+            }
+          }
+        },
+        {
+          "path": "/apps/bifang-screen-recorder/v1/track",
+          "target": "telemetry-bifang-screen-recorder",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 10
+            }
+          }
+        },
+        {
+          "path": "/apps/bifang-tools/v1/track",
+          "target": "telemetry-bifang-tools",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 10
+            }
+          }
+        },
+        {
+          "path": "/dashboard",
+          "target": "operations-dashboard-api",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 10
+            }
+          }
+        },
+        {
+          "path": "/tools/version-control/v1",
+          "target": "application-version-api",
+          "type": "SCF",
+          "enabled": true,
+          "safe_domain": true,
+          "auth": false,
+          "path_transmission": true,
+          "qps": {
+            "QPSTotal": 100,
+            "QPSPerClient": {
+              "LimitBy": "ClientIP",
+              "LimitValue": 10
+            }
+          }
+        }
+      ]
+    },
+    "collections": [
+      {
+        "name": "audit_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 5,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      }
+    ],
+    "hosting_object_paths": [
+      "__auth/device/index.html",
+      "__auth/env/login.config.json",
+      "__auth/env/logo.svg",
+      "__auth/index.html",
+      "__auth/oauth/index.html",
+      "cloud-admin/index.html"
+    ],
+    "scope_notes": [
+      "Only metadata, ACLs, indexes and counts were read; no business record bodies were fetched.",
+      "Cloud writes and test data writes were not executed.",
+      "Cost controls and usage reflect this read-only API snapshot; refresh before any later deployment."
+    ],
+    "dashboard_function": {
+      "FunctionName": "operations-dashboard-api",
+      "Type": "Event",
+      "Runtime": "Nodejs20.19",
+      "Handler": "index.main",
+      "Timeout": 3,
+      "MemorySize": 256,
+      "Status": "Active",
+      "AvailableStatus": "Available",
+      "ModTime": "2026-09-22 13:32:55",
+      "applications": [
+        {
+          "appId": "bifang-screen-recorder",
+          "collectionName": "telemetry_bifang_screen_recorder",
+          "versionCollection": "versions_bifang_screen_recorder",
+          "platforms": ["windows", "macos"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-screen-recorder-windows-x64"
+            },
+            {
+              "platform": "macos",
+              "architecture": "arm64",
+              "channel": "stable",
+              "code": "bifang-screen-recorder-macos-arm64"
+            }
+          ]
+        },
+        {
+          "appId": "bifang-mouse-clicker",
+          "collectionName": "telemetry_bifang_mouse_clicker",
+          "versionCollection": "versions_bifang_mouse_clicker",
+          "platforms": ["windows"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-mouse-clicker"
+            }
+          ]
+        },
+        {
+          "appId": "bifang-tools",
+          "collectionName": "telemetry_bifang_tools",
+          "versionCollection": "versions_bifang_tools",
+          "platforms": ["windows"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-tools-windows-x64"
+            }
+          ]
+        }
+      ],
+      "local_metrics_token_matches": true,
+      "local_access_token_matches": true,
+      "environment_keys": [
+        "CLOUDBASE_ENV_ID",
+        "DASHBOARD_ACCESS_TOKEN_SHA256",
+        "DASHBOARD_APPS_JSON",
+        "DASHBOARD_PATH",
+        "DASHBOARD_TOKEN_SHA256",
+        "DASHBOARD_WEB_PATH"
+      ],
+      "environment_bytes": 1351,
+      "planned_environment_bytes": 1824,
+      "non_mapping_configuration_matches": true
+    },
+    "source_check": {
+      "checked_on": "2026-09-28",
+      "default_branch": "master",
+      "head_unchanged": true,
+      "checkout_clean": true
+    },
+    "dashboard_code_comparison": {
+      "checked_at": "2026-09-28T03:49:16.391Z",
+      "source_files_checked": 13,
+      "differing_files": [],
+      "cloud_only_files": [],
+      "dependency_tree": "Downloaded from live function, not compared to local node_modules"
+    }
+  },
+  "proposed_resource_rules": {
+    "app_id": "bifang-ai-usage-collector",
+    "telemetry_function": "telemetry-bifang-ai-usage-collector",
+    "telemetry_route": "/apps/bifang-ai-usage-collector/v1/track",
+    "telemetry_collection": "telemetry_bifang_ai_usage_collector",
+    "application_version_function": "application-version-api",
+    "application_version_base_url": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/tools/version-control/v1",
+    "version_collection": "versions_bifang_ai_usage_collector",
+    "ad_collection": "ads_bifang_ai_usage_collector",
+    "audit_collection": "audit_bifang_ai_usage_collector",
+    "collection_permission": "ADMINONLY",
+    "runtime_credential_scopes": ["versions:check"],
+    "application_version_action": "defer activation; preserve shared live function and route",
+    "client_update_address": ""
+  },
+  "capacity_analysis": {
+    "checked_at": "2026-09-28T03:25:55.877Z",
+    "mode": "non-executable-capacity-simulation",
+    "current_environment_bytes": 3083,
+    "scenarios": [
+      {
+        "proposed_app_id": "bifang-ai-usage-collector",
+        "proposed_streams": [
+          {
+            "platform": "windows",
+            "architecture": "x64",
+            "channel": "stable",
+            "code": "bifang-ai-usage-collector-windows-x64"
+          }
+        ],
+        "credential_values": "in-memory length-only fixtures; not saved or deployable",
+        "environment_bytes": 3961,
+        "safety_limit": 3840,
+        "platform_limit": 4096,
+        "validation": "function environment exceeds the 3840-byte deployment safety limit",
+        "app_id_confirmed": true,
+        "release_streams_confirmed": false,
+        "scope": "historical in-memory capacity simulation, not executable deployment material"
+      },
+      {
+        "proposed_app_id": "bifang-ai-usage-collector",
+        "proposed_streams": [
+          {
+            "platform": "windows",
+            "architecture": "x64",
+            "channel": "stable",
+            "code": "bifang-ai-usage-collector-windows-x64"
+          },
+          {
+            "platform": "macos",
+            "architecture": "arm64",
+            "channel": "stable",
+            "code": "bifang-ai-usage-collector-macos-arm64"
+          }
+        ],
+        "credential_values": "in-memory length-only fixtures; not saved or deployable",
+        "environment_bytes": 4225,
+        "safety_limit": 3840,
+        "platform_limit": 4096,
+        "validation": "function environment exceeds the 3840-byte deployment safety limit",
+        "app_id_confirmed": true,
+        "release_streams_confirmed": true,
+        "scope": "historical in-memory capacity simulation, not executable deployment material"
+      }
+    ],
+    "confirmed_app_id": "bifang-ai-usage-collector",
+    "impact": "Future version API activation only; excluded from this daily_active plus dashboard deployment plan"
+  },
+  "verification": {
+    "config_check": "passed",
+    "targeted_contract_and_runtime_tests": {
+      "passed": 111,
+      "failed": 0
+    },
+    "full_check": {
+      "command": "npm.cmd run check",
+      "status": "failed-at-format-check",
+      "existing_format_issues": 80,
+      "later_stages": "not run by this command"
+    },
+    "old_user_changes_preserved": true,
+    "changed_files_format_check": "passed"
+  },
+  "blockers": [],
+  "cloud_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "owner_confirmed_configuration": {
+    "app_id": "bifang-ai-usage-collector",
+    "confirmation_source": "Explicit user messages: APP_ID; both proposed platforms, stable, daily_active, leave update address empty, follow previous projects",
+    "confirmed_on": "2026-09-28",
+    "local_registry_conflict": false,
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-macos-arm64"
+      }
+    ],
+    "public_services_scope": {
+      "daily_active": true,
+      "dashboard_visibility": true,
+      "version_streams_reserved": true,
+      "version_api_activation": false,
+      "client_update_address": "",
+      "release_download_url": "",
+      "version_records_to_create": 0,
+      "credentials_to_create": 0
+    }
+  },
+  "infra_previous_registration_count": 3,
+  "client_handoff": {
+    "status": "prepared-only-no-client-changes",
+    "app_id": "bifang-ai-usage-collector",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-macos-arm64"
+      }
+    ],
+    "track_endpoint": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/apps/bifang-ai-usage-collector/v1/track",
+    "event_name": "daily_active",
+    "install_id": "app-specific random UUID v4; never reuse OS or hardware ID",
+    "date_timezone": "Asia/Shanghai",
+    "daily_gate": "persist before network attempt; at most one attempt per app/install/local Shanghai day",
+    "retention_days": 30,
+    "updates": {
+      "enabled": false,
+      "base_url": "",
+      "download_url": "",
+      "credentials_provisioned": false
+    },
+    "pending": [
+      "Linux architecture and onboarding timing",
+      "Future public HTTPS installer URLs and release content",
+      "Client-side Rust integration, credential injection and Windows/macOS GUI E2E in the tool repository"
+    ]
+  },
+  "current_deployment_plan": {
+    "mode": "review-only-composite-plan",
+    "requires_owner_confirmation": true,
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "telemetry": {
+      "schema_version": 2,
+      "mode": "telemetry-target-only-preview",
+      "requires_stage_4_confirmation": true,
+      "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+      "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+      "app_id": "bifang-ai-usage-collector",
+      "resources": {
+        "function": "telemetry-bifang-ai-usage-collector",
+        "collection": "telemetry_bifang_ai_usage_collector",
+        "collection_permission": "ADMINONLY",
+        "collection_indexes": [
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ],
+        "route": {
+          "path": "/apps/bifang-ai-usage-collector/v1/track",
+          "upstreamResourceType": "SCF",
+          "upstreamResourceName": "telemetry-bifang-ai-usage-collector",
+          "enable": true,
+          "enableAuth": false,
+          "enableSafeDomain": true,
+          "enablePathTransmission": true,
+          "qpsPolicy": {
+            "qpsTotal": 100,
+            "qpsPerClient": {
+              "limitBy": "ClientIP",
+              "limitValue": 10
+            }
+          }
+        }
+      },
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-ai-usage-collector-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-ai-usage-collector-macos-arm64"
+        }
+      ],
+      "excluded_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools"
+      ],
+      "read_only_preflight": [
+        {
+          "resource": "functions",
+          "argv": [
+            "tcb",
+            "fn",
+            "list",
+            "-e",
+            "bftoos-sh-d3ga7hahz59229f0a",
+            "--limit",
+            "100",
+            "--json"
+          ]
+        },
+        {
+          "resource": "routes",
+          "argv": [
+            "tcb",
+            "routes",
+            "list",
+            "-e",
+            "bftoos-sh-d3ga7hahz59229f0a",
+            "--limit",
+            "1000",
+            "--filter",
+            "Domain=bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+            "--json"
+          ]
+        },
+        {
+          "kind": "manual-read-only",
+          "resource": "collection-and-cost",
+          "instruction": "Verify telemetry_bifang_ai_usage_collector ownership, ADMINONLY ACL and indexes, including expires_at_ttl with key expires_at:1 and expireAfterSeconds:0, then confirm the existing environment remains zero-cost with overrun disabled. Stop on incomplete inventory, a conflicting collection or index, non-zero amount, upgrade prompt or insufficient quota."
+        }
+      ],
+      "write_steps_after_confirmation": [
+        {
+          "kind": "manual",
+          "resource": "collection",
+          "instruction": "Create or verify telemetry_bifang_ai_usage_collector with ADMINONLY permission; stop if it exists with a different contract."
+        },
+        {
+          "kind": "command",
+          "resource": "collection-index",
+          "argv": [
+            "tcb",
+            "db",
+            "nosql",
+            "execute",
+            "--command",
+            "[{\"TableName\":\"telemetry_bifang_ai_usage_collector\",\"CommandType\":\"COMMAND\",\"Command\":\"{\\\"createIndexes\\\":\\\"telemetry_bifang_ai_usage_collector\\\",\\\"indexes\\\":[{\\\"name\\\":\\\"expires_at_ttl\\\",\\\"key\\\":{\\\"expires_at\\\":1},\\\"expireAfterSeconds\\\":0}]}\"}]",
+            "-e",
+            "bftoos-sh-d3ga7hahz59229f0a",
+            "--json"
+          ],
+          "instruction": "Create or preserve the exact expires_at_ttl index on telemetry_bifang_ai_usage_collector; a same-name index with any other key or expireAfterSeconds value must stop the deployment."
+        },
+        {
+          "kind": "command",
+          "resource": "function",
+          "argv": [
+            "tcb",
+            "fn",
+            "deploy",
+            "telemetry-bifang-ai-usage-collector",
+            "--config-file",
+            "cloudbaserc.example.json",
+            "-e",
+            "bftoos-sh-d3ga7hahz59229f0a",
+            "--json"
+          ]
+        },
+        {
+          "kind": "command",
+          "resource": "route",
+          "argv": [
+            "tcb",
+            "api",
+            "tcb",
+            "CreateHTTPServiceRoute",
+            "--api-version",
+            "2018-06-08",
+            "--body",
+            "{\"EnvId\":\"bftoos-sh-d3ga7hahz59229f0a\",\"Domain\":{\"Domain\":\"bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com\",\"Routes\":[{\"Path\":\"/apps/bifang-ai-usage-collector/v1/track\",\"UpstreamResourceType\":\"SCF\",\"UpstreamResourceName\":\"telemetry-bifang-ai-usage-collector\",\"Enable\":true,\"EnableAuth\":false,\"EnableSafeDomain\":true,\"EnablePathTransmission\":true,\"QPSPolicy\":{\"QPSTotal\":100,\"QPSPerClient\":{\"LimitBy\":\"ClientIP\",\"LimitValue\":10}}}]}}",
+            "--json"
+          ]
+        }
+      ],
+      "post_write_verification": [
+        {
+          "kind": "command",
+          "resource": "collection-index",
+          "argv": [
+            "tcb",
+            "db",
+            "nosql",
+            "execute",
+            "--command",
+            "[{\"TableName\":\"telemetry_bifang_ai_usage_collector\",\"CommandType\":\"COMMAND\",\"Command\":\"{\\\"listIndexes\\\":\\\"telemetry_bifang_ai_usage_collector\\\",\\\"cursor\\\":{}}\"}]",
+            "-e",
+            "bftoos-sh-d3ga7hahz59229f0a",
+            "--json"
+          ],
+          "success_condition": "The returned indexes for telemetry_bifang_ai_usage_collector must contain exactly one expires_at_ttl with key expires_at:1 and expireAfterSeconds:0."
+        },
+        "DescribeHTTPServiceRoute must return exactly /apps/bifang-ai-usage-collector/v1/track -> telemetry-bifang-ai-usage-collector for the selected domain.",
+        "DescribeDatabaseACL must return ADMINONLY for telemetry_bifang_ai_usage_collector.",
+        "A valid daily_active request must be acknowledged once and an identical retry must remain idempotent."
+      ],
+      "safety_notes": [
+        "fn deploy is explicitly bound to the reviewed env_id and tracked cloudbaserc.example.json.",
+        "The platform default domain is created through the exact CreateHTTPServiceRoute API because routes add rejects system default domains during its custom-domain verification step.",
+        "Release streams are displayed for identity review only; this telemetry-only plan never writes the shared application-version service."
+      ],
+      "forbidden_scope": [
+        "tcb deploy",
+        "tcb deploy --only=gateway",
+        "tcb fn deploy --all",
+        "application-version-api function, route or collections",
+        "hosting writes",
+        "--force",
+        "--prune",
+        "delete commands",
+        "paid plans, resource packs or overage"
+      ]
+    },
+    "companion_reserved_storage": [
+      {
+        "action": "create-empty",
+        "name": "versions_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      },
+      {
+        "action": "create-empty",
+        "name": "ads_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      },
+      {
+        "action": "create-empty",
+        "name": "audit_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      }
+    ],
+    "dashboard": {
+      "schema_version": 1,
+      "mode": "operations-dashboard-cloudbase-web-preview",
+      "requires_confirmation": true,
+      "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+      "function": {
+        "action": "update-in-place",
+        "name": "operations-dashboard-api",
+        "runtime": "Nodejs20.19",
+        "timeout_seconds": 3,
+        "memory_mb": 256,
+        "environment_keys": [
+          "CLOUDBASE_ENV_ID",
+          "DASHBOARD_ACCESS_TOKEN_SHA256",
+          "DASHBOARD_APPS_JSON",
+          "DASHBOARD_PATH",
+          "DASHBOARD_TOKEN_SHA256",
+          "DASHBOARD_WEB_PATH"
+        ]
+      },
+      "route": {
+        "action": "preserve-existing",
+        "path": "/dashboard",
+        "target": "function:operations-dashboard-api",
+        "enable_auth": false,
+        "enable_path_transmission": true,
+        "qps_total": 100,
+        "qps_per_client_ip": 10,
+        "live_preflight_receipt": "cloud_preflight.domain.routes"
+      },
+      "raw_secret_uploads": 0,
+      "token_checks": {
+        "metrics_token_bytes": 64,
+        "access_token_bytes": 64,
+        "distinct": true
+      },
+      "materials": {
+        "schema_version": 1,
+        "sha256": "d28a9026d0602c48de19f4076efa9a77b7307d53281a03f7bd5cffc068cba589",
+        "files": 32,
+        "bytes": 28896389,
+        "cli_version": "3.8.1"
+      },
+      "deletes": [],
+      "excluded": [
+        "all database collections and records",
+        "telemetry functions and routes",
+        "application-version function and route",
+        "the existing /admin/v1/metrics route",
+        "plans, billing, domains and certificates"
+      ],
+      "existing_metrics_route_action": "preserve-existing"
+    },
+    "ordered_steps_after_confirmation": [
+      "Refresh cost controls and complete inventory; stop on drift, paid order, upgrade, overrun or conflicting target.",
+      "Securely snapshot the current dashboard configuration and recoverable code before overwriting it.",
+      "Create the four listed collections with ADMINONLY and exact reviewed indexes; leave all three version-related collections empty.",
+      "Deploy only telemetry-bifang-ai-usage-collector and create its one reviewed route.",
+      "Update only operations-dashboard-api with the new mapping and existing authentication values; preserve both dashboard routes.",
+      "Verify all metadata and permissions; submit one synthetic anonymous daily_active event twice and require one stored row; confirm dashboard aggregation and existing apps remain readable."
+    ],
+    "post_deployment_expected_inventory": {
+      "functions": 6,
+      "routes": 7,
+      "collections": 16,
+      "synthetic_telemetry_rows_added": 1,
+      "new_version_records": 0,
+      "new_credentials": 0
+    },
+    "preserve": [
+      "application-version-api code, live app mapping, route and 11 existing credential bindings",
+      "all existing application telemetry functions, routes, collections and indexes",
+      "all six hosting objects",
+      "existing environment plan, auto-renewal and overrun settings"
+    ],
+    "no_deletes": true,
+    "rollback": "Restore reviewed previous dashboard code/configuration if required; preserve newly created collections and their data. Deletion requires separate exact-target authorization.",
+    "telemetry_materials": {
+      "sha256": "df8308c4b2accb4b048d0f05a45562cd242d431bd5a7f0eb4a6047d36c306452",
+      "files": 12,
+      "bytes": 130171,
+      "paths": [
+        "cloudbase/apps.json",
+        "cloudbase/functions/telemetry/index.js",
+        "cloudbase/functions/telemetry/package.json",
+        "cloudbase/functions/telemetry/src/burst-guard.js",
+        "cloudbase/functions/telemetry/src/handler.js",
+        "cloudbase/functions/telemetry/src/validation.js",
+        "cloudbase/functions/telemetry/src/writer.js",
+        "cloudbase/functions/telemetry/test/telemetry.test.js",
+        "cloudbase/generate-cloudbaserc.mjs",
+        "cloudbase/plan-app-deployment.mjs",
+        "cloudbaserc.example.json",
+        "package-lock.json"
+      ],
+      "cli_version": "3.8.1",
+      "cli_materials_bound_by_dashboard_plan": true
+    }
+  },
+  "limitations": [
+    "Whole-repository check is not green: 80 pre-existing formatting issues remain; scoped 111 tests passed.",
+    "Client implementation is not part of this cloud preparation; daily-active data will not appear until client integration or explicitly scoped synthetic verification.",
+    "Version checking remains disabled with blank handoff URL; full shared version activation requires resolving the 3840-byte configuration safety gate first."
+  ],
+  "approval_status": "awaiting explicit continue; no cloud writes authorized yet"
+}

@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "completed_through": "2026-09-28T16:11:50.2091338+08:00",
+  "owner_authorizations": [
+    "User explicitly replied: 继续，允许看板同时加入 VM 映射",
+    "User explicitly replied: 继续创建 VM 两个空支撑集合并更新看板"
+  ],
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "package_id": "baas_trial",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "usage": {
+      "total_credits": 3000,
+      "used_credits": 5.66,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "lan_deployment": {
+    "app_id": "bifang-lan-file-transfer",
+    "function": {
+      "name": "telemetry-bifang-lan-file-transfer",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-28 15:58:22"
+    },
+    "route": {
+      "path": "/apps/bifang-lan-file-transfer/v1/track",
+      "target": "function:telemetry-bifang-lan-file-transfer",
+      "created_at": "2026-09-28T15:59:07+08:00",
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_lan_file_transfer",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"]
+      },
+      {
+        "name": "versions_bifang_lan_file_transfer",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_lan_file_transfer",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_lan_file_transfer",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "public_http_e2e": {
+      "first_status": 202,
+      "retry_status": 202,
+      "response": {
+        "ok": true
+      },
+      "stored_rows_after_retry": 1,
+      "synthetic_rows_added": 1,
+      "retention_days": 30
+    }
+  },
+  "post_deployment_inventory": {
+    "functions": 7,
+    "routes": 8,
+    "collections": 22
+  },
+  "dashboard": {
+    "updated": true,
+    "action": "UpdateFunctionConfiguration environment-only; no code upload",
+    "modified_at": "2026-09-28 16:06:27",
+    "live_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer"
+    ],
+    "environment_keys": [
+      "CLOUDBASE_ENV_ID",
+      "DASHBOARD_ACCESS_TOKEN_SHA256",
+      "DASHBOARD_APPS_JSON",
+      "DASHBOARD_PATH",
+      "DASHBOARD_TOKEN_SHA256",
+      "DASHBOARD_WEB_PATH"
+    ],
+    "environment_bytes": 2877,
+    "platform_limit_bytes": 4096,
+    "authentication_matches_local": true,
+    "verification": {
+      "status": "passed",
+      "dashboard_page": 200,
+      "authenticated_all_app_metrics": 200,
+      "correct_admin_token": 200,
+      "unauthenticated_or_wrong_authentication": 401,
+      "all_app_count": 6,
+      "release_stream_count": 11,
+      "lan_today_active": 1,
+      "lan_release_stream_count": 4,
+      "vm_today_active": 0,
+      "vm_release_stream_count": 1
+    }
+  },
+  "executed_additional_targets": [
+    {
+      "name": "telemetry_bifang_vm_sync_agentless",
+      "action": "create-empty",
+      "permission": "ADMINONLY",
+      "indexes": ["expires_at_ttl"],
+      "records_to_write": 0
+    },
+    {
+      "name": "versions_bifang_vm_sync_agentless",
+      "action": "create-empty",
+      "permission": "ADMINONLY",
+      "indexes": ["idx_version_created", "idx_version_sort"],
+      "records_to_write": 0
+    },
+    {
+      "name": "operations-dashboard-api",
+      "action": "update-environment-only",
+      "environment_key": "DASHBOARD_APPS_JSON",
+      "old_app_count": 4,
+      "new_app_count": 6,
+      "preserve_code": true,
+      "preserve_authentication": true
+    }
+  ],
+  "additional_scope_excludes": [
+    "bifang-vm-sync-agentless function and route",
+    "bifang-vm-sync-agentless ads and audit collections",
+    "VM records or synthetic telemetry",
+    "application-version-api changes",
+    "credential generation",
+    "hosting writes",
+    "delete operations"
+  ],
+  "validation": {
+    "cloudbase_config_check": "passed",
+    "scoped_dashboard_and_isolation_tests": {
+      "passed": 50,
+      "failed": 0
+    },
+    "receipt_json_parse": "passed",
+    "receipt_format_check": "passed",
+    "live_dashboard_verification": "passed"
+  },
+  "client_changes_executed": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "concurrent_vm_preflight_note": "The same-day VM preparation receipt predates these two supporting collections and the six-app dashboard mapping; refresh it before any separate VM deployment."
+}

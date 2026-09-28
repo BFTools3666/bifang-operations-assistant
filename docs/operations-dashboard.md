@@ -20,18 +20,19 @@
 ## 数据路径
 
 ```text
-仅本人可见的私有 Sites 页面
-    -> 同源 /api/metrics（校验已登录访问者）
-    -> Bearer Token 服务端请求
-    -> CloudBase /admin/v1/metrics
-    -> operations-dashboard-api
+CloudBase 默认 HTTPS 域名 /dashboard
+    -> 同源 /dashboard/api/session（访问密钥只用于建立签名会话）
+    -> 同源 /dashboard/api/metrics（校验 HttpOnly 会话）
+    -> operations-dashboard-api 内部聚合
     -> ADMINONLY telemetry_* 与 versions_* 每应用独立集合
     -> 仅返回聚合 JSON
 ```
 
-`cloudbase/functions/operations-dashboard` 与匿名写入函数、application-version HTTP API 完全分离。网关虽然可到达，但函数在 Bearer Token SHA-256 缺失或不匹配时 fail closed；总 QPS 为 100、单 ClientIP QPS 为 2。响应使用 `Cache-Control: no-store`，不设置浏览器跨域访问头。函数使用 CloudBase 运行时短期身份直接读取固定 `ADMINONLY` 集合，不配置或暴露 application-version 管理凭据、运行凭据。
+`cloudbase/functions/operations-dashboard` 与匿名写入函数、application-version HTTP API 完全分离。现有 `/admin/v1/metrics` 继续要求 Bearer Token，供受控服务端调用；新增 `/dashboard` 路由由同一函数提供 HTML/CSS/JS、登录会话和浏览器聚合接口。页面不从浏览器调用管理接口，也不配置 CORS。管理路由总 QPS 为 100、单 ClientIP QPS 为 2；网页路由总 QPS 为 100、单 ClientIP QPS 为 10，登录失败另在函数内按可信运行时来源做 15 分钟窗口限制。
 
-原始 Token 仅存于私有 Sites 的服务端 secret `CLOUDBASE_METRICS_TOKEN`，不使用 `NEXT_PUBLIC_` 变量，不进入浏览器、Git 或日志；CloudBase 只接收 `DASHBOARD_TOKEN_SHA256`。站点的本人访问限制由 Sites 私有可见性执行，同源 API 另行检查宿主认证的登录身份。
+两个原始 Token 都只保存在 Git 忽略的运维 Secret 文件中：`CLOUDBASE_METRICS_TOKEN` 继续保护管理接口，`DASHBOARD_ACCESS_TOKEN` 供本人登录网页。CloudBase 只保存对应的 `DASHBOARD_TOKEN_SHA256` 与 `DASHBOARD_ACCESS_TOKEN_SHA256`，原值不进入函数配置、浏览器、Git 或日志。网页登录成功后只设置 `HttpOnly`、`Secure`、`SameSite=Strict`、12 小时有效且限定 `/dashboard` 路径的签名 Cookie；Cookie 由访问密钥摘要签名，不包含原始密钥。
+
+页面与接口响应统一设置禁止嵌入、禁止索引、禁止 MIME 猜测和严格同源 CSP。统计响应继续使用 `Cache-Control: no-store`。函数使用 CloudBase 运行时短期身份直接读取固定 `ADMINONLY` 集合，不配置或暴露 application-version 管理凭据、运行凭据。
 
 ## 聚合口径
 
@@ -51,13 +52,15 @@
 
 ## 部署范围与复核
 
-生产看板的 CloudBase 部署范围仅为 `operations-dashboard-api` 与 `/admin/v1/metrics`。仓库顶层部署同时包含现有上报函数和 application-version 服务，不能用于本看板的定向发布。不得借看板发布修改业务集合、上报函数、版本记录、套餐或其他应用资源。远程部署前必须：
+生产看板的 CloudBase 部署范围仅为原地更新 `operations-dashboard-api`，保留 `/admin/v1/metrics` 并新增 `/dashboard` 路由。仓库顶层部署同时包含现有上报函数和 application-version 服务，不能用于本看板的定向发布。不得借看板发布修改业务集合、上报函数、版本记录、套餐或其他应用资源。远程部署前必须：
 
 1. 实时确认环境仍为体验版、状态正常、按量扣费为 0，且没有非零金额、自动续费或套餐升级提示。
-2. 实时核对目标函数与路由；首次创建只添加这两个资源，后续发布只更新已核实属于本看板的目标。
-3. 生成至少 32 字节高熵 Token，只把 SHA-256 放入 CloudBase；原始 Token 只配置到私有 Sites 环境变量。
+2. 实时核对目标函数与完整默认域名路由；`/dashboard` 必须尚未占用或与本配置完全一致，已有其他路由全部保留。
+3. 两个 Token 都必须至少 32 字节、互不相同；只把 SHA-256 放入 CloudBase，原始值留在 Git 忽略的本地 Secret 文件。
 4. 校验模板并运行 dry-run；展示最终环境、函数、路由、QPS、变量名与零删除结论。
-5. 在负责人授权的生产看板范围内，定向部署函数、创建或核对唯一 admin 路由，并配置私有 Sites 服务端 secret；新的额外范围需要另行授权。
-6. 公网复验无 Token/错误 Token 为 401，非法查询为 400，正确请求为 200，响应不含原始标识、IP、版本正文、下载地址或凭据；随后再发布私有 Site。
+5. 在负责人明确确认后只定向更新该函数并创建 `/dashboard` 路由，不运行顶层整仓部署，不修改现有路由或集合。
+6. 公网复验管理接口无 Token/错误 Token 为 401、正确请求为 200；网页未登录统计为 401、错误访问密钥为 401、正确访问密钥建立 Secure Cookie 后统计为 200，响应不含原始标识、IP、版本正文、下载地址或凭据。
+
+平台默认 `.app.tcloudbase.com` 域名只适合测试和内部访问。正式对外生产域名需要另行备案和绑定；本项目不得代购域名、证书或付费资源，任何此类需求必须另行确认。
 
 任何非零费用、付费资源、卡绑定、自动续费、套餐升级或超额风险都必须停止并提醒负责人。

@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-scope-and-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-lan-file-transfer",
+    "default_branch": "master",
+    "commit": "ca476f33b8967fe89ce3ad181ee2f125b2bde5f3",
+    "checkout_clean": true,
+    "version": "0.1.0",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri GUI / Rust",
+    "declared_platforms": ["windows", "macos", "linux"],
+    "bifang_profile_present": false,
+    "daily_active_present": false,
+    "application_version_present": false,
+    "legacy_static_update_present": false,
+    "product_spec_excludes_cloud_telemetry_and_updates": true
+  },
+  "infrastructure": {
+    "repository_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "existing_user_changes_preserved": true,
+    "app_id": "bifang-lan-file-transfer",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-lan-file-transfer-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-lan-file-transfer-macos-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-lan-file-transfer-macos-arm64"
+      },
+      {
+        "platform": "linux",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-lan-file-transfer-linux-x64"
+      }
+    ]
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-28T15:51:25.0240308+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 5.66,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 6,
+      "routes": 7,
+      "collections": 16
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true
+  },
+  "proposed_resources": {
+    "telemetry_function": "telemetry-bifang-lan-file-transfer",
+    "telemetry_route": "/apps/bifang-lan-file-transfer/v1/track",
+    "telemetry_collection": "telemetry_bifang_lan_file_transfer",
+    "version_collection": "versions_bifang_lan_file_transfer",
+    "ad_collection": "ads_bifang_lan_file_transfer",
+    "audit_collection": "audit_bifang_lan_file_transfer",
+    "collection_permission": "ADMINONLY",
+    "telemetry_ttl_index": {
+      "name": "expires_at_ttl",
+      "key": {
+        "expires_at": 1
+      },
+      "expireAfterSeconds": 0
+    },
+    "version_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve live shared function and route",
+    "dashboard_action": "blocked pending explicit decision about concurrent bifang-vm-sync-agentless mapping"
+  },
+  "target_only_deployment_plan": {
+    "requires_stage_4_confirmation": true,
+    "write_steps_after_confirmation": [
+      "Create the four exact collections with ADMINONLY and reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-lan-file-transfer from cloudbaserc.example.json to the reviewed environment.",
+      "Create only /apps/bifang-lan-file-transfer/v1/track on the existing default domain.",
+      "Read back ACL, indexes, function and route; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory_after_target_only_deployment": {
+      "functions": 7,
+      "routes": 8,
+      "collections": 20,
+      "new_version_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api changes",
+      "hosting writes",
+      "force, prune or delete commands",
+      "paid plans, resource packs or overage",
+      "bifang-vm-sync-agentless cloud resources without separate authorization"
+    ]
+  },
+  "concurrent_change": {
+    "app_id": "bifang-vm-sync-agentless",
+    "present_in_local_registry": true,
+    "present_in_live_cloud_inventory": false,
+    "created_by_this_task": false,
+    "impact": "The generated shared dashboard mapping includes both this app and bifang-lan-file-transfer; dashboard deployment is withheld until the owner resolves the combined scope."
+  },
+  "capacity_and_client_limits": {
+    "runtime_credential_configuration_limit_bytes": 4096,
+    "shared_version_environment_safety_limit_bytes": 3840,
+    "full_six_app_credential_digest_exceeds_runtime_limit": true,
+    "full_six_app_configuration_cannot_meet_environment_safety_limit": true,
+    "version_service_activation_deferred": true,
+    "client_changes_executed": false,
+    "real_client_telemetry_available_after_cloud_deployment": false,
+    "client_follow_up": "Must be initiated from the target repository after its product specification authorizes telemetry."
+  },
+  "verification": {
+    "config_check": "passed",
+    "targeted_tests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "full_tests": {
+      "status": "passed",
+      "workspace_tests": 131,
+      "root_tests": 139,
+      "python_tests": 42,
+      "total": 312
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "full_check": {
+      "status": "stopped-at-format-check",
+      "pre_existing_format_issues": 80,
+      "later_steps_ran_separately": true
+    },
+    "target_scan": {
+      "scan_version": 3,
+      "files_scanned": 202,
+      "incomplete": false
+    },
+    "diff_check": "passed"
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner scope decision and continue"
+}

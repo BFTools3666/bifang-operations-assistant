@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "status": "deployed-and-cloud-http-e2e-verified",
+  "completed_at": "2026-09-28T17:37:06.4940793+08:00",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-app-launcher",
+    "default_branch": "master",
+    "commit": "f4fb6b043dfee81f0b1a1b208dbd39a5bfd16eb9",
+    "version": "1.1.4",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "client_modified": false
+  },
+  "owner_authorizations": [
+    {
+      "action": "继续",
+      "reviewed_plan": "docs/bifang-app-launcher-cloudbase-preflight-20260928.json"
+    },
+    {
+      "action": "继续，并保留 bifang-codex-skins",
+      "reviewed_plan": "docs/bifang-app-launcher-cloudbase-reconciled-preflight-20260928.json"
+    }
+  ],
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing_after": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "expires_at": "2027-03-17 23:59:59",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "extension_packages": [],
+      "active_order_present": false,
+      "used_credits": 8.22,
+      "total_credits": 3000,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "deployment": {
+    "function": {
+      "name": "telemetry-bifang-app-launcher",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-28 17:31:28",
+      "environment": {
+        "ALLOWED_APP_IDS": "bifang-app-launcher",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_app_launcher",
+        "TRACK_PATH": "/apps/bifang-app-launcher/v1/track"
+      }
+    },
+    "route": {
+      "path": "/apps/bifang-app-launcher/v1/track",
+      "upstream_resource_type": "SCF",
+      "upstream_resource_name": "telemetry-bifang-app-launcher",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10,
+      "created_at": "2026-09-28T17:32:09+08:00"
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_app_launcher",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"],
+        "ttl": {
+          "key": {
+            "expires_at": 1
+          },
+          "expire_after_seconds": 0
+        }
+      },
+      {
+        "name": "versions_bifang_app_launcher",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_app_launcher",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_app_launcher",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ]
+  },
+  "public_http_e2e": {
+    "synthetic_version": "1.1.4+cloudbase-e2e",
+    "platform": "windows",
+    "architecture": "x64",
+    "sdk_version": "3.0.0",
+    "anonymous_identity": "random UUID v4",
+    "options_status": 204,
+    "unsupported_method_status": 405,
+    "cross_app_status": 403,
+    "unknown_field_status": 400,
+    "rows_after_negative_cases": 0,
+    "first_valid_status": 504,
+    "first_valid_error_code": "FUNCTIONS_TIME_LIMIT_EXCEEDED",
+    "identical_retry_status": 202,
+    "identical_retry_response": {
+      "ok": true
+    },
+    "rows_after_retry": 1,
+    "duplicate_rows": 0,
+    "cold_start_note": "The first database-backed request exceeded the 3-second function limit; the identical retry succeeded and the final collection count was exactly one.",
+    "retention_days": 30
+  },
+  "dashboard": {
+    "updated": true,
+    "action": "UpdateFunctionConfiguration environment-only; code and routes preserved",
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-28 17:33:33",
+    "environment_bytes": 3874,
+    "platform_limit_bytes": 4096,
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher"
+    ],
+    "bifang_codex_skins_preserved": true,
+    "public_verifier": "passed-13-of-13",
+    "app_count": 8,
+    "release_stream_count": 16,
+    "target": {
+      "today_active": 1,
+      "release_streams": [
+        {
+          "code": "bifang-app-launcher-windows-x64",
+          "status": "empty"
+        },
+        {
+          "code": "bifang-app-launcher-macos-x64",
+          "status": "empty"
+        },
+        {
+          "code": "bifang-app-launcher-macos-arm64",
+          "status": "empty"
+        }
+      ]
+    }
+  },
+  "application_version_service": {
+    "updated_by_this_stage": false,
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-17 16:32:11",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools"
+    ],
+    "credential_count": 11,
+    "target_enabled": false,
+    "target_version_records": 0
+  },
+  "post_deployment_inventory": {
+    "functions": 10,
+    "http_service_routes": 11,
+    "collections": 32,
+    "hosting_objects": 6
+  },
+  "validation": {
+    "cloudbase_config_check": "passed",
+    "dashboard_http_checks": 13,
+    "dashboard_http_status": "passed",
+    "all_eight_app_metrics": "passed",
+    "collection_acl_and_indexes": "passed",
+    "targeted_local_tests": {
+      "passed": 20,
+      "failed": 0
+    }
+  },
+  "unchanged_boundaries": {
+    "second_cloud_environment_created": false,
+    "client_code_modified": false,
+    "real_client_e2e_executed": false,
+    "production_credentials_created": false,
+    "version_service_activated_for_target": false,
+    "version_records_created": 0,
+    "advertisement_records_created": 0,
+    "hosting_writes_executed": false,
+    "purchases_executed": false,
+    "overrun_enabled": false,
+    "cloud_deletes_executed": false,
+    "git_commit_created": false,
+    "git_push_executed": false
+  },
+  "git": {
+    "base_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "preexisting_and_concurrent_changes_preserved": true
+  }
+}

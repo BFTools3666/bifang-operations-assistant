@@ -71,6 +71,10 @@ const APPS = [
 const NOW = new Date("2026-09-07T04:00:00.000Z");
 const TOKEN = "test-dashboard-token-with-at-least-32-characters";
 const TOKEN_HASH = createHash("sha256").update(TOKEN).digest("hex");
+const ACCESS_TOKEN = "test-web-access-token-with-at-least-32-characters";
+const ACCESS_TOKEN_HASH = createHash("sha256")
+  .update(ACCESS_TOKEN)
+  .digest("hex");
 
 function createHandler(options) {
   return createProductionHandler({ environmentId: "test-env", ...options });
@@ -142,6 +146,10 @@ test("aggregation returns only dashboard-safe summaries", () => {
   assert.equal(snapshot.totals.returningRate, 50);
   assert.equal(snapshot.trend.length, 7);
   assert.equal(snapshot.trend.at(-1).total, 2);
+  assert.deepEqual(
+    snapshot.appIds,
+    APPS.map((app) => app.appId),
+  );
   const serialized = JSON.stringify(snapshot);
   assert.equal(serialized.includes("source_ip"), false);
   assert.equal(serialized.includes("install_id"), false);
@@ -202,12 +210,166 @@ test("handler returns a live aggregate for an authorized exact query", async () 
   assert.equal(response.statusCode, 200);
   assert.equal(body.mode, "live");
   assert.equal(body.selectedAppId, "bifang-screen-recorder");
+  assert.deepEqual(
+    body.appIds,
+    APPS.map((app) => app.appId),
+  );
   assert.equal(body.rangeDays, 7);
   assert.equal(body.totals.todayActive, 1);
   assert.equal(readOptions.startDate, "2026-08-09");
   assert.equal(readOptions.endDate, "2026-09-07");
   assert.equal(readOptions.receivedBefore, NOW.toISOString());
   assert.deepEqual(readOptions.apps, [APPS[0]]);
+});
+
+test("CloudBase dashboard page creates a secure session and serves live metrics on one origin", async () => {
+  let currentTime = new Date(NOW);
+  const handler = createHandler({
+    apps: APPS,
+    path: "/admin/v1/metrics",
+    webPath: "/dashboard",
+    tokenHash: TOKEN_HASH,
+    accessTokenHash: ACCESS_TOKEN_HASH,
+    reader: async () => [event({})],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
+    now: () => new Date(currentTime),
+    randomBytes: () => Buffer.alloc(16, 7),
+  });
+
+  const page = await handler({
+    httpMethod: "GET",
+    path: "/dashboard",
+    url: "/dashboard",
+  });
+  assert.equal(page.statusCode, 200);
+  assert.match(page.headers["Content-Type"], /^text\/html/);
+  assert.match(
+    page.headers["Content-Security-Policy"],
+    /frame-ancestors 'none'/,
+  );
+  assert.match(page.body, /href="\/dashboard\/assets\/styles\.css"/);
+  assert.equal(page.body.includes("__DASHBOARD_BASE_PATH__"), false);
+
+  const unauthenticatedMetrics = await handler({
+    httpMethod: "GET",
+    path: "/dashboard/api/metrics",
+    url: "/dashboard/api/metrics?days=7&app_id=all",
+  });
+  assert.equal(unauthenticatedMetrics.statusCode, 401);
+  assert.deepEqual(JSON.parse(unauthenticatedMetrics.body), {
+    error: "authentication_required",
+  });
+
+  const wrongLogin = await handler({
+    httpMethod: "POST",
+    path: "/dashboard/api/session",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: "x".repeat(40) }),
+    requestContext: { identity: { sourceIp: "203.0.113.10" } },
+  });
+  assert.equal(wrongLogin.statusCode, 401);
+  assert.equal(wrongLogin.headers["Set-Cookie"], undefined);
+
+  const login = await handler({
+    httpMethod: "POST",
+    path: "/dashboard/api/session",
+    headers: { "Content-Type": "application/json" },
+    body: Buffer.from(JSON.stringify({ accessToken: ACCESS_TOKEN })).toString(
+      "base64",
+    ),
+    isBase64Encoded: true,
+    requestContext: { identity: { sourceIp: "203.0.113.10" } },
+  });
+  assert.equal(login.statusCode, 200);
+  const setCookie = login.headers["Set-Cookie"];
+  assert.match(setCookie, /^bifang_dashboard_session=v1\./);
+  assert.match(setCookie, /; Path=\/dashboard;/);
+  assert.match(setCookie, /; HttpOnly;/);
+  assert.match(setCookie, /; Secure;/);
+  assert.match(setCookie, /; SameSite=Strict;/);
+  assert.equal(setCookie.includes(ACCESS_TOKEN), false);
+  const cookie = setCookie.split(";", 1)[0];
+
+  const session = await handler({
+    httpMethod: "GET",
+    path: "/dashboard/api/session",
+    headers: { Cookie: cookie },
+  });
+  assert.deepEqual(JSON.parse(session.body), { authenticated: true });
+
+  const metrics = await handler({
+    httpMethod: "GET",
+    path: "/dashboard/api/metrics",
+    url: "/dashboard/api/metrics?days=7&app_id=bifang-screen-recorder",
+    headers: { Cookie: cookie },
+  });
+  assert.equal(metrics.statusCode, 200);
+  assert.equal(JSON.parse(metrics.body).selectedAppId, APPS[0].appId);
+  assert.equal(metrics.headers["Access-Control-Allow-Origin"], undefined);
+
+  currentTime = new Date(NOW.getTime() + 13 * 60 * 60 * 1000);
+  const expired = await handler({
+    httpMethod: "GET",
+    path: "/dashboard/api/metrics",
+    headers: { Cookie: cookie },
+  });
+  assert.equal(expired.statusCode, 401);
+
+  const logout = await handler({
+    httpMethod: "DELETE",
+    path: "/dashboard/api/session",
+  });
+  assert.match(logout.headers["Set-Cookie"], /Max-Age=0/);
+});
+
+test("CloudBase dashboard web authentication fails closed when misconfigured or malformed", async () => {
+  const handler = createHandler({
+    apps: APPS,
+    path: "/admin/v1/metrics",
+    webPath: "/dashboard",
+    tokenHash: TOKEN_HASH,
+    accessTokenHash: null,
+    reader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
+    now: () => NOW,
+  });
+  const loginRequest = {
+    httpMethod: "POST",
+    path: "/dashboard/api/session",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
+  };
+  assert.equal((await handler(loginRequest)).statusCode, 503);
+
+  const configured = createHandler({
+    apps: APPS,
+    path: "/admin/v1/metrics",
+    webPath: "/dashboard",
+    tokenHash: TOKEN_HASH,
+    accessTokenHash: ACCESS_TOKEN_HASH,
+    reader: async () => [],
+    versionReader: async ({ apps }) => releaseSummaries(apps),
+    now: () => NOW,
+  });
+  for (const malformed of [
+    { ...loginRequest, headers: {} },
+    { ...loginRequest, body: "not-json" },
+    {
+      ...loginRequest,
+      body: JSON.stringify({ accessToken: ACCESS_TOKEN, extra: true }),
+    },
+  ]) {
+    assert.equal((await configured(malformed)).statusCode, 400);
+  }
+  assert.equal(
+    (
+      await configured({
+        httpMethod: "GET",
+        path: "/dashboard-other",
+      })
+    ).statusCode,
+    404,
+  );
 });
 
 test("CloudBase split and raw query representations keep the selected app and range", async () => {

@@ -12,9 +12,11 @@
 - `generate-cloudbaserc.mjs`：生成并校验根目录 `cloudbaserc.example.json`。
 - `plan-app-deployment.mjs`：只生成单应用 telemetry 的只读部署计划。
 - `plan-application-version-api-deployment.mjs`：校验未提交的凭据配置与最新云端只读实况，生成共享版本服务的严格预览。
+- `deploy-operations-dashboard.mjs`：从 Git 忽略的 Secret 文件只派生两个 SHA-256，生成可复核材料摘要，并在确认后只更新固定看板函数。
+- `verify-operations-dashboard.mjs`：发布后验证页面、静态资源、安全 Cookie、浏览器统计接口与旧管理接口，不回显原始 Token。
 - `functions/telemetry/`：Node.js 20 `daily_active` Event 函数源码。
 - `functions/application-version-api/`：application-version API v1 十个端点的 Event 函数源码。
-- `functions/operations-dashboard/`：私有只读运营看板聚合接口。
+- `functions/operations-dashboard/`：私有只读运营看板页面、签名会话与聚合接口。
 
 仓库中没有 `cloudbase/updates/`。生成配置没有 `hosting`，也没有 `/updates` 路由或 `DASHBOARD_UPDATES_BASE_URL`。
 
@@ -36,7 +38,38 @@ audit_<规范化app_id>
 ```text
 application-version-api  -> /tools/version-control/v1
 operations-dashboard-api -> /admin/v1/metrics
+operations-dashboard-api -> /dashboard
 ```
+
+`/dashboard` 在平台默认 HTTPS 域名下提供页面资源、`/dashboard/api/session` 和 `/dashboard/api/metrics`。网页登录只向 CloudBase 保存访问密钥的 SHA-256；浏览器取得的是限定 `/dashboard` 的签名 `HttpOnly`、`Secure`、`SameSite=Strict` Cookie。现有 `/admin/v1/metrics` Bearer 管理接口保持不变。
+
+看板本地预览命令只读取 Secret 并输出长度、目标和部署材料摘要，不输出原值或其单独摘要：
+
+```powershell
+npm run cloudbase:dashboard:deploy:plan -- --env-id <现有免费环境ID> --secret-file apps/operations-dashboard-standalone/.env.server.local
+```
+
+工作区同时登记了尚未获准部署的其他应用时，必须用 `--app-ids` 绑定本次看板应用范围；计划和部署命令使用完全相同的逗号分隔 APP_ID 列表，材料摘要会把该列表计入 SHA-256：
+
+```powershell
+npm run cloudbase:dashboard:deploy:plan -- --env-id <现有免费环境ID> --secret-file apps/operations-dashboard-standalone/.env.server.local --app-ids <既有线上APP_ID列表,本次APP_ID>
+```
+
+完成实时套餐、函数、完整路由和费用预检并得到负责人明确“继续”后，部署命令还必须带上刚审核的材料摘要：
+
+```powershell
+npm run cloudbase:dashboard:deploy -- --env-id <现有免费环境ID> --secret-file apps/operations-dashboard-standalone/.env.server.local --expected-materials-sha256 <审核值>
+```
+
+Helper 会建立私有临时快照，仅向 `operations-dashboard-api` 注入两个摘要变量，并抑制 CLI 原始输出；它不创建路由。`/dashboard` 路由必须按同一轮预检的精确目标单独创建并在创建后读回。
+
+路由就绪后运行自动验收：
+
+```powershell
+npm run cloudbase:dashboard:verify -- --origin https://<平台默认域名> --secret-file apps/operations-dashboard-standalone/.env.server.local
+```
+
+验收脚本会使用两个本地 Secret 完成正反向鉴权，但输出只包含各检查的 HTTP 状态、筛选范围和最终 URL。
 
 `v1` 是 API 版本，只出现一次。版本请求使用 `GET /tools/version-control/v1/versions/{code}/{version}` 和 `x-app-key`、`x-app-secret`；200 响应是契约定义的裸七字段对象。
 

@@ -130,6 +130,9 @@ function createDashboardSnapshot(options) {
     generatedAt: now.toISOString(),
     rangeDays: days,
     selectedAppId,
+    // The browser uses this non-sensitive registry projection to populate the
+    // application filter. Keep the complete list even when one app is selected.
+    appIds: apps.map((app) => app.appId),
     totals: {
       todayActive,
       yesterdayActive,

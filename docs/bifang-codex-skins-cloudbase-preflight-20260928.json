@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-codex-themes",
+    "default_branch": "master",
+    "commit": "53c03c0e583c0c9323299cb8c8728ff3e25f113d",
+    "remote_head_matches": true,
+    "checkout_clean": true,
+    "product_name": "毕方CodeX皮肤工坊",
+    "version": "1.1.0",
+    "framework": "Tauri 2 / Rust / React",
+    "app_id": "bifang-codex-skins",
+    "current_telemetry": "legacy SLS startup event; no Shanghai daily_active local gate",
+    "current_update_service": "external version service; not the CloudBase application-version protocol",
+    "client_changes_in_scope": false
+  },
+  "infrastructure": {
+    "baseline_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "existing_user_changes_preserved": true,
+    "registration_status": "registered-locally-not-deployed",
+    "registered_app_count": 7,
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-codex-skins-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-codex-skins-macos-arm64"
+      }
+    ]
+  },
+  "cloud_preflight": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "checked_from": "2026-09-28T08:51:08.546Z",
+    "checked_through": "2026-09-28T08:52:59.999Z",
+    "billing": {
+      "package_id": "baas_trial",
+      "status": "NORMAL",
+      "expires_at": "2027-03-17 23:59:59",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "cycle_start": "2026-09-17",
+      "cycle_end": "2026-10-17",
+      "total_credits": 3000,
+      "used_credits": 5.7,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 8,
+      "routes": 9,
+      "collections": 24,
+      "hosting_objects": 6
+    },
+    "target_conflicts": [],
+    "default_domain": {
+      "is_default": true,
+      "status": "SUCCESS",
+      "dns_status": "OK"
+    },
+    "operations_dashboard": {
+      "status": "Active",
+      "available_status": "Available",
+      "current_app_count": 6,
+      "current_environment_bytes": 2877,
+      "planned_app_count": 7,
+      "planned_environment_bytes": 3240,
+      "platform_limit_bytes": 4096
+    },
+    "application_version": {
+      "status": "Active",
+      "available_status": "Available",
+      "live_app_count": 3,
+      "live_credential_count": 11,
+      "action": "preserve unchanged"
+    }
+  },
+  "deployment_plan": {
+    "requires_explicit_continue": true,
+    "create": {
+      "function": "telemetry-bifang-codex-skins",
+      "route": "/apps/bifang-codex-skins/v1/track",
+      "collections": [
+        "telemetry_bifang_codex_skins",
+        "versions_bifang_codex_skins",
+        "ads_bifang_codex_skins",
+        "audit_bifang_codex_skins"
+      ]
+    },
+    "telemetry_contract": {
+      "permission": "ADMINONLY",
+      "retention_days": 30,
+      "ttl_index": {
+        "name": "expires_at_ttl",
+        "key": {
+          "expires_at": 1
+        },
+        "expireAfterSeconds": 0
+      },
+      "function": {
+        "runtime": "Nodejs20.19",
+        "handler": "index.main",
+        "timeout_seconds": 3,
+        "memory_mb": 256
+      },
+      "route": {
+        "enable_auth": false,
+        "enable_safe_domain": true,
+        "enable_path_transmission": true,
+        "qps_total": 100,
+        "qps_per_client_ip": 10
+      }
+    },
+    "reserved_storage": [
+      {
+        "name": "versions_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      },
+      {
+        "name": "ads_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      },
+      {
+        "name": "audit_bifang_codex_skins",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ],
+        "records_to_write": 0
+      }
+    ],
+    "dashboard": {
+      "action": "update-in-place",
+      "function": "operations-dashboard-api",
+      "app_count_after": 7,
+      "release_stream_count_after": 13,
+      "materials_sha256": "6717536f6d320141f82a07d7ee1a993d92cf9e980a206154fd0ffca054f72016",
+      "materials_files": 32,
+      "materials_bytes": 28908099,
+      "preserve_routes": ["/dashboard", "/admin/v1/metrics"]
+    },
+    "application_version_action": "reserve codes and empty collections only; do not deploy shared function or create credentials/records",
+    "post_deployment_expected_inventory": {
+      "functions": 9,
+      "routes": 10,
+      "collections": 28,
+      "hosting_objects": 6,
+      "synthetic_telemetry_rows_added": 1,
+      "new_version_records": 0,
+      "new_ad_records": 0,
+      "new_credentials": 0
+    },
+    "preserve": [
+      "all resources for the existing six registered applications",
+      "application-version-api code, route, live mapping and eleven credentials",
+      "all six hosting objects",
+      "the existing free plan, auto-renewal and overrun settings"
+    ],
+    "deletes": [],
+    "purchases": []
+  },
+  "verification": {
+    "config_generation": "passed",
+    "config_check": "passed",
+    "targeted_tests": {
+      "passed": 25,
+      "failed": 0
+    },
+    "changed_files_format_check": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "workspace_tests": {
+      "passed": 131,
+      "failed": 0
+    },
+    "full_check": {
+      "command": "npm.cmd run check",
+      "status": "failed-at-format-check",
+      "pre_existing_format_issues": 80,
+      "new_or_touched_files_format_check": "passed"
+    },
+    "repository_node_tests": {
+      "passed": 69,
+      "failed": 71,
+      "failure_class": "environment: Windows py launcher unavailable; child processes exited 9009",
+      "python_client_stage": "not reached"
+    }
+  },
+  "cloud_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "approval_status": "awaiting explicit continue; no cloud writes authorized yet"
+}

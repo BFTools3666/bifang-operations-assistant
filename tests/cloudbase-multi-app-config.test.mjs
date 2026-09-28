@@ -73,6 +73,7 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
       env: {
         ...process.env,
         APPLICATION_VERSION_CREDENTIALS_B64: "dGVzdA==",
+        DASHBOARD_ACCESS_TOKEN_SHA256: "b".repeat(64),
         DASHBOARD_TOKEN_SHA256: "a".repeat(64),
       },
     },
@@ -84,10 +85,10 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
   assert.equal(output.version, "2.1");
   assert.deepEqual(output.errors, []);
   assert.deepEqual(output.summary, {
-    functions: 5,
+    functions: 10,
     hosting: 0,
     databases: 0,
-    gateways: 5,
+    gateways: 11,
   });
 });
 
@@ -119,6 +120,41 @@ test("release streams are the non-sensitive authority while telemetry remains is
       {
         appId: "bifang-tools",
         codes: ["bifang-tools-windows-x64"],
+      },
+      {
+        appId: "bifang-ai-usage-collector",
+        codes: [
+          "bifang-ai-usage-collector-windows-x64",
+          "bifang-ai-usage-collector-macos-arm64",
+        ],
+      },
+      {
+        appId: "bifang-vm-sync-agentless",
+        codes: ["bifang-vm-sync-agentless-windows-x64"],
+      },
+      {
+        appId: "bifang-lan-file-transfer",
+        codes: [
+          "bifang-lan-file-transfer-windows-x64",
+          "bifang-lan-file-transfer-macos-x64",
+          "bifang-lan-file-transfer-macos-arm64",
+          "bifang-lan-file-transfer-linux-x64",
+        ],
+      },
+      {
+        appId: "bifang-codex-skins",
+        codes: [
+          "bifang-codex-skins-windows-x64",
+          "bifang-codex-skins-macos-arm64",
+        ],
+      },
+      {
+        appId: "bifang-app-launcher",
+        codes: [
+          "bifang-app-launcher-windows-x64",
+          "bifang-app-launcher-macos-x64",
+          "bifang-app-launcher-macos-arm64",
+        ],
       },
     ],
   );
@@ -185,6 +221,14 @@ test("release streams are the non-sensitive authority while telemetry remains is
     "DASHBOARD_UPDATES_BASE_URL" in dashboardFunction.envVariables,
     false,
   );
+  assert.equal(
+    dashboardFunction.envVariables.DASHBOARD_WEB_PATH,
+    OPERATIONS_DASHBOARD.webPath,
+  );
+  assert.equal(
+    dashboardFunction.envVariables.DASHBOARD_ACCESS_TOKEN_SHA256,
+    "{{env.DASHBOARD_ACCESS_TOKEN_SHA256}}",
+  );
   assert.equal("hosting" in config, false);
   assert.deepEqual(
     config.gateway.routes.map(({ path }) => path),
@@ -192,10 +236,23 @@ test("release streams are the non-sensitive authority while telemetry remains is
       "/apps/bifang-screen-recorder/v1/track",
       "/apps/bifang-mouse-clicker/v1/track",
       "/apps/bifang-tools/v1/track",
+      "/apps/bifang-ai-usage-collector/v1/track",
+      "/apps/bifang-vm-sync-agentless/v1/track",
+      "/apps/bifang-lan-file-transfer/v1/track",
+      "/apps/bifang-codex-skins/v1/track",
+      "/apps/bifang-app-launcher/v1/track",
       "/tools/version-control/v1",
       "/admin/v1/metrics",
+      "/dashboard",
     ],
   );
+  const dashboardWebRoute = config.gateway.routes.at(-1);
+  assert.equal(
+    dashboardWebRoute.target,
+    `function:${OPERATIONS_DASHBOARD.functionName}`,
+  );
+  assert.equal(dashboardWebRoute.enablePathTransmission, true);
+  assert.equal(dashboardWebRoute.qpsPolicy.qpsPerClient.limitValue, 10);
   assert.equal(JSON.stringify(config).includes("cloudbase/updates"), false);
 });
 

@@ -44,7 +44,7 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
   const applications = validateRegistry(registry);
 
   assert.equal(registry.schema_version, 3);
-  assert.equal(applications.length, 3);
+  assert.equal(applications.length, 8);
   assert.deepEqual(
     applications.flatMap(({ appId, releaseStreams }) =>
       releaseStreams.map((releaseStream) => ({ appId, ...releaseStream })),
@@ -77,6 +77,90 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
         architecture: "x64",
         channel: "stable",
         code: "bifang-tools-windows-x64",
+      },
+      {
+        appId: "bifang-ai-usage-collector",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-ai-usage-collector-windows-x64",
+      },
+      {
+        appId: "bifang-ai-usage-collector",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-ai-usage-collector-macos-arm64",
+      },
+      {
+        appId: "bifang-vm-sync-agentless",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-vm-sync-agentless-windows-x64",
+      },
+      {
+        appId: "bifang-lan-file-transfer",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-lan-file-transfer-windows-x64",
+      },
+      {
+        appId: "bifang-lan-file-transfer",
+        platform: "macos",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-lan-file-transfer-macos-x64",
+      },
+      {
+        appId: "bifang-lan-file-transfer",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-lan-file-transfer-macos-arm64",
+      },
+      {
+        appId: "bifang-lan-file-transfer",
+        platform: "linux",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-lan-file-transfer-linux-x64",
+      },
+      {
+        appId: "bifang-codex-skins",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-codex-skins-windows-x64",
+      },
+      {
+        appId: "bifang-codex-skins",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-codex-skins-macos-arm64",
+      },
+      {
+        appId: "bifang-app-launcher",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-app-launcher-windows-x64",
+      },
+      {
+        appId: "bifang-app-launcher",
+        platform: "macos",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-app-launcher-macos-x64",
+      },
+      {
+        appId: "bifang-app-launcher",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-app-launcher-macos-arm64",
       },
     ],
   );
@@ -154,6 +238,8 @@ test("active runtime and current operator surfaces cannot reintroduce the retire
     "cloudbase/add-app.mjs",
     "cloudbase/add-release-stream.mjs",
     "cloudbase/deploy-application-version-api.mjs",
+    "cloudbase/deploy-operations-dashboard.mjs",
+    "cloudbase/verify-operations-dashboard.mjs",
     "cloudbase/plan-app-deployment.mjs",
     "examples",
     "packages/telemetry-update-sdk/src",

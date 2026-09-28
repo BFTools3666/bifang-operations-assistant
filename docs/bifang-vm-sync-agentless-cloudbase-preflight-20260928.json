@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-vm-sync-agentless",
+    "default_branch": "master",
+    "commit": "41da893edc0c3ab037ae000481179c1e310fb94e",
+    "checkout_clean": true,
+    "version": "1.6.12",
+    "version_authority": "src/VmwareSync/App.cs AppEntry.Version",
+    "framework": "Windows C# / WPF / .NET Framework compiler",
+    "build_platform_flag": "anycpu",
+    "confirmed_release_architecture": "x64",
+    "bifang_profile_present": false,
+    "daily_active_present": false,
+    "application_version_present": false,
+    "legacy_static_update_present": false
+  },
+  "owner_confirmed_configuration": {
+    "app_id": "bifang-vm-sync-agentless",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-vm-sync-agentless-windows-x64"
+      }
+    ],
+    "public_services_scope": {
+      "daily_active": true,
+      "dashboard_visibility": true,
+      "version_stream_reserved": true,
+      "version_api_activation": false,
+      "version_records_to_create": 0,
+      "credentials_to_create": 0
+    }
+  },
+  "infrastructure": {
+    "repository_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "existing_user_changes_preserved": true,
+    "registration_status": "registered-locally-not-deployed",
+    "registered_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer"
+    ]
+  },
+  "cloud_preflight": {
+    "checked_from": "2026-09-28T15:41:34.5280322+08:00",
+    "checked_through": "2026-09-28T15:47:54.6881230+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 5.66,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 6,
+      "http_service_routes": 7,
+      "collections": 16,
+      "hosting_objects": 6
+    },
+    "target_resources_absent": true,
+    "existing_collection_acl": "ADMINONLY",
+    "existing_indexes_match_current_contract": true,
+    "default_http_domain": {
+      "status": "SUCCESS",
+      "dns_status": "OK"
+    },
+    "dashboard_function": {
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-28 12:10:51",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "live_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector"
+      ],
+      "contains_target": false,
+      "contains_concurrent_lan_app": false,
+      "environment_key_value_bytes": 1824
+    },
+    "application_version_function": {
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-17 16:32:11",
+      "live_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools"
+      ],
+      "credential_count": 11,
+      "contains_target": false,
+      "action": "preserve unchanged"
+    }
+  },
+  "proposed_resources": {
+    "telemetry_function": "telemetry-bifang-vm-sync-agentless",
+    "telemetry_route": "/apps/bifang-vm-sync-agentless/v1/track",
+    "telemetry_collection": "telemetry_bifang_vm_sync_agentless",
+    "version_collection": "versions_bifang_vm_sync_agentless",
+    "ad_collection": "ads_bifang_vm_sync_agentless",
+    "audit_collection": "audit_bifang_vm_sync_agentless",
+    "collection_permission": "ADMINONLY",
+    "telemetry_ttl_index": {
+      "name": "expires_at_ttl",
+      "key": {
+        "expires_at": 1
+      },
+      "expireAfterSeconds": 0
+    },
+    "version_indexes": [
+      {
+        "name": "idx_version_created",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "created_at": -1,
+          "_id": -1
+        }
+      },
+      {
+        "name": "idx_version_sort",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "version_sort_key": -1,
+          "updated_at": -1,
+          "_id": -1
+        }
+      }
+    ],
+    "ad_index": {
+      "name": "idx_ads_created",
+      "key": {
+        "doc_type": 1,
+        "app_code": 1,
+        "created_at": -1,
+        "_id": -1
+      }
+    },
+    "audit_index": {
+      "name": "idx_audit_occurred_at",
+      "key": {
+        "occurred_at": -1
+      }
+    },
+    "version_records_to_create": 0,
+    "credentials_to_create": 0
+  },
+  "dashboard_scoped_plan": {
+    "function": "operations-dashboard-api",
+    "action": "update-in-place",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless"
+    ],
+    "excluded_registered_app_ids": ["bifang-lan-file-transfer"],
+    "planned_environment_key_value_bytes": 2157,
+    "materials_sha256": "99f3569507b5f9a6744236006c6aec81bccf06a5bb5982a41dcbe611b946c1a8",
+    "raw_secret_uploads": 0,
+    "routes_to_preserve": ["/dashboard", "/admin/v1/metrics"]
+  },
+  "deployment_plan": {
+    "requires_stage_4_confirmation": true,
+    "ordered_steps_after_confirmation": [
+      "Refresh billing controls and complete resource inventory; stop on drift, paid order, upgrade, overrun or conflict.",
+      "Create the four exact collections with ADMINONLY and reviewed indexes; leave versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-vm-sync-agentless and create only its reviewed track route.",
+      "Update only operations-dashboard-api with the five-app scoped mapping, preserving existing secrets and both routes.",
+      "Read back metadata, submit one synthetic daily_active event twice and require exactly one stored row, then verify dashboard and existing applications."
+    ],
+    "expected_inventory_after_deployment": {
+      "functions": 7,
+      "http_service_routes": 8,
+      "collections": 20,
+      "synthetic_telemetry_rows_added": 1,
+      "new_version_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "second CloudBase environment",
+      "full environment deployment",
+      "deploy all functions or routes",
+      "application-version-api changes",
+      "bifang-lan-file-transfer cloud resources or dashboard mapping",
+      "hosting writes",
+      "paid plans, resource packs or overage",
+      "force, prune or delete commands"
+    ],
+    "rollback": "Restore the reviewed previous dashboard code and configuration if required; preserve new collections unless a separate exact-target deletion is authorized."
+  },
+  "verification": {
+    "config_check": "passed",
+    "targeted_tests": {
+      "passed": 25,
+      "failed": 0
+    },
+    "workspace_tests": {
+      "passed": 131,
+      "failed": 0
+    },
+    "root_node_tests": {
+      "passed": 140,
+      "failed": 0,
+      "environment_note": "Passed with the Codex bundled Python and an ephemeral PyYAML 6.0.2 target directory because the host had no working Python launcher or PyYAML."
+    },
+    "python_client_tests": {
+      "passed": 42,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "format_check": {
+      "status": "failed",
+      "existing_format_issues": 80,
+      "action": "preserved; no whole-repository rewrite"
+    }
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue"
+}

@@ -1,0 +1,1594 @@
+{
+  "schema_version": 1,
+  "status": "deployed-and-cloud-http-e2e-verified",
+  "completed_at": "2026-09-28T04:15:13.108Z",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-ai-usage-collector",
+    "default_branch": "master",
+    "commit": "580a89fc711d87050306f8a77ef84803aa360ea7",
+    "checkout_clean": true,
+    "analysis_scope": "Tracked product source/configuration and current docs; no client code executed or changed",
+    "product_name": "毕方AI用量看板",
+    "version": "1.4.24",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust / React",
+    "tauri_identifier": "com.manonloki.bifang-codex-usage",
+    "declared_platforms": ["windows", "macos", "linux"],
+    "bifang_profile_present": false,
+    "app_id": null,
+    "release_streams": null,
+    "public_services_scope": null
+  },
+  "owner_authorization": {
+    "app_id": "bifang-ai-usage-collector",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-macos-arm64"
+      }
+    ],
+    "action": "继续",
+    "reviewed_plan": "docs/bifang-ai-usage-cloudbase-preflight-20260928.json",
+    "scope": "daily_active, four isolated collections, dashboard app mapping, one synthetic anonymous telemetry row"
+  },
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com"
+  },
+  "deployment": {
+    "created_function": {
+      "FunctionName": "telemetry-bifang-ai-usage-collector",
+      "Type": "Event",
+      "Runtime": "Nodejs20.19",
+      "Handler": "index.main",
+      "Timeout": 3,
+      "MemorySize": 256,
+      "Status": "Active",
+      "AvailableStatus": "Available",
+      "ModTime": "2026-09-28 12:09:21",
+      "configuration": {
+        "app_id": "bifang-ai-usage-collector",
+        "collection": "telemetry_bifang_ai_usage_collector",
+        "track_path": "/apps/bifang-ai-usage-collector/v1/track"
+      }
+    },
+    "created_route": {
+      "Path": "/apps/bifang-ai-usage-collector/v1/track",
+      "PathRewrite": {},
+      "UpstreamResourceType": "SCF",
+      "UpstreamResourceName": "telemetry-bifang-ai-usage-collector",
+      "EnableSafeDomain": true,
+      "EnableAuth": false,
+      "EnablePathTransmission": true,
+      "QPSPolicy": {
+        "QPSTotal": 100,
+        "QPSPerClient": {
+          "LimitBy": "ClientIP",
+          "LimitValue": 10
+        }
+      },
+      "Enable": true,
+      "CreateTime": "2026-09-28T12:10:35+08:00",
+      "UpdateTime": "2026-09-28T12:10:35+08:00"
+    },
+    "created_collections": [
+      {
+        "name": "ads_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      }
+    ],
+    "dashboard_update": {
+      "before": {
+        "runtime": "Nodejs20.19",
+        "handler": "index.main",
+        "timeout": 3,
+        "memory_mb": 256,
+        "code_sha256": null,
+        "code_size": 9144735,
+        "code_info_sha256": "dc5a26651d2bb2ada4c2e1c0ba5abeda67d1ff5ec598c6de468b50462fe71d36"
+      },
+      "changed_environment_keys": ["DASHBOARD_APPS_JSON"],
+      "code_uploaded": false,
+      "authentication_preserved": true,
+      "old_app_count": 3,
+      "new_app_count": 4,
+      "at": "2026-09-28T04:10:51.751Z",
+      "code_info_and_size_unchanged": true,
+      "verified_at": "2026-09-28T04:14:38.491Z"
+    },
+    "dashboard_function": {
+      "FunctionName": "operations-dashboard-api",
+      "Type": "Event",
+      "Runtime": "Nodejs20.19",
+      "Handler": "index.main",
+      "Timeout": 3,
+      "MemorySize": 256,
+      "Status": "Active",
+      "AvailableStatus": "Available",
+      "ModTime": "2026-09-28 12:10:51",
+      "applications": [
+        {
+          "appId": "bifang-screen-recorder",
+          "collectionName": "telemetry_bifang_screen_recorder",
+          "versionCollection": "versions_bifang_screen_recorder",
+          "platforms": ["windows", "macos"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-screen-recorder-windows-x64"
+            },
+            {
+              "platform": "macos",
+              "architecture": "arm64",
+              "channel": "stable",
+              "code": "bifang-screen-recorder-macos-arm64"
+            }
+          ]
+        },
+        {
+          "appId": "bifang-mouse-clicker",
+          "collectionName": "telemetry_bifang_mouse_clicker",
+          "versionCollection": "versions_bifang_mouse_clicker",
+          "platforms": ["windows"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-mouse-clicker"
+            }
+          ]
+        },
+        {
+          "appId": "bifang-tools",
+          "collectionName": "telemetry_bifang_tools",
+          "versionCollection": "versions_bifang_tools",
+          "platforms": ["windows"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-tools-windows-x64"
+            }
+          ]
+        },
+        {
+          "appId": "bifang-ai-usage-collector",
+          "collectionName": "telemetry_bifang_ai_usage_collector",
+          "versionCollection": "versions_bifang_ai_usage_collector",
+          "platforms": ["windows", "macos"],
+          "releaseStreams": [
+            {
+              "platform": "windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "code": "bifang-ai-usage-collector-windows-x64"
+            },
+            {
+              "platform": "macos",
+              "architecture": "arm64",
+              "channel": "stable",
+              "code": "bifang-ai-usage-collector-macos-arm64"
+            }
+          ]
+        }
+      ],
+      "local_metrics_token_matches": true,
+      "local_access_token_matches": true,
+      "environment_keys": [
+        "CLOUDBASE_ENV_ID",
+        "DASHBOARD_ACCESS_TOKEN_SHA256",
+        "DASHBOARD_APPS_JSON",
+        "DASHBOARD_PATH",
+        "DASHBOARD_TOKEN_SHA256",
+        "DASHBOARD_WEB_PATH"
+      ],
+      "environment_bytes": 1824,
+      "planned_environment_bytes": 1824,
+      "non_mapping_configuration_matches": true
+    },
+    "execution_journal": [
+      {
+        "at": "2026-09-28T04:02:40.121Z",
+        "operation": "preflight-reconciled",
+        "checked_at": "2026-09-28T04:02:40.120Z",
+        "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+        "functions": 5,
+        "routes": 6,
+        "collections": 12,
+        "billing_unchanged": true,
+        "usage": {
+          "totalCredits": 3000,
+          "usedCredits": 4.83,
+          "packageDeduct": 0,
+          "payAsYouGoDeduct": 0,
+          "totalUsage": 4.83
+        },
+        "materials_unchanged": true,
+        "owner_authorized": "User explicitly replied 继续 after reviewing exact deployment plan",
+        "scope": "daily_active and dashboard plus empty reserved collections; no version activation"
+      },
+      {
+        "at": "2026-09-28T04:06:39.896Z",
+        "operation": "read-collection-inventory",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:06:43.911Z",
+        "operation": "create-telemetry_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:06:47.659Z",
+        "operation": "acl-telemetry_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:06:52.059Z",
+        "operation": "indexes-telemetry_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:06:56.438Z",
+        "operation": "verify-indexes-telemetry_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:00.969Z",
+        "operation": "verify-empty-telemetry_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:00.970Z",
+        "operation": "collection-ready",
+        "name": "telemetry_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": 1,
+        "record_count": 0
+      },
+      {
+        "at": "2026-09-28T04:07:12.989Z",
+        "operation": "read-collection-inventory",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:16.829Z",
+        "operation": "create-versions_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:20.585Z",
+        "operation": "acl-versions_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:24.948Z",
+        "operation": "indexes-versions_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:29.478Z",
+        "operation": "verify-indexes-versions_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:34.026Z",
+        "operation": "verify-empty-versions_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:07:34.027Z",
+        "operation": "collection-ready",
+        "name": "versions_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": 2,
+        "record_count": 0
+      },
+      {
+        "at": "2026-09-28T04:08:03.400Z",
+        "operation": "read-collection-inventory",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:07.365Z",
+        "operation": "create-ads_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:11.122Z",
+        "operation": "acl-ads_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:15.583Z",
+        "operation": "indexes-ads_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:19.990Z",
+        "operation": "verify-indexes-ads_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:24.354Z",
+        "operation": "verify-empty-ads_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:24.354Z",
+        "operation": "collection-ready",
+        "name": "ads_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": 1,
+        "record_count": 0
+      },
+      {
+        "at": "2026-09-28T04:08:39.034Z",
+        "operation": "read-collection-inventory",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:43.392Z",
+        "operation": "create-audit_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:47.196Z",
+        "operation": "acl-audit_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:51.636Z",
+        "operation": "indexes-audit_bifang_ai_usage_collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:08:56.047Z",
+        "operation": "verify-indexes-audit_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:09:00.379Z",
+        "operation": "verify-empty-audit_bifang_ai_usage_collector",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:09:00.380Z",
+        "operation": "collection-ready",
+        "name": "audit_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "indexes": 1,
+        "record_count": 0
+      },
+      {
+        "at": "2026-09-28T04:09:06.992Z",
+        "operation": "read-functions-before-create",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:09:37.684Z",
+        "operation": "deploy-telemetry-bifang-ai-usage-collector",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": false,
+        "success": false,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:10:26.319Z",
+        "operation": "telemetry-deployment-confirmed-by-readback",
+        "success": true,
+        "deployment_retried": false,
+        "note": "CLI exited 0 without a parseable JSON envelope; exact live function configuration is Active and Available."
+      },
+      {
+        "at": "2026-09-28T04:10:30.852Z",
+        "operation": "read-routes-before-create",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:10:35.039Z",
+        "operation": "create-telemetry-route",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:10:47.477Z",
+        "operation": "read-dashboard-before-config",
+        "cloud_write": false,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      },
+      {
+        "at": "2026-09-28T04:10:51.750Z",
+        "operation": "update-dashboard-app-mapping",
+        "cloud_write": true,
+        "exit_code": 0,
+        "parsed": true,
+        "success": true,
+        "error_code": null
+      }
+    ],
+    "telemetry_materials": {
+      "sha256": "df8308c4b2accb4b048d0f05a45562cd242d431bd5a7f0eb4a6047d36c306452",
+      "files": 12,
+      "bytes": 130171,
+      "paths": [
+        "cloudbase/apps.json",
+        "cloudbase/functions/telemetry/index.js",
+        "cloudbase/functions/telemetry/package.json",
+        "cloudbase/functions/telemetry/src/burst-guard.js",
+        "cloudbase/functions/telemetry/src/handler.js",
+        "cloudbase/functions/telemetry/src/validation.js",
+        "cloudbase/functions/telemetry/src/writer.js",
+        "cloudbase/functions/telemetry/test/telemetry.test.js",
+        "cloudbase/generate-cloudbaserc.mjs",
+        "cloudbase/plan-app-deployment.mjs",
+        "cloudbaserc.example.json",
+        "package-lock.json"
+      ],
+      "cli_version": "3.8.1",
+      "cli_materials_bound_by_dashboard_plan": true
+    },
+    "dashboard_materials": {
+      "schema_version": 1,
+      "sha256": "d28a9026d0602c48de19f4076efa9a77b7307d53281a03f7bd5cffc068cba589",
+      "files": 32,
+      "bytes": 28896389,
+      "cli_version": "3.8.1"
+    }
+  },
+  "post_deployment_preflight": {
+    "checked_from": "2026-09-28T04:10:00.599Z",
+    "checked_through": "2026-09-28T04:13:19.576Z",
+    "function_count": 6,
+    "route_count": 7,
+    "collection_count": 16,
+    "billing": {
+      "package_id": "baas_trial",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "envId": "bftoos-sh-d3ga7hahz59229f0a",
+      "billingCycle": {
+        "startDate": "2026-09-17",
+        "endDate": "2026-10-17"
+      },
+      "summary": {
+        "totalCredits": 3000,
+        "usedCredits": 4.83,
+        "packageDeduct": 0,
+        "payAsYouGoDeduct": 0,
+        "totalUsage": 4.83
+      },
+      "usages": [
+        {
+          "module": "FLEXDB",
+          "moduleName": "NoSQL Database",
+          "creditsValue": 3.5,
+          "deductValue": 3.5,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "TDSQL",
+          "moduleName": "MySQL database",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "SCF",
+          "moduleName": "Cloud function",
+          "creditsValue": 0.75,
+          "deductValue": 0.75,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "EKS",
+          "moduleName": "Cloud hosting",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "COS",
+          "moduleName": "Cloud storage",
+          "creditsValue": 0.01,
+          "deductValue": 0.01,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "AI",
+          "moduleName": "AI",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "HOSTING",
+          "moduleName": "Static website hosting",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Auth",
+          "moduleName": "Authentication",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "APIInvocation",
+          "moduleName": "API calls",
+          "creditsValue": 0.51,
+          "deductValue": 0.51,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "HTTPInvocation",
+          "moduleName": "HTTP gateway",
+          "creditsValue": 0.06,
+          "deductValue": 0.06,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "VM",
+          "moduleName": "Cloud host",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Workflow",
+          "moduleName": "Workflow",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        },
+        {
+          "module": "Other",
+          "moduleName": "Others",
+          "creditsValue": 0,
+          "deductValue": 0,
+          "packageDeductValue": 0,
+          "reportValue": 0
+        }
+      ]
+    },
+    "existing_telemetry_function_metadata_unchanged": true,
+    "existing_routes_unchanged": true,
+    "existing_collections_permissions_indexes_counts_unchanged": true,
+    "version_function_and_11_credentials_unchanged": true,
+    "hosting_unchanged": true,
+    "all_collections": [
+      {
+        "name": "audit_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 5,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_tools",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_screen_recorder",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_mouse_clicker",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "telemetry_bifang_ai_usage_collector",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": [
+          {
+            "name": "_id_",
+            "key": {
+              "_id": 1
+            }
+          },
+          {
+            "name": "_openid_1",
+            "key": {
+              "_openid": 1
+            }
+          },
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      }
+    ]
+  },
+  "public_http_e2e": {
+    "status": "passed",
+    "checked_at": "2026-09-28T04:12:05.120Z",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "app_id": "bifang-ai-usage-collector",
+    "track_endpoint": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/apps/bifang-ai-usage-collector/v1/track",
+    "dashboard_url": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/dashboard",
+    "synthetic_record_count": 1,
+    "synthetic_version": "1.4.24+cloudbase-e2e",
+    "retention_days": 30,
+    "real_client_e2e": false,
+    "checks": [
+      {
+        "name": "initial-collection-count",
+        "count": 0
+      },
+      {
+        "name": "cors-preflight",
+        "status": 204,
+        "expected_status": 204
+      },
+      {
+        "name": "unsupported-method",
+        "status": 405,
+        "expected_status": 405
+      },
+      {
+        "name": "cross-app-rejected",
+        "status": 403,
+        "expected_status": 403
+      },
+      {
+        "name": "unknown-field-rejected",
+        "status": 400,
+        "expected_status": 400
+      },
+      {
+        "name": "negative-requests-zero-writes",
+        "count": 0
+      },
+      {
+        "name": "daily-active-first",
+        "status": 202,
+        "expected_status": 202
+      },
+      {
+        "name": "daily-active-identical-retry",
+        "status": 202,
+        "expected_status": 202
+      },
+      {
+        "name": "daily-active-idempotency",
+        "requests": 2,
+        "stored_rows": 1
+      },
+      {
+        "name": "dashboard-web-and-admin-authentication",
+        "status": "passed",
+        "checks": [
+          {
+            "name": "dashboard_page",
+            "status": 200
+          },
+          {
+            "name": "dashboard_javascript",
+            "status": 200
+          },
+          {
+            "name": "dashboard_styles",
+            "status": 200
+          },
+          {
+            "name": "initial_session",
+            "status": 200,
+            "authenticated": false
+          },
+          {
+            "name": "unauthenticated_metrics",
+            "status": 401
+          },
+          {
+            "name": "wrong_access_key",
+            "status": 401
+          },
+          {
+            "name": "secure_login_cookie",
+            "status": 200
+          },
+          {
+            "name": "authenticated_session",
+            "status": 200,
+            "authenticated": true
+          },
+          {
+            "name": "authenticated_metrics",
+            "status": 200,
+            "selected_app_id": "all",
+            "range_days": 7
+          },
+          {
+            "name": "missing_admin_token",
+            "status": 401
+          },
+          {
+            "name": "wrong_admin_token",
+            "status": 401
+          },
+          {
+            "name": "correct_admin_token",
+            "status": 200
+          },
+          {
+            "name": "logout",
+            "status": 200
+          }
+        ]
+      },
+      {
+        "name": "metrics-all",
+        "status": 200,
+        "expected_status": 200
+      },
+      {
+        "name": "aggregate-all",
+        "today_active": 2,
+        "release_stream_count": 6,
+        "release_states": [
+          {
+            "code": "bifang-screen-recorder-windows-x64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-screen-recorder-macos-arm64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-mouse-clicker",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-tools-windows-x64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-ai-usage-collector-windows-x64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-ai-usage-collector-macos-arm64",
+            "status": "empty"
+          }
+        ]
+      },
+      {
+        "name": "metrics-bifang-screen-recorder",
+        "status": 200,
+        "expected_status": 200
+      },
+      {
+        "name": "aggregate-bifang-screen-recorder",
+        "today_active": 1,
+        "release_stream_count": 2,
+        "release_states": [
+          {
+            "code": "bifang-screen-recorder-windows-x64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-screen-recorder-macos-arm64",
+            "status": "empty"
+          }
+        ]
+      },
+      {
+        "name": "metrics-bifang-mouse-clicker",
+        "status": 200,
+        "expected_status": 200
+      },
+      {
+        "name": "aggregate-bifang-mouse-clicker",
+        "today_active": 0,
+        "release_stream_count": 1,
+        "release_states": [
+          {
+            "code": "bifang-mouse-clicker",
+            "status": "empty"
+          }
+        ]
+      },
+      {
+        "name": "metrics-bifang-tools",
+        "status": 200,
+        "expected_status": 200
+      },
+      {
+        "name": "aggregate-bifang-tools",
+        "today_active": 0,
+        "release_stream_count": 1,
+        "release_states": [
+          {
+            "code": "bifang-tools-windows-x64",
+            "status": "empty"
+          }
+        ]
+      },
+      {
+        "name": "metrics-bifang-ai-usage-collector",
+        "status": 200,
+        "expected_status": 200
+      },
+      {
+        "name": "aggregate-bifang-ai-usage-collector",
+        "today_active": 1,
+        "release_stream_count": 2,
+        "release_states": [
+          {
+            "code": "bifang-ai-usage-collector-windows-x64",
+            "status": "empty"
+          },
+          {
+            "code": "bifang-ai-usage-collector-macos-arm64",
+            "status": "empty"
+          }
+        ]
+      }
+    ]
+  },
+  "client_handoff": {
+    "status": "cloud-ready-client-not-implemented",
+    "app_id": "bifang-ai-usage-collector",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-ai-usage-collector-macos-arm64"
+      }
+    ],
+    "track_endpoint": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/apps/bifang-ai-usage-collector/v1/track",
+    "event_name": "daily_active",
+    "install_id": "app-specific random UUID v4; never reuse OS or hardware ID",
+    "date_timezone": "Asia/Shanghai",
+    "daily_gate": "persist before network attempt; at most one attempt per app/install/local Shanghai day",
+    "retention_days": 30,
+    "updates": {
+      "enabled": false,
+      "base_url": "",
+      "download_url": "",
+      "credentials_provisioned": false
+    },
+    "pending": [
+      "Linux architecture and onboarding timing",
+      "Future public HTTPS installer URLs and release content",
+      "Client-side Rust integration, credential injection and Windows/macOS GUI E2E in the tool repository"
+    ]
+  },
+  "validation": {
+    "npm_test": {
+      "status": "passed",
+      "javascript_typescript_tests": 270,
+      "python_tests": 42,
+      "python_environment": "isolated temporary venv with PyYAML 6.0.2; no global Python changes"
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "typecheck_examples": "passed",
+    "full_check": {
+      "status": "blocked-at-format-check",
+      "existing_format_issues": 80
+    },
+    "registration_test_maintenance": "Updated credential-count assertion and asserted that the current four-app version configuration still fails the 3840-byte deployment gate"
+  },
+  "unchanged_boundaries": {
+    "client_code_modified": false,
+    "real_client_e2e_executed": false,
+    "production_credentials_created": false,
+    "version_service_activated_for_this_app": false,
+    "version_records_created": 0,
+    "git_push_executed": false,
+    "release_published": false,
+    "purchases_executed": false,
+    "cloud_deletes_executed": false,
+    "new_cloud_environment_created": false
+  },
+  "git": {
+    "base_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "new_commit_created": false,
+    "preexisting_user_changes_preserved": true
+  },
+  "rollback": {
+    "dashboard_code_unchanged": true,
+    "previous_mapping_snapshot": "Secure local deployment workspace; restore only DASHBOARD_APPS_JSON with current other values preserved",
+    "new_collections_default_action": "preserve; deletion requires separate exact-target approval"
+  },
+  "notes": [
+    "The one new daily-active row is synthetic verification data, with app_version 1.4.24+cloudbase-e2e; it temporarily contributes 1 to this app daily active and expires via the 30-day TTL.",
+    "No real Windows or macOS client integration was performed.",
+    "Full version activation remains deferred because of the reviewed shared-function environment capacity limit.",
+    "CLI function deploy exited 0 without parseable JSON. Exact live function readback confirmed success; the deployment was not repeated.",
+    "Dashboard was updated through UpdateFunctionConfiguration with only DASHBOARD_APPS_JSON changed; no force flag, code upload or route rewrite was used."
+  ]
+}

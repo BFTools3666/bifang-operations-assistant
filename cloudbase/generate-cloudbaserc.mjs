@@ -27,6 +27,7 @@ export const MAX_RELEASE_STREAMS_PER_APP = 12;
 export const OPERATIONS_DASHBOARD = Object.freeze({
   functionName: "operations-dashboard-api",
   path: "/admin/v1/metrics",
+  webPath: "/dashboard",
 });
 export const APPLICATION_VERSION_API = Object.freeze({
   functionName: "application-version-api",
@@ -130,7 +131,8 @@ export function createCloudBaseConfig(registry) {
         type: "Event",
         runtime: "Nodejs20.19",
         handler: "index.main",
-        timeout: 8,
+        // The free experience plan fixes cloud functions at a 3-second timeout.
+        timeout: 3,
         memorySize: 256,
         installDependency: true,
         envVariables: {
@@ -143,6 +145,11 @@ export function createCloudBaseConfig(registry) {
           DASHBOARD_APPS_JSON: JSON.stringify(JSON.stringify(dashboardApps)),
           DASHBOARD_PATH: OPERATIONS_DASHBOARD.path,
           DASHBOARD_TOKEN_SHA256: "{{env.DASHBOARD_TOKEN_SHA256}}",
+          DASHBOARD_WEB_PATH: OPERATIONS_DASHBOARD.webPath,
+          // Only a verifier is stored in CloudBase. The raw browser access key
+          // remains in the operator's ignored local secret file.
+          DASHBOARD_ACCESS_TOKEN_SHA256:
+            "{{env.DASHBOARD_ACCESS_TOKEN_SHA256}}",
         },
       },
     ],
@@ -189,6 +196,22 @@ export function createCloudBaseConfig(registry) {
             qpsPerClient: {
               limitBy: "ClientIP",
               limitValue: 2,
+            },
+          },
+        },
+        {
+          path: OPERATIONS_DASHBOARD.webPath,
+          target: `function:${OPERATIONS_DASHBOARD.functionName}`,
+          protocol: "HTTP_TO_HTTPS",
+          enablePathTransmission: true,
+          // The function enforces a high-entropy access key and a signed,
+          // HttpOnly, Secure, SameSite=Strict session cookie.
+          enableAuth: false,
+          qpsPolicy: {
+            qpsTotal: 100,
+            qpsPerClient: {
+              limitBy: "ClientIP",
+              limitValue: 10,
             },
           },
         },

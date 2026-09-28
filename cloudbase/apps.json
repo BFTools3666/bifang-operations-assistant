@@ -39,6 +39,103 @@
           "code": "bifang-tools-windows-x64"
         }
       ]
+    },
+    {
+      "app_id": "bifang-ai-usage-collector",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-ai-usage-collector-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-ai-usage-collector-macos-arm64"
+        }
+      ]
+    },
+    {
+      "app_id": "bifang-vm-sync-agentless",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-vm-sync-agentless-windows-x64"
+        }
+      ]
+    },
+    {
+      "app_id": "bifang-lan-file-transfer",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-lan-file-transfer-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-lan-file-transfer-macos-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-lan-file-transfer-macos-arm64"
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-lan-file-transfer-linux-x64"
+        }
+      ]
+    },
+    {
+      "app_id": "bifang-codex-skins",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-codex-skins-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-codex-skins-macos-arm64"
+        }
+      ]
+    },
+    {
+      "app_id": "bifang-app-launcher",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-app-launcher-windows-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-app-launcher-macos-x64"
+        },
+        {
+          "platform": "macos",
+          "architecture": "arm64",
+          "channel": "stable",
+          "code": "bifang-app-launcher-macos-arm64"
+        }
+      ]
     }
   ]
 }

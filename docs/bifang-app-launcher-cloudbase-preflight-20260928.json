@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-app-launcher",
+    "default_branch": "master",
+    "commit": "f4fb6b043dfee81f0b1a1b208dbd39a5bfd16eb9",
+    "checkout_clean": true,
+    "version": "1.1.4",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "declared_platforms": ["windows", "macos"],
+    "declared_release_targets": [
+      "x86_64-pc-windows-msvc",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin"
+    ],
+    "bifang_profile_present": false,
+    "daily_active_present": false,
+    "application_version_present": false,
+    "legacy_static_update_present": false,
+    "scan": {
+      "scan_version": 3,
+      "files_scanned": 216,
+      "incomplete": false,
+      "manual_review_note": "The scanner matched UI translation keys containing the word updates; source review found no static update endpoint or network implementation."
+    }
+  },
+  "infrastructure": {
+    "repository_commit": "30a6681eb69741f0328fa33b5b89138220636859",
+    "existing_user_changes_preserved": true,
+    "app_id": "bifang-app-launcher",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-app-launcher-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-app-launcher-macos-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-app-launcher-macos-arm64"
+      }
+    ]
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-28T17:09:54.3417704+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 5.7,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 8,
+      "routes": 9,
+      "collections": 24,
+      "hosting_objects": 6,
+      "dashboard_apps": 6
+    },
+    "default_domain": {
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "all_current_routes_enabled": true
+    },
+    "collections": {
+      "all_existing_acl": "ADMINONLY",
+      "existing_telemetry_ttl_index": "expires_at_ttl",
+      "standard_version_indexes": ["idx_version_created", "idx_version_sort"],
+      "standard_ad_index": "idx_ads_created",
+      "standard_audit_index": "idx_audit_occurred_at"
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true
+  },
+  "proposed_resources": {
+    "telemetry_function": "telemetry-bifang-app-launcher",
+    "telemetry_route": "/apps/bifang-app-launcher/v1/track",
+    "telemetry_collection": "telemetry_bifang_app_launcher",
+    "version_collection": "versions_bifang_app_launcher",
+    "ad_collection": "ads_bifang_app_launcher",
+    "audit_collection": "audit_bifang_app_launcher",
+    "collection_permission": "ADMINONLY",
+    "telemetry_ttl_index": {
+      "name": "expires_at_ttl",
+      "key": {
+        "expires_at": 1
+      },
+      "expireAfterSeconds": 0
+    },
+    "version_indexes": [
+      {
+        "name": "idx_version_created",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "created_at": -1,
+          "_id": -1
+        }
+      },
+      {
+        "name": "idx_version_sort",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "version_sort_key": -1,
+          "updated_at": -1,
+          "_id": -1
+        }
+      }
+    ],
+    "ad_index": {
+      "name": "idx_ads_created",
+      "key": {
+        "doc_type": 1,
+        "app_code": 1,
+        "created_at": -1,
+        "_id": -1
+      }
+    },
+    "audit_index": {
+      "name": "idx_audit_occurred_at",
+      "key": {
+        "occurred_at": -1
+      }
+    },
+    "version_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve live shared function and route",
+    "dashboard_action": {
+      "function": "operations-dashboard-api",
+      "mode": "update-in-place",
+      "app_scope": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-app-launcher"
+      ],
+      "excluded_local_only_app_ids": ["bifang-codex-skins"],
+      "materials_sha256": "54414ac27c60ef315ff8821a4cba117f573fd5b9c0c341898e3a137a86d51bb1"
+    }
+  },
+  "deployment_plan": {
+    "requires_stage_4_confirmation": true,
+    "write_steps_after_confirmation": [
+      "Refresh billing and full resource inventory; stop on cost, upgrade, overrun, conflict or drift.",
+      "Create the four exact collections with ADMINONLY and reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-app-launcher from cloudbaserc.example.json to the reviewed environment.",
+      "Create only /apps/bifang-app-launcher/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the exact seven-app scope and reviewed materials digest.",
+      "Read back ACL, indexes, function, route and dashboard mapping; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory_after_deployment": {
+      "functions": 9,
+      "routes": 10,
+      "collections": 28,
+      "hosting_objects": 6,
+      "dashboard_apps": 7,
+      "new_version_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api changes",
+      "hosting writes",
+      "force, prune or delete commands",
+      "paid plans, resource packs or overage",
+      "bifang-codex-skins cloud resources",
+      "target client repository changes, builds, installs or releases"
+    ]
+  },
+  "capacity_and_client_limits": {
+    "runtime_credential_configuration_limit_bytes": 4096,
+    "shared_version_environment_safety_limit_bytes": 3840,
+    "full_eight_app_credential_digest_exceeds_runtime_limit": true,
+    "version_service_activation_deferred": true,
+    "client_changes_executed": false,
+    "real_client_telemetry_available_after_cloud_deployment": false,
+    "client_follow_up": "Client integration must be initiated from the target repository under a separately authorized client stage."
+  },
+  "verification": {
+    "config_check": "passed",
+    "targeted_tests": {
+      "passed": 20,
+      "failed": 0
+    },
+    "full_test_components": {
+      "status": "passed",
+      "workspace_tests": 131,
+      "root_node_tests": 140,
+      "python_client_tests": 42,
+      "total": 313,
+      "python_runtime": "Codex desktop bundled Python with temporary PyYAML 6.0.2"
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "full_check": {
+      "status": "stopped-at-format-check",
+      "pre_existing_format_issues": 80,
+      "affected_files_format_check": "passed",
+      "later_steps_ran_separately": true
+    },
+    "dashboard_plan": "passed",
+    "telemetry_plan": "passed",
+    "diff_check": "passed"
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue"
+}

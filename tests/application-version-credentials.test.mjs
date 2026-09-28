@@ -254,7 +254,12 @@ test(
         summary.vault_path.toLowerCase(),
         (await realpath(vaultPath)).toLowerCase(),
       );
-      assert.equal(summary.credentials.length, 11);
+      const registry = JSON.parse(await readFile(registryPath, "utf8"));
+      const expectedCredentialCount = registry.apps.reduce(
+        (count, app) => count + app.release_streams.length + 2,
+        1,
+      );
+      assert.equal(summary.credentials.length, expectedCredentialCount);
       assert.doesNotMatch(
         generated.result.stdout,
         /key_sha256|secret_sha256|app_key|app_secret/,
@@ -270,18 +275,18 @@ test(
         Buffer.from(digestBase64, "base64").toString("utf8"),
       );
       const digestCredentials = expandCompactDigest(digestConfiguration);
-      assert.equal(Buffer.byteLength(digestBase64, "utf8") < 2_800, true);
-      const deploymentPlan = createApplicationVersionDeploymentPlan(
-        JSON.parse(await readFile(registryPath, "utf8")),
-        digestBase64,
-        {
-          envId: "bftoos-sh-d3ga7hahz59229f0a",
-          origin:
-            "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
-        },
+      assert.equal(Buffer.byteLength(digestBase64, "utf8") > 4_096, true);
+      // Eight registered apps no longer fit the runtime credential parser. A
+      // reserved release stream must not silently bypass that deployment gate.
+      assert.throws(
+        () =>
+          createApplicationVersionDeploymentPlan(registry, digestBase64, {
+            envId: "bftoos-sh-d3ga7hahz59229f0a",
+            origin:
+              "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+          }),
+        /credential configuration must be base64 text/,
       );
-      assert.equal(deploymentPlan.reconciliation.status, "live-state-required");
-      assert.deepEqual(deploymentPlan.write_steps_after_confirmation, []);
       const vaultEnvelopeText = await readFile(vaultPath, "utf8");
       const vaultEnvelope = JSON.parse(vaultEnvelopeText);
       assert.deepEqual(Object.keys(vaultEnvelope).sort(), [
@@ -294,7 +299,6 @@ test(
       const rawCredentials = rawVault.credentials;
       assert.equal(rawCredentials.length, digestCredentials.length);
 
-      const registry = JSON.parse(await readFile(registryPath, "utf8"));
       const rawIds = new Set();
       const rawKeys = new Set();
       const rawSecrets = new Set();

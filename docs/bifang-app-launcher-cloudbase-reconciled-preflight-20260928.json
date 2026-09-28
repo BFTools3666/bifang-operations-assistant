@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "status": "reconciled-awaiting-owner-confirmation",
+  "checked_at": "2026-09-28T17:26:44.8930205+08:00",
+  "reason": "bifang-codex-skins was deployed concurrently after the reviewed launcher plan and is now present in the live dashboard",
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "package_id": "baas_trial",
+    "package_name": "体验版",
+    "status": "NORMAL",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "extension_packages": [],
+    "active_order_present": false,
+    "used_credits": 8.22,
+    "total_credits": 3000,
+    "package_deduct": 0,
+    "pay_as_you_go_deduct": 0
+  },
+  "live_before_launcher_deployment": {
+    "functions": 9,
+    "routes": 10,
+    "collections": 28,
+    "dashboard_apps": 7,
+    "dashboard_modified_at": "2026-09-28 17:20:38",
+    "dashboard_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins"
+    ]
+  },
+  "launcher_targets": {
+    "all_absent": true,
+    "function": "telemetry-bifang-app-launcher",
+    "route": "/apps/bifang-app-launcher/v1/track",
+    "collections": [
+      "telemetry_bifang_app_launcher",
+      "versions_bifang_app_launcher",
+      "ads_bifang_app_launcher",
+      "audit_bifang_app_launcher"
+    ]
+  },
+  "reconciled_dashboard_plan": {
+    "action": "preserve the seven live apps and append bifang-app-launcher",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher"
+    ],
+    "materials_sha256": "cb45a16f41d3f68eb5ebb558efe754ecb5449af671a0b6f5853a36ff23b1af64"
+  },
+  "expected_after_launcher_deployment": {
+    "functions": 10,
+    "routes": 11,
+    "collections": 32,
+    "dashboard_apps": 8,
+    "new_version_records": 0,
+    "new_credentials": 0
+  },
+  "unchanged_scope": [
+    "create only the four bifang-app-launcher collections with ADMINONLY and reviewed indexes",
+    "deploy only telemetry-bifang-app-launcher and its exact track route",
+    "preserve all seven live dashboard applications and append only bifang-app-launcher",
+    "run one idempotent synthetic launcher daily_active E2E"
+  ],
+  "excluded_scope": [
+    "application-version-api changes",
+    "credential generation",
+    "hosting writes",
+    "paid plans, overrun or auto renewal",
+    "deletes or pruning",
+    "target client changes, builds or releases"
+  ],
+  "cloud_writes_executed_by_launcher_stage": false,
+  "approval_status": "awaiting explicit owner confirmation of reconciled eight-app dashboard scope"
+}

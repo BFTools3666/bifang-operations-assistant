@@ -10,6 +10,7 @@ const {
 } = require("./aggregate");
 const { createCloudBaseEventReader } = require("./reader");
 const { createCloudBaseVersionReader } = require("./version-reader");
+const { createDashboardWebHandler } = require("./web");
 
 const APP_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const COLLECTION_PATTERN = /^[a-z][a-z0-9_]{0,59}$/;
@@ -19,13 +20,23 @@ const RELEASE_PLATFORMS = ["windows", "macos", "linux"];
 const RELEASE_ARCHITECTURES = ["x64", "arm64", "ia32"];
 
 function createHandler(options = {}) {
-  const path = normalizePathValue(
+  const adminPath = normalizePathValue(
     options.path === undefined ? process.env.DASHBOARD_PATH : options.path,
+  );
+  const webPath = normalizePathValue(
+    options.webPath === undefined
+      ? process.env.DASHBOARD_WEB_PATH || "/dashboard"
+      : options.webPath,
   );
   const tokenHash = normalizeTokenHash(
     options.tokenHash === undefined
       ? process.env.DASHBOARD_TOKEN_SHA256
       : options.tokenHash,
+  );
+  const accessTokenHash = normalizeTokenHash(
+    options.accessTokenHash === undefined
+      ? process.env.DASHBOARD_ACCESS_TOKEN_SHA256
+      : options.accessTokenHash,
   );
   const apps = parseDashboardApps(
     options.apps === undefined ? process.env.DASHBOARD_APPS_JSON : options.apps,
@@ -43,24 +54,7 @@ function createHandler(options = {}) {
       : options.environmentId,
   );
 
-  return async function operationsDashboardHandler(event = {}, context = {}) {
-    const request = extractRequest(event, context);
-    if (request.path !== path) return jsonResponse(404, { error: "not_found" });
-    if (request.method !== "GET") {
-      return jsonResponse(
-        405,
-        { error: "method_not_allowed" },
-        { Allow: "GET" },
-      );
-    }
-    if (!isAuthorized(request.headers, tokenHash)) {
-      return jsonResponse(
-        401,
-        { error: "unauthorized" },
-        { "WWW-Authenticate": "Bearer" },
-      );
-    }
-
+  async function handleMetrics(request, context) {
     if (!apps.length || !environmentId) {
       return jsonResponse(503, { error: "metrics_unavailable" });
     }
@@ -119,6 +113,42 @@ function createHandler(options = {}) {
       }
       return jsonResponse(503, { error: "metrics_unavailable" });
     }
+  }
+
+  const handleWebRequest = createDashboardWebHandler({
+    webPath,
+    accessTokenHash,
+    handleMetrics,
+    now,
+    loginAttempts: options.loginAttempts,
+    publicDirectory: options.publicDirectory,
+    randomBytes: options.randomBytes,
+    readFile: options.readFile,
+  });
+
+  return async function operationsDashboardHandler(event = {}, context = {}) {
+    const request = extractRequest(event, context);
+    if (request.path === adminPath) {
+      if (request.method !== "GET") {
+        return jsonResponse(
+          405,
+          { error: "method_not_allowed" },
+          { Allow: "GET" },
+        );
+      }
+      if (!isAuthorized(request.headers, tokenHash)) {
+        return jsonResponse(
+          401,
+          { error: "unauthorized" },
+          { "WWW-Authenticate": "Bearer" },
+        );
+      }
+      return handleMetrics(request, context);
+    }
+    return (
+      (await handleWebRequest(request, context)) ||
+      jsonResponse(404, { error: "not_found" })
+    );
   };
 }
 
@@ -297,6 +327,7 @@ function parseQuery(urlValue, querySources = []) {
 function extractRequest(event, context) {
   const safeEvent = event && typeof event === "object" ? event : {};
   const safeContext = context && typeof context === "object" ? context : {};
+  const requestContext = safeEvent.requestContext || {};
   const requestHttp = safeEvent.requestContext?.http || {};
   const functionHttp = safeContext.httpContext || {};
   const method = firstString(
@@ -331,6 +362,19 @@ function extractRequest(event, context) {
     ],
     headers:
       safeEvent.headers || safeEvent.header || functionHttp.headers || {},
+    body: safeEvent.body === undefined ? functionHttp.body : safeEvent.body,
+    isBase64Encoded:
+      safeEvent.isBase64Encoded === true ||
+      functionHttp.isBase64Encoded === true,
+    // Never trust X-Forwarded-For supplied by the caller. Only use the
+    // platform-populated request/runtime context for best-effort login limits.
+    sourceIp: firstString(
+      requestContext.identity?.sourceIp,
+      requestContext.sourceIp,
+      requestHttp.sourceIp,
+      functionHttp.sourceIp,
+      safeContext.sourceIp,
+    ),
   };
 }
 
