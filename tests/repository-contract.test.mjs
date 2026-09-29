@@ -44,7 +44,7 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
   const applications = validateRegistry(registry);
 
   assert.equal(registry.schema_version, 3);
-  assert.equal(applications.length, 10);
+  assert.equal(applications.length, 11);
   assert.deepEqual(
     applications.flatMap(({ appId, releaseStreams }) =>
       releaseStreams.map((releaseStream) => ({ appId, ...releaseStream })),
@@ -175,6 +175,13 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
         architecture: "x64",
         channel: "stable",
         code: "bifang-browser-sync-windows-x64",
+      },
+      {
+        appId: "bifang-browser-multi-instance",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-browser-multi-instance-windows-x64",
       },
     ],
   );

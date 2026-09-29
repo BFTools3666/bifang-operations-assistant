@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "status": "resolved-dashboard-deployed-self-only",
+  "checked_at": "2026-09-29T09:42:15.5683720+08:00",
+  "reason": "Two unrelated applications were registered concurrently after the first reviewed materials digest and still lacked their required CloudBase resources. After the intermediate direction to continue without excluding them exposed a fail-closed dashboard blocker, the owner clarified '部署自己即可'. The two local registrations were preserved while this application's exact eleven-app dashboard scope was reviewed and deployed.",
+  "owner_directions": ["继续", "jixu", "继续，但不排除", "部署自己即可"],
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "package_id": "baas_trial",
+    "package_name": "体验版",
+    "status": "NORMAL",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "extension_packages": [],
+    "active_order_present": false,
+    "used_credits_before_target_writes": 27.99,
+    "total_credits": 3000,
+    "package_deduct": 0,
+    "pay_as_you_go_deduct": 0
+  },
+  "completed_target_scope": {
+    "function": {
+      "name": "telemetry-bifang-browser-multi-instance",
+      "status": "Active",
+      "available_status": "Available",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "modified_at": "2026-09-29 09:27:59"
+    },
+    "route": {
+      "path": "/apps/bifang-browser-multi-instance/v1/track",
+      "target": "telemetry-bifang-browser-multi-instance",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10,
+      "created_at": "2026-09-29T09:28:41+08:00"
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"]
+      },
+      {
+        "name": "versions_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "public_http_e2e": {
+      "synthetic_version": "0.0.0+cloudbase-e2e",
+      "anonymous_identity": "random UUID v4",
+      "options_status": 204,
+      "unsupported_method_status": 405,
+      "cross_app_status": 403,
+      "unknown_field_status": 400,
+      "first_valid_status": 202,
+      "identical_retry_status": 202,
+      "final_record_count": 1,
+      "duplicate_records": 0
+    }
+  },
+  "concurrent_local_changes": [
+    {
+      "app_id": "bifang-multi-instance-display",
+      "registered_locally": true,
+      "function_present_in_cloud": false,
+      "route_present_in_cloud": false,
+      "collections_present_in_cloud": 0,
+      "dashboard_present": false,
+      "created_by_this_task": false,
+      "preserved": true
+    },
+    {
+      "app_id": "bifang-app-network-accelerator",
+      "registered_locally": true,
+      "function_present_in_cloud": false,
+      "route_present_in_cloud": false,
+      "collections_present_in_cloud": 0,
+      "dashboard_present": false,
+      "created_by_this_task": false,
+      "preserved": true
+    }
+  ],
+  "live_inventory_after_target_writes": {
+    "functions": 13,
+    "routes": 14,
+    "collections": 44,
+    "hosting_objects": 6,
+    "dashboard_apps": 11,
+    "dashboard_modified_at": "2026-09-29 09:39:25",
+    "dashboard_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-multi-local-proxy",
+      "bifang-browser-sync",
+      "bifang-browser-multi-instance"
+    ]
+  },
+  "blocked_dashboard_attempt": {
+    "expected_materials_sha256": "ca21d4a15e0d017860160a2e2a189ff99626a4887bc80e72f292434d34abd768",
+    "result": "rejected before CloudBase child process",
+    "cloud_write": false,
+    "error": "deployment materials do not match the reviewed SHA-256"
+  },
+  "final_dashboard_plan": {
+    "action": "preserve all ten live dashboard applications and append bifang-browser-multi-instance",
+    "function": "operations-dashboard-api",
+    "route_action": "preserve-existing",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-multi-local-proxy",
+      "bifang-browser-sync",
+      "bifang-browser-multi-instance"
+    ],
+    "excluded_local_only_app_ids": [
+      "bifang-multi-instance-display",
+      "bifang-app-network-accelerator"
+    ],
+    "exclusion_reason": "Their four required CloudBase collections are absent. Including either app would make the fail-closed dashboard unavailable.",
+    "mapping_schema_version": 2,
+    "mapping_bytes": 1707,
+    "aggregate_environment_bytes": 2007,
+    "repository_safety_limit_bytes": 3840,
+    "platform_limit_bytes": 4096,
+    "materials_sha256": "c2916c22532969eaae711652b1464420a666d0fe22a149c90008b63cca098271",
+    "materials_files": 32,
+    "materials_bytes": 28916421,
+    "raw_secret_uploads": 0,
+    "deletes": []
+  },
+  "completed_dashboard_write": {
+    "action": "Updated operations-dashboard-api in place with the exact eleven-app filtered mapping.",
+    "preserve_routes": ["/dashboard", "/admin/v1/metrics"],
+    "post_write_verification": "The public verifier passed 13 of 13 checks; all eleven applications were readable, and the target synthetic row plus empty release stream were verified.",
+    "expected_inventory": {
+      "functions": 13,
+      "routes": 14,
+      "collections": 44,
+      "hosting_objects": 6,
+      "dashboard_apps": 11
+    }
+  },
+  "full_dashboard_candidate_plan": {
+    "action": "preserve all ten live dashboard applications and append bifang-browser-multi-instance plus both concurrent applications",
+    "function": "operations-dashboard-api",
+    "route_action": "preserve-existing",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-multi-local-proxy",
+      "bifang-browser-sync",
+      "bifang-browser-multi-instance",
+      "bifang-multi-instance-display",
+      "bifang-app-network-accelerator"
+    ],
+    "mapping_schema_version": 2,
+    "mapping_bytes": 1943,
+    "aggregate_environment_bytes": 2243,
+    "repository_safety_limit_bytes": 3840,
+    "platform_limit_bytes": 4096,
+    "materials_sha256": "f831d97b15517dbd0e1bc9051e477848a0485ce430f9f36c5b1d0391c0d2fb90",
+    "materials_files": 32,
+    "materials_bytes": 28916421,
+    "raw_secret_uploads": 0,
+    "deletes": [],
+    "blocked": true,
+    "blockers": [
+      "bifang-multi-instance-display is missing telemetry, versions, ads and audit collections, telemetry function and route",
+      "bifang-app-network-accelerator is missing telemetry, versions, ads and audit collections, telemetry function and route"
+    ],
+    "safe_to_deploy_now": false
+  },
+  "final_resolution": {
+    "owner_direction": "部署自己即可",
+    "deployed_app_id": "bifang-browser-multi-instance",
+    "preserved_but_not_deployed_app_ids": [
+      "bifang-multi-instance-display",
+      "bifang-app-network-accelerator"
+    ],
+    "dashboard_only_deployment_is_safe": true,
+    "dashboard_public_verifier": "passed-13-of-13"
+  },
+  "expected_inventory_after_all_three_applications_are_ready": {
+    "functions": 15,
+    "routes": 16,
+    "collections": 52,
+    "hosting_objects": 6,
+    "dashboard_apps": 13
+  },
+  "excluded_scope": [
+    "application-version-api changes",
+    "credential generation",
+    "hosting writes",
+    "paid plans, overrun or auto renewal",
+    "deletes or pruning",
+    "target client changes, builds or releases"
+  ],
+  "cloud_writes_executed_by_target_stage": true,
+  "dashboard_write_executed_by_target_stage": true,
+  "approval_status": "resolved by final owner direction; target deployment complete"
+}

@@ -158,6 +158,17 @@
           "code": "bifang-browser-sync-windows-x64"
         }
       ]
+    },
+    {
+      "app_id": "bifang-browser-multi-instance",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-browser-multi-instance-windows-x64"
+        }
+      ]
     }
   ]
 }

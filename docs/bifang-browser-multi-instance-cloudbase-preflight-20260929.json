@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-explicit-stage-4-continue",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-browser-multi-instance",
+    "source_access_available": false,
+    "default_branch": null,
+    "commit": null,
+    "version": null,
+    "framework": null,
+    "source_scan_performed": false,
+    "reason": "Anonymous GitHub and web access returned 404, non-interactive Git required credentials, gh is unavailable, and the logged-in browser could not be read through the automation channel.",
+    "owner_confirmed_independent_application": true,
+    "owner_confirmed_identity": true,
+    "client_changes_executed": false
+  },
+  "infrastructure": {
+    "repository_commit": "8c855c0837d33d1f4fa48925bdc4202f4d1a0888",
+    "existing_user_changes_preserved": true,
+    "app_id": "bifang-browser-multi-instance",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-browser-multi-instance-windows-x64"
+      }
+    ],
+    "dashboard_mapping": {
+      "schema_version": 2,
+      "selected_apps": 11,
+      "encoded_mapping_bytes": 1707,
+      "aggregate_environment_bytes": 2007,
+      "repository_safety_limit_bytes": 3840,
+      "platform_limit_bytes": 4096
+    }
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-29T09:17:16.9354337+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "cli_version": "3.8.1",
+    "environment_count": 1,
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "usage_status": "normal",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 27.11,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 12,
+      "routes": 13,
+      "collections": 40,
+      "hosting_objects": 6,
+      "dashboard_apps": 10,
+      "collections_all_adminonly": true,
+      "collection_contract_mismatches": 0
+    },
+    "default_domain": {
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "platform_cname_dns_status": "OK",
+      "protocol": "HTTP_AND_HTTPS",
+      "all_current_routes_enabled": true
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true,
+    "business_record_bodies_read": false
+  },
+  "proposed_resources": {
+    "telemetry_function": {
+      "name": "telemetry-bifang-browser-multi-instance",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "allowed_app_ids": "bifang-browser-multi-instance"
+    },
+    "telemetry_route": {
+      "path": "/apps/bifang-browser-multi-instance/v1/track",
+      "target": "telemetry-bifang-browser-multi-instance",
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_browser_multi_instance",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      }
+    ],
+    "dashboard": {
+      "action": "update-in-place",
+      "function": "operations-dashboard-api",
+      "routes_action": "preserve-existing",
+      "routes": ["/admin/v1/metrics", "/dashboard"],
+      "selected_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-codex-skins",
+        "bifang-app-launcher",
+        "bifang-multi-local-proxy",
+        "bifang-browser-sync",
+        "bifang-browser-multi-instance"
+      ],
+      "materials_sha256": "ca21d4a15e0d017860160a2e2a189ff99626a4887bc80e72f292434d34abd768",
+      "materials_files": 32,
+      "materials_bytes": 28913187,
+      "raw_secret_uploads": 0,
+      "deletes": []
+    },
+    "version_records_to_create": 0,
+    "ad_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve existing shared function and route without modification"
+  },
+  "deployment_plan_after_confirmation": {
+    "requires_stage_4_confirmation": true,
+    "write_steps": [
+      "Refresh billing, usage, functions, routes, collections, ACLs, indexes and hosting; stop on cost, upgrade, overrun, conflict, drift or material digest changes.",
+      "Create the four exact target collections with ADMINONLY and the reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-browser-multi-instance from the reviewed configuration.",
+      "Create only /apps/bifang-browser-multi-instance/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the exact eleven-app mapping and reviewed materials digest; preserve both existing dashboard routes.",
+      "Read back ACL, indexes, functions, routes, collection counts and dashboard mapping; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory": {
+      "functions": 13,
+      "routes": 14,
+      "collections": 44,
+      "hosting_objects": 6,
+      "dashboard_apps": 11,
+      "target_telemetry_records": 1,
+      "new_version_records": 0,
+      "new_ad_records": 0,
+      "new_audit_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "create a second CloudBase environment",
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api function or route changes",
+      "credential generation or version and advertisement records",
+      "hosting writes",
+      "force, prune or delete commands",
+      "paid plans, resource packs, auto renewal or overage",
+      "target client repository changes, builds, installs or releases",
+      "git push"
+    ],
+    "rollback": {
+      "dashboard": "Restore the previous ten-app mapping and prior function version if required.",
+      "new_resources": "Do not automatically delete new collections, function or route; any deletion requires a separate exact-target preview and explicit approval.",
+      "partial_failure": "Stop, reread live state and do not automatically retry side-effecting steps."
+    }
+  },
+  "client_limits": {
+    "source_not_scanned": true,
+    "bifang_profile_created": false,
+    "client_daily_active_integrated": false,
+    "client_application_version_integrated": false,
+    "real_client_e2e_available_after_cloud_deployment": false,
+    "version_service_activation_deferred": true
+  },
+  "verification": {
+    "config_check": "passed",
+    "telemetry_plan": "passed",
+    "dashboard_plan": "passed",
+    "targeted_root_tests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "operations_dashboard_tests": "passed",
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "affected_files_format_check": "passed",
+    "diff_check": "passed",
+    "full_check": "stopped at 80 pre-existing formatting findings",
+    "full_test": "workspace tests passed; root Python-driven tests could not run because the Windows py launcher is unavailable and returned status 9009"
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue after final target review"
+}
