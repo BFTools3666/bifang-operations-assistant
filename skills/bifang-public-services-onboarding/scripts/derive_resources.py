@@ -10,7 +10,12 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from validate_profile import APP_ID_PATTERN, read_json_file, validate_profile
+from validate_profile import (
+    APP_ID_PATTERN,
+    APPROVED_APPLICATION_VERSION_BASE_URLS,
+    read_json_file,
+    validate_profile,
+)
 
 
 SUPPORTED_PLATFORMS = frozenset(("windows", "macos", "linux"))
@@ -95,10 +100,13 @@ def derive_resources(
         if (
             application_version_base_url is not None
             and application_version_base_url != expected_version_base
+            and application_version_base_url
+            not in APPROVED_APPLICATION_VERSION_BASE_URLS
         ):
             raise ValueError(
                 "application_version_base_url must equal cloudbase_origin plus "
-                "/tools/version-control/v1 with one v1 segment"
+                "/tools/version-control/v1 or an exact approved application-version "
+                "gateway"
             )
         version_base = application_version_base_url or expected_version_base
         resources.update(

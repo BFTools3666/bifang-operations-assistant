@@ -27,7 +27,10 @@ Base URL 固定：
 
 ```text
 https://<平台默认域名>/tools/version-control/v1
+https://gateway.kaiwhale.com/tools/version-control/v1  # 已批准生产网关
 ```
+
+独立网关必须在运营侧精确允许列表内且保持同一契约；它不替换 telemetry 的 CloudBase 默认 origin，也不允许客户端提供任意域名。
 
 `v1` 只出现一次。客户端版本检查固定：
 

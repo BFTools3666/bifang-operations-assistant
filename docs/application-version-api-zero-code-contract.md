@@ -58,6 +58,8 @@
 https://<host>/tools/version-control/v1
 ```
 
+`<host>` 通常是 CloudBase 平台默认域名；客户端 Profile 也可使用运营侧精确批准、保持同一 TLS 与 v1 合同的生产网关。当前允许列表只额外包含 `https://gateway.kaiwhale.com/tools/version-control/v1`；这不改变 CloudBase 部署 origin，也不放开任意自定义域名。
+
 接口 Path 直接拼在其后，例如：
 
 ```text

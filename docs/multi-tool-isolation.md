@@ -10,7 +10,7 @@
 - 每个 `(platform, architecture, channel)` 使用独立 code；
 - 凭据先绑定 APP_ID、code 和最小 scopes，认证后才选择集合。
 
-共享环境、默认 HTTPS 域名、网关额度、函数/数据库配额和平台故障域仍是共享的，并非无限容量或账单隔离。若要隔离额度或故障域，就会涉及第二环境和潜在费用，本方案不自行创建。
+共享环境、默认 HTTPS 域名、网关额度、函数/数据库配额和平台故障域仍是共享的，并非无限容量或账单隔离。客户端可使用运营侧精确批准的 application-version 生产网关作为同一 v1 合同入口，telemetry 仍使用 CloudBase 默认 origin；这不创建第二环境或新资源。若要隔离额度或故障域，就会涉及第二环境和潜在费用，本方案不自行创建。
 
 基础设施 3.0 只有 application-version API v1 版本协议，不保留静态更新清单、双轨路由或兼容开关。`daily_active` telemetry 是独立能力，不属于要删除的旧版本协议。
 

@@ -422,6 +422,30 @@ test("a v2 profile derives telemetry and application-version resources without s
   });
 });
 
+test("an approved production version gateway may differ from the CloudBase telemetry origin", async () => {
+  const gateway = "https://gateway.kaiwhale.com/tools/version-control/v1";
+  await withTempProfile(
+    completeV2Profile({ application_version_base_url: gateway }),
+    async (path) => {
+      const validation = runPython(validateScript, [path]);
+      assert.equal(validation.status, 0, validation.stderr);
+
+      const derivation = runPython(deriveScript, ["--profile", path]);
+      assert.equal(derivation.status, 0, derivation.stderr);
+      const resources = JSON.parse(derivation.stdout);
+      assert.equal(resources.application_version_base_url, gateway);
+      assert.equal(
+        resources.telemetry_endpoint,
+        "https://bifang-free-test.ap-shanghai.app.tcloudbase.com/apps/bifang-screen-recorder/v1/track",
+      );
+      assert.equal(
+        resources.release_streams[1].version_check_url_template,
+        `${gateway}/versions/bifang-screen-recorder-windows-x64/{version}`,
+      );
+    },
+  );
+});
+
 test("app ids use the exact 1-50 character deployment alphabet", () => {
   for (const appId of ["a", "bifang-tools", "a".repeat(50)]) {
     const result = runPython(deriveScript, ["--", appId]);
@@ -688,6 +712,10 @@ test("SemVer, URL identity, and stage gates are validated semantically", async (
     completeProfile({
       current_stage: 3,
       registration_status: "registered",
+    }),
+    completeProfile({
+      application_version_base_url:
+        "https://gateway.example.invalid/tools/version-control/v1",
     }),
     completeProfile({
       cloudbase_origin: "https://custom.example.com",

@@ -73,7 +73,10 @@ Content-Type: application/json
 
 ```text
 https://<平台默认域名>/tools/version-control/v1
+https://gateway.kaiwhale.com/tools/version-control/v1  # 已批准生产网关
 ```
+
+已批准生产网关只为 application-version 提供同一单层 v1 入口；telemetry 继续走 CloudBase 默认 origin。Profile 校验器对独立网关使用精确允许列表，不接受任意自定义域名。
 
 `v1` 是 API 版本，只出现一次；服务端不提供双 `/v1` 别名。所有请求发送：
 
@@ -141,7 +144,7 @@ Tauri/Rust 把凭据、HTTP 和固定请求保留在 Rust 可信层；WebView �
 - 发布流 code 唯一且绑定准确平台/架构/渠道；
 - 两个认证头均发送，Key/Secret 不出现在源码、Profile 或日志；
 - 版本无更新、提示、强制、停止和错误包装均按契约处理；
-- 超时、401/403/404/429/500 安静失败且不阻塞主窗口；
+- 超时、400/401/403/404/429/500 安静失败且不阻塞主窗口；400 可作为网关收到请求的联通结果，不是版本检查成功；
 - telemetry 的联网前落盘、同日一次、失败不重试保持不变；
 - 完整扫描证明生产代码、配置和活跃测试没有旧静态更新协议。
 

@@ -2,7 +2,7 @@
 
 这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，版本与广告服务统一使用 application-version API v1。旧静态更新清单协议已经退出 3.0 设计，不再提供双轨、回退开关或长期兼容层。
 
-所有工具共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离：
+所有工具共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离。客户端的 application-version Base URL 可使用该默认域名，或使用运营侧精确批准且保持同一 v1 合同的生产网关；这不改变 CloudBase 环境、函数、路由或费用边界：
 
 - telemetry 使用独立 `app_id`、函数、路由、集合和本地状态；
 - application-version 使用共享函数和单一 `/tools/version-control/v1` 路由，凭据绑定准确 `app_id + codes + scopes`；
@@ -47,7 +47,10 @@ https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接�
 
 ```text
 https://<平台默认域名>/tools/version-control/v1
+https://gateway.kaiwhale.com/tools/version-control/v1  # 已批准生产网关
 ```
+
+其他自定义域名仍失败关闭；新网关必须先进入运营侧精确允许列表并复核 TLS、路径与费用事实。
 
 `v1` 只出现一次，不存在 `/v1/v1` 别名。运行时客户端只持有最小权限凭据并调用：
 

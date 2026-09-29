@@ -98,7 +98,8 @@
       "const": "1.0.0"
     },
     "application_version_base_url": {
-      "$ref": "#/$defs/httpsUrl"
+      "$ref": "#/$defs/httpsUrl",
+      "description": "Exact single-v1 endpoint on the CloudBase default origin or an operator-approved application-version gateway."
     },
     "release_streams": {
       "type": "array",

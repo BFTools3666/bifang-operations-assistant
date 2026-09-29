@@ -24,6 +24,9 @@ TRACK_PATH_PATTERN = re.compile(
     r"^/apps/([a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?)/v1/track$"
 )
 APPLICATION_VERSION_API_PATH = "/tools/version-control/v1"
+APPROVED_APPLICATION_VERSION_BASE_URLS = frozenset(
+    ("https://gateway.kaiwhale.com/tools/version-control/v1",)
+)
 
 SENSITIVE_KEY_MARKERS = (
     "secretid",
@@ -377,11 +380,19 @@ def _validate_profile_semantics(
             if parsed is not None:
                 parsed_urls[field] = parsed
                 hostname = (parsed.hostname or "").casefold().rstrip(".")
-                if not hostname.endswith(".app.tcloudbase.com"):
+                approved_version_gateway = (
+                    field == "application_version_base_url"
+                    and value in APPROVED_APPLICATION_VERSION_BASE_URLS
+                )
+                if (
+                    not hostname.endswith(".app.tcloudbase.com")
+                    and not approved_version_gateway
+                ):
                     errors.append(
                         f"$.{field}: the zero-cost path requires a confirmed "
                         "CloudBase default HTTPS gateway domain ending "
-                        ".app.tcloudbase.com; custom or example domains are blocked"
+                        ".app.tcloudbase.com or an exact approved application-version "
+                        "gateway; custom or example domains are blocked"
                     )
 
     origin = parsed_urls.get("cloudbase_origin")
@@ -413,13 +424,20 @@ def _validate_profile_semantics(
             )
 
     if origin is not None:
-        for field in (
-            "telemetry_endpoint",
-            "application_version_base_url",
+        telemetry = parsed_urls.get("telemetry_endpoint")
+        if telemetry is not None and _url_origin(telemetry) != _url_origin(origin):
+            errors.append("$.telemetry_endpoint: origin does not match cloudbase_origin")
+        application_version_base = parsed_urls.get("application_version_base_url")
+        if (
+            application_version_base is not None
+            and _url_origin(application_version_base) != _url_origin(origin)
+            and profile.get("application_version_base_url")
+            not in APPROVED_APPLICATION_VERSION_BASE_URLS
         ):
-            candidate = parsed_urls.get(field)
-            if candidate is not None and _url_origin(candidate) != _url_origin(origin):
-                errors.append(f"$.{field}: origin does not match cloudbase_origin")
+            errors.append(
+                "$.application_version_base_url: origin does not match "
+                "cloudbase_origin or an exact approved application-version gateway"
+            )
 
     gates = profile.get("deployment_gates")
     if not isinstance(gates, dict):
