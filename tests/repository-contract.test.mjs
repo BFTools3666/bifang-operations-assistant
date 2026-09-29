@@ -44,7 +44,7 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
   const applications = validateRegistry(registry);
 
   assert.equal(registry.schema_version, 3);
-  assert.equal(applications.length, 11);
+  assert.equal(applications.length, 15);
   assert.deepEqual(
     applications.flatMap(({ appId, releaseStreams }) =>
       releaseStreams.map((releaseStream) => ({ appId, ...releaseStream })),
@@ -182,6 +182,41 @@ test("apps.json v3 is the non-sensitive app and release-stream authority", async
         architecture: "x64",
         channel: "stable",
         code: "bifang-browser-multi-instance-windows-x64",
+      },
+      {
+        appId: "bifang-multi-instance-display",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-multi-instance-display-windows-x64",
+      },
+      {
+        appId: "bifang-app-network-accelerator",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-app-network-accelerator-windows-x64",
+      },
+      {
+        appId: "bifang-content-production-assistant",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-content-production-assistant-windows-x64",
+      },
+      {
+        appId: "bifang-content-production-assistant",
+        platform: "macos",
+        architecture: "arm64",
+        channel: "stable",
+        code: "bifang-content-production-assistant-macos-arm64",
+      },
+      {
+        appId: "bifang-window-layout",
+        platform: "windows",
+        architecture: "x64",
+        channel: "stable",
+        code: "bifang-window-layout-windows-x64",
       },
     ],
   );

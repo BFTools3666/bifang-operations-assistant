@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-explicit-stage-4-continue",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-multi-instance-display",
+    "source_access_available": true,
+    "authenticated_with": "Git Bash credential manager device flow opened in Microsoft Edge",
+    "default_branch": "master",
+    "commit": "25891c9d0615a579311e18fa143bdc7772b5125d",
+    "version": "1.2.0",
+    "framework": "Python 3.12 / PySide6 / PyInstaller",
+    "scan": {
+      "scanned_files": 54,
+      "skipped_files": [],
+      "scan_incomplete": false,
+      "legacy_update_removal_gate": "clear"
+    },
+    "client_changes_executed": true,
+    "client_build_or_install_executed": false,
+    "client_release_or_push_executed": false
+  },
+  "infrastructure": {
+    "repository_commit": "8c855c0837d33d1f4fa48925bdc4202f4d1a0888",
+    "existing_and_concurrent_changes_preserved": true,
+    "app_id": "bifang-multi-instance-display",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-multi-instance-display-windows-x64"
+      }
+    ]
+  },
+  "cloud_preflight": {
+    "billing_and_collection_baseline_checked_at": "2026-09-29T09:32:19.5465512+08:00",
+    "functions_routes_refreshed_at": "2026-09-29T09:35:28.6145420+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "cli_version": "3.8.1",
+    "environment_count": 1,
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "extension_packages": [],
+      "active_order_present": false,
+      "expires_at": "2027-03-17 23:59:59"
+    },
+    "usage": {
+      "total_credits": 3000,
+      "used_credits_before_latest_concurrent_target_writes": 27.99,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0,
+      "note": "Credits are platform quota units, not a currency amount; refresh is mandatory immediately before writes."
+    },
+    "current_inventory": {
+      "functions": 13,
+      "routes": 14,
+      "collections": 44,
+      "hosting_objects": 6,
+      "dashboard_apps": 10,
+      "collections_all_adminonly": true,
+      "collection_contract_mismatches": 0
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true,
+    "business_record_bodies_read": false
+  },
+  "proposed_resources": {
+    "telemetry_function": {
+      "name": "telemetry-bifang-multi-instance-display",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "allowed_app_ids": "bifang-multi-instance-display"
+    },
+    "telemetry_route": {
+      "path": "/apps/bifang-multi-instance-display/v1/track",
+      "target": "telemetry-bifang-multi-instance-display",
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_multi_instance_display",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_multi_instance_display",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_multi_instance_display",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_multi_instance_display",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "key": {
+              "occurred_at": -1
+            }
+          }
+        ]
+      }
+    ],
+    "dashboard": {
+      "action": "update-in-place-with-filtered-cloud-ready-scope",
+      "function": "operations-dashboard-api",
+      "routes_action": "preserve-existing",
+      "routes": ["/admin/v1/metrics", "/dashboard"],
+      "selected_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-codex-skins",
+        "bifang-app-launcher",
+        "bifang-multi-local-proxy",
+        "bifang-browser-sync",
+        "bifang-browser-multi-instance",
+        "bifang-multi-instance-display"
+      ],
+      "excluded_local_only_app_ids": ["bifang-app-network-accelerator"],
+      "encoded_mapping_bytes": 1824,
+      "platform_limit_bytes": 4096,
+      "materials_sha256": "acd128e11c89d1236afbc9543feeab68a5a1a81445220a61c09f8437f6c8f5bf",
+      "materials_files": 32,
+      "materials_bytes": 28916421,
+      "raw_secret_uploads": 0,
+      "deletes": []
+    },
+    "version_records_to_create": 0,
+    "ad_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve existing shared function and route without modification"
+  },
+  "deployment_plan_after_confirmation": {
+    "requires_stage_4_confirmation": true,
+    "write_steps": [
+      "Refresh billing, usage, functions, routes, collections, ACLs, indexes, dashboard mapping and hosting; stop on cost, upgrade, overrun, conflict, drift or material digest changes.",
+      "Create the four exact target collections with ADMINONLY and the reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-multi-instance-display from the reviewed configuration.",
+      "Create only /apps/bifang-multi-instance-display/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the exact twelve-app filtered mapping; preserve both existing dashboard routes.",
+      "Read back ACL, indexes, functions, routes, collection counts and dashboard mapping; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory": {
+      "functions": 14,
+      "routes": 15,
+      "collections": 48,
+      "hosting_objects": 6,
+      "dashboard_apps": 12,
+      "target_telemetry_records": 1,
+      "new_version_records": 0,
+      "new_ad_records": 0,
+      "new_audit_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "create a second CloudBase environment",
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api function or route changes",
+      "credential generation or version and advertisement records",
+      "bifang-app-network-accelerator cloud resources or dashboard mapping",
+      "hosting writes",
+      "force, prune or delete commands",
+      "paid plans, resource packs, auto renewal or overage",
+      "client build, install or release",
+      "git push"
+    ],
+    "rollback": {
+      "dashboard": "Restore the previous reviewed mapping and prior function version if required.",
+      "new_resources": "Do not automatically delete new collections, function or route; any deletion requires a separate exact-target preview and explicit approval.",
+      "partial_failure": "Stop, reread live state and do not automatically retry side-effecting steps."
+    }
+  },
+  "client_state": {
+    "profile_v2_valid": true,
+    "client_daily_active_integrated": true,
+    "client_application_version_integrated": true,
+    "legacy_client_update_removed": true,
+    "runtime_credentials_ready": false,
+    "version_service_activation_deferred": true,
+    "real_client_e2e_available_after_cloud_deployment": false
+  },
+  "verification": {
+    "target_unittest": {
+      "passed": 38,
+      "failed": 0
+    },
+    "target_compileall": "passed",
+    "profile_validation": "passed",
+    "resource_derivation": "passed",
+    "source_scan": "complete-and-clear",
+    "config_check": "passed",
+    "telemetry_plan": "passed",
+    "dashboard_plan": "passed",
+    "affected_root_contract_tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "workspace_tests": {
+      "passed": 131,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed",
+    "full_check": "stopped at 80 repository-wide pre-existing formatting findings",
+    "full_root_test_note": "Git-authority bootstrap tests intentionally reject the currently dirty infrastructure checkout."
+  },
+  "target_cloud_writes_executed": false,
+  "target_dashboard_write_executed": false,
+  "credentials_generated": false,
+  "client_build_or_install_executed": false,
+  "client_release_executed": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue after final target review"
+}

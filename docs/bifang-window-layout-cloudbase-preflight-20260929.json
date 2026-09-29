@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "status": "awaiting-stage-4-reconfirmation-after-live-drift",
+  "checked_at": "2026-09-29 10:49:02 +08:00",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-window-layout.git",
+    "local_checkout": "D:/workspace/bifang-window-layout",
+    "branch": "master",
+    "head": "ada9be87c016b685956c4d9c02c2bf1ad77095d4",
+    "remote_default_branch": "master",
+    "remote_head": "ada9be87c016b685956c4d9c02c2bf1ad77095d4",
+    "worktree_clean": true,
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "release_version": "2.3.5",
+    "release_version_source": "src-tauri/tauri.conf.json",
+    "platform": "windows",
+    "architecture": "x64",
+    "channel": "stable",
+    "profile_v2_present": false,
+    "client_modified": false
+  },
+  "infrastructure": {
+    "repository_head": "832bf7cec8f9eac39beefd06e5ede945726dde3b",
+    "branch": "main",
+    "version": "3.0.0",
+    "application_version_contract": "1.0.0",
+    "registry_schema_version": 3,
+    "cli": "@cloudbase/cli@3.8.1"
+  },
+  "registration": {
+    "app_id": "bifang-window-layout",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-window-layout-windows-x64"
+      }
+    ]
+  },
+  "client_scan": {
+    "scanner_version": 3,
+    "scanned_files": 230,
+    "scan_incomplete": true,
+    "skipped_files": [
+      {
+        "path": "nsis/tools/NSIS/Contrib/Modern UI/ioSpecial.ini",
+        "reason": "binary_content"
+      }
+    ],
+    "daily_active_present": false,
+    "profile_v2_present": false,
+    "application_version_v1_shape_present": true,
+    "current_application_version_base": "https://gateway.kaiwhale.com/tools/version-control/v1",
+    "current_application_code": "bifang-window-layout-tool",
+    "current_application_version_configuration_matches_registration": false,
+    "security_review_required": [
+      "The existing client keeps credential material in source.",
+      "The existing HTTP client accepts invalid TLS certificates.",
+      "The existing telemetry sends a hardware-derived identifier and detailed OS data to a different service.",
+      "The existing update path logs response content and does not represent a verified Bifang CloudBase client integration."
+    ],
+    "client_migration_gate": "blocked-outside-current-cloud-only-scope"
+  },
+  "cloud_preflight": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "environment_count": 1,
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "pay_mode": "PREPAYMENT",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false
+    },
+    "usage": {
+      "billing_cycle_start": "2026-09-17",
+      "billing_cycle_end": "2026-10-17",
+      "total_credits": 3000,
+      "used_credits": 30.02,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "default_domain": {
+      "is_default": true,
+      "enabled": true,
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "platform_cname_dns_status": "OK",
+      "protocol": "HTTP_AND_HTTPS"
+    },
+    "current_inventory": {
+      "functions": 16,
+      "routes": 17,
+      "collections": 56,
+      "hosting_objects": 6,
+      "dashboard_apps": 14
+    },
+    "target_resources_absent": {
+      "function": true,
+      "route": true,
+      "telemetry_collection": true,
+      "versions_collection": true,
+      "ads_collection": true,
+      "audit_collection": true
+    },
+    "shared_application_version": {
+      "function_present": true,
+      "route_present": true,
+      "function_last_modified": "2026-09-17 16:32:11",
+      "planned_change": false
+    },
+    "concurrent_state": {
+      "newly_cloud_ready_since_original_confirmation": [
+        "bifang-content-production-assistant"
+      ],
+      "dashboard_plan_scope": "fourteen currently live applications plus bifang-window-layout",
+      "refresh_required_immediately_before_writes": true
+    },
+    "business_record_bodies_read": false
+  },
+  "proposed_resources": {
+    "telemetry": {
+      "function": "telemetry-bifang-window-layout",
+      "route": "/apps/bifang-window-layout/v1/track",
+      "collection": "telemetry_bifang_window_layout",
+      "permission": "ADMINONLY",
+      "indexes": [
+        {
+          "name": "expires_at_ttl",
+          "key": {
+            "expires_at": 1
+          },
+          "expire_after_seconds": 0
+        }
+      ]
+    },
+    "application_version_collections": [
+      {
+        "name": "versions_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "operations_dashboard": {
+      "function": "operations-dashboard-api",
+      "action": "update-in-place",
+      "app_count_after_write": 15,
+      "materials_sha256": "424a11270a6214120a19bba05b6aaa5e100006d6ba30c28ab332a9ede4dca2f1",
+      "materials_files": 32,
+      "materials_bytes": 28919886,
+      "raw_secret_uploads": 0,
+      "routes_to_preserve": ["/admin/v1/metrics", "/dashboard"]
+    },
+    "expected_inventory_after_write": {
+      "functions": 17,
+      "routes": 18,
+      "collections": 60,
+      "hosting_objects": 6,
+      "dashboard_apps": 15
+    }
+  },
+  "live_state_drift": {
+    "detected_after_owner_continue": true,
+    "original_inventory": {
+      "functions": 15,
+      "routes": 16,
+      "collections": 52,
+      "hosting_objects": 6,
+      "dashboard_apps": 13
+    },
+    "current_inventory": {
+      "functions": 16,
+      "routes": 17,
+      "collections": 56,
+      "hosting_objects": 6,
+      "dashboard_apps": 14
+    },
+    "cause": "bifang-content-production-assistant completed its isolated CloudBase onboarding concurrently",
+    "cloud_writes_by_this_task_before_stop": false,
+    "new_confirmation_required": true
+  },
+  "deployment_plan_after_confirmation": {
+    "requires_fresh_preflight": true,
+    "steps": [
+      "Refresh billing, quota, functions, routes, collections, ACLs, indexes, hosting objects and dashboard mapping.",
+      "Create the four exact ADMINONLY collections and reviewed indexes while leaving versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-window-layout from the reviewed generated configuration.",
+      "Create only /apps/bifang-window-layout/v1/track with safe-domain and path-transmission enabled and QPS 100/10.",
+      "Update operations-dashboard-api in place with the then-current cloud-ready application set plus bifang-window-layout.",
+      "Read back every created resource and run a duplicate synthetic daily_active request to verify one stored record."
+    ],
+    "forbidden_scope": [
+      "second CloudBase environment",
+      "paid plan, resource pack, custom domain or certificate",
+      "auto-renewal or overrun",
+      "shared application-version function or route update",
+      "runtime or management credential generation",
+      "version, advertisement or audit record writes",
+      "hosting writes",
+      "delete, prune or force operations",
+      "client modification, build, install, release or Git push"
+    ]
+  },
+  "verification": {
+    "affected_contract_tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "affected_prettier_check": "passed",
+    "git_diff_check": "passed",
+    "full_npm_check": "stopped-at-pre-existing-format-baseline-with-80-files"
+  },
+  "target_cloud_writes_executed": false,
+  "target_dashboard_write_executed": false,
+  "credentials_generated": false,
+  "client_changes_executed": false,
+  "client_build_or_install_executed": false,
+  "client_release_executed": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "waiting-for-explicit-continue-on-recalculated-plan"
+}

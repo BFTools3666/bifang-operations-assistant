@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "status": "deployed-and-cloud-http-e2e-verified",
+  "completed_at": "2026-09-29T11:02:16.5150204+08:00",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-window-layout.git",
+    "remote_head_verified": true,
+    "branch": "master",
+    "head": "ada9be87c016b685956c4d9c02c2bf1ad77095d4",
+    "version": "2.3.5",
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "app_id": "bifang-window-layout",
+    "release_code": "bifang-window-layout-windows-x64",
+    "client_modified": false,
+    "client_build_or_install_executed": false,
+    "client_release_or_push_executed": false
+  },
+  "owner_authorization": {
+    "first_continue": "stopped before writes because bifang-content-production-assistant had completed a concurrent CloudBase deployment",
+    "second_continue": "authorized the recalculated fifteen-application dashboard plan",
+    "reviewed_plan": "docs/bifang-window-layout-cloudbase-preflight-20260929.json",
+    "scope": [
+      "create four isolated ADMINONLY collections and reviewed indexes",
+      "deploy only telemetry-bifang-window-layout and its track route",
+      "preserve all fourteen currently live dashboard applications and append bifang-window-layout",
+      "run one idempotent synthetic daily_active E2E"
+    ]
+  },
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing_after": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "usage_status": "normal",
+      "expires_at": "2027-03-17 23:59:59",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "active_order_present": false,
+      "upgrade_tips": "",
+      "billing_cycle_start": "2026-09-17",
+      "billing_cycle_end": "2026-10-17",
+      "used_credits": 30.02,
+      "total_credits": 3000,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "deployment": {
+    "function": {
+      "id": "lam-r5ys7ncb",
+      "name": "telemetry-bifang-window-layout",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-29 10:54:41",
+      "environment": {
+        "ALLOWED_APP_IDS": "bifang-window-layout",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_window_layout",
+        "TRACK_PATH": "/apps/bifang-window-layout/v1/track"
+      }
+    },
+    "route": {
+      "path": "/apps/bifang-window-layout/v1/track",
+      "upstream_resource_type": "SCF",
+      "upstream_resource_name": "telemetry-bifang-window-layout",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10,
+      "created_at": "2026-09-29T10:55:21+08:00",
+      "request_id": "e9b47c38-330f-453e-97b7-d534c166a7ff"
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"],
+        "ttl": {
+          "key": { "expires_at": 1 },
+          "expire_after_seconds": 0
+        }
+      },
+      {
+        "name": "versions_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_window_layout",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "acl_reconciliation": {
+      "create_table_permission_result": "ADMINONLY",
+      "modify_database_acl_executed": false,
+      "unrelated_collections_modified": false
+    }
+  },
+  "public_http_e2e": {
+    "synthetic_version": "2.3.5+cloudbase-e2e",
+    "platform": "windows",
+    "architecture": "x64",
+    "sdk_version": "3.0.0",
+    "anonymous_identity": "random UUID v4",
+    "options_status": 204,
+    "unsupported_method_status": 405,
+    "cross_app_status": 403,
+    "unknown_field_status": 400,
+    "rows_after_negative_cases": 0,
+    "first_valid_status": 202,
+    "first_valid_response": { "ok": true },
+    "immediate_identical_retry_status": 504,
+    "immediate_identical_retry_error": "FUNCTIONS_TIME_LIMIT_EXCEEDED",
+    "rows_after_timeout": 1,
+    "controlled_identical_retry_status": 202,
+    "controlled_identical_retry_response": { "ok": true },
+    "rows_after_controlled_retry": 1,
+    "idempotent": true,
+    "retention_days": 30
+  },
+  "dashboard": {
+    "updated": true,
+    "function": "operations-dashboard-api",
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-29 10:56:51",
+    "mapping_schema_version": 2,
+    "materials_sha256": "424a11270a6214120a19bba05b6aaa5e100006d6ba30c28ab332a9ede4dca2f1",
+    "materials_files": 32,
+    "materials_bytes": 28919886,
+    "raw_secret_uploads": 0,
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-multi-local-proxy",
+      "bifang-browser-sync",
+      "bifang-browser-multi-instance",
+      "bifang-multi-instance-display",
+      "bifang-app-network-accelerator",
+      "bifang-content-production-assistant",
+      "bifang-window-layout"
+    ],
+    "existing_routes_preserved": ["/admin/v1/metrics", "/dashboard"],
+    "public_verifier": "passed-13-of-13",
+    "read_only_cold_start": {
+      "first_authenticated_metrics_status": 504,
+      "retry_status": 200,
+      "writes": 0
+    }
+  },
+  "application_version": {
+    "function_modified": false,
+    "function_last_modified_at": "2026-09-17 16:32:11",
+    "route_preserved": true,
+    "credentials_generated": false,
+    "version_records_created": 0,
+    "ad_records_created": 0,
+    "audit_records_created": 0,
+    "runtime_client_e2e": "unverified"
+  },
+  "post_deployment_inventory": {
+    "functions": 17,
+    "http_service_routes": 18,
+    "collections": 60,
+    "hosting_objects": 6,
+    "dashboard_apps": 15
+  },
+  "verification": {
+    "cloudbase_config_check": "passed",
+    "targeted_root_contract_tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "telemetry_function_tests": {
+      "passed": 32,
+      "failed": 0
+    },
+    "dashboard_function_tests": {
+      "passed": 26,
+      "failed": 0
+    },
+    "workspace_typecheck": "passed",
+    "affected_files_format_check": "passed",
+    "diff_check": "passed",
+    "full_check": "previously stopped at the repository's existing eighty-file formatting baseline"
+  },
+  "unchanged_and_excluded": [
+    "no second CloudBase environment",
+    "no application-version-api function or route change",
+    "no credential generation or version and advertisement records",
+    "no hosting writes",
+    "no paid plan, resource pack, auto renewal or overage",
+    "no deletes or pruning",
+    "no target client modification, build, install or release",
+    "no git commit or push"
+  ]
+}

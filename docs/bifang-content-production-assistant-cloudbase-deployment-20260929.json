@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "status": "deployed-and-cloud-http-e2e-verified",
+  "completed_at": "2026-09-29T10:47:36.2031720+08:00",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-content-production-assistant",
+    "remote_head_verified": true,
+    "default_branch": "master",
+    "commit": "7e4d4c95c5b4c176a168eb29d814814699bc4367",
+    "version": "0.2.17",
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "app_id": "bifang-content-production-assistant",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-content-production-assistant-windows-x64"
+      },
+      {
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "code": "bifang-content-production-assistant-macos-arm64"
+      }
+    ],
+    "client_modified": false,
+    "client_build_or_install_executed": false,
+    "client_release_or_push_executed": false
+  },
+  "owner_authorization": {
+    "action": "继续",
+    "reviewed_plan": "docs/bifang-content-production-assistant-cloudbase-preflight-20260929.json",
+    "scope": [
+      "create four isolated ADMINONLY collections and reviewed indexes",
+      "deploy only telemetry-bifang-content-production-assistant and its track route",
+      "preserve all thirteen live dashboard applications and append bifang-content-production-assistant",
+      "run one idempotent synthetic daily_active E2E"
+    ]
+  },
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing_after": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "usage_status": "normal",
+      "expires_at": "2027-03-17 23:59:59",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "extension_packages": [],
+      "active_order_present": false,
+      "upgrade_tips": "",
+      "used_credits": 30.02,
+      "total_credits": 3000,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    }
+  },
+  "deployment": {
+    "function": {
+      "id": "lam-lt3lxovf",
+      "name": "telemetry-bifang-content-production-assistant",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "status": "Active",
+      "available_status": "Available",
+      "modified_at": "2026-09-29 10:42:30",
+      "environment": {
+        "ALLOWED_APP_IDS": "bifang-content-production-assistant",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_content_production_assistant",
+        "TRACK_PATH": "/apps/bifang-content-production-assistant/v1/track"
+      }
+    },
+    "route": {
+      "path": "/apps/bifang-content-production-assistant/v1/track",
+      "upstream_resource_type": "SCF",
+      "upstream_resource_name": "telemetry-bifang-content-production-assistant",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10,
+      "created_at": "2026-09-29T10:43:00+08:00",
+      "request_id": "dd180a73-76cf-4186-a372-0939d829d47c"
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_content_production_assistant",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"],
+        "ttl": {
+          "key": { "expires_at": 1 },
+          "expire_after_seconds": 0
+        }
+      },
+      {
+        "name": "versions_bifang_content_production_assistant",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_content_production_assistant",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_content_production_assistant",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "create_table_request_ids": {
+      "telemetry": "dcdd1a25-2911-4658-a2e6-1bae39191549",
+      "versions": "4b1b44a5-c64a-4445-a77a-96ab8ffcf87b",
+      "ads": "904a0653-7d85-4d10-b579-4a5ba194748c",
+      "audit": "136ed62b-2d57-450d-bb49-bf4fdefc4cb3"
+    },
+    "acl_reconciliation": {
+      "create_table_permission_result": "ADMINONLY",
+      "modify_database_acl_executed": false,
+      "unrelated_collections_modified": false
+    }
+  },
+  "public_http_e2e": {
+    "synthetic_version": "0.2.17+cloudbase-e2e",
+    "platform": "windows",
+    "architecture": "x64",
+    "sdk_version": "3.0.0",
+    "anonymous_identity": "random UUID v4",
+    "options_status": 204,
+    "unsupported_method_status": 405,
+    "cross_app_status": 403,
+    "unknown_field_status": 400,
+    "first_valid_status": 202,
+    "identical_retry_status": 202,
+    "response": { "ok": true },
+    "rows_after_retry": 1,
+    "idempotent": true,
+    "retention_days": 30
+  },
+  "dashboard": {
+    "updated": true,
+    "function": "operations-dashboard-api",
+    "status": "Active",
+    "available_status": "Available",
+    "modified_at": "2026-09-29 10:43:58",
+    "mapping_schema_version": 2,
+    "materials_sha256": "7dd18d229a380f248b9f0fdeea79b9f3b4c74bc29da168f75412e0eebcb9b8eb",
+    "materials_files": 32,
+    "materials_bytes": 28919886,
+    "raw_secret_uploads": 0,
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-multi-local-proxy",
+      "bifang-browser-sync",
+      "bifang-browser-multi-instance",
+      "bifang-multi-instance-display",
+      "bifang-app-network-accelerator",
+      "bifang-content-production-assistant"
+    ],
+    "release_stream_count": 23,
+    "target_release_streams": [
+      {
+        "code": "bifang-content-production-assistant-windows-x64",
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "status": "empty",
+        "highest_version": null
+      },
+      {
+        "code": "bifang-content-production-assistant-macos-arm64",
+        "platform": "macos",
+        "architecture": "arm64",
+        "channel": "stable",
+        "status": "empty",
+        "highest_version": null
+      }
+    ],
+    "target_today_active": 1,
+    "existing_routes_preserved": ["/admin/v1/metrics", "/dashboard"],
+    "public_verifier": "passed-13-of-13"
+  },
+  "application_version": {
+    "function_modified": false,
+    "function_last_modified_at": "2026-09-17 16:32:11",
+    "route_preserved": true,
+    "credentials_generated": false,
+    "version_records_created": 0,
+    "ad_records_created": 0,
+    "audit_records_created": 0,
+    "runtime_client_e2e": "unverified"
+  },
+  "post_deployment_inventory": {
+    "functions": 16,
+    "http_service_routes": 17,
+    "collections": 56,
+    "hosting_objects": 6,
+    "dashboard_apps": 14,
+    "dashboard_release_streams": 23
+  },
+  "verification": {
+    "cloudbase_config_check": "passed",
+    "targeted_root_contract_tests": {
+      "passed": 14,
+      "failed": 0
+    },
+    "telemetry_function_tests": {
+      "passed": 32,
+      "failed": 0
+    },
+    "dashboard_tests": {
+      "passed": 6,
+      "failed": 0
+    },
+    "workspace_typecheck": "passed",
+    "affected_files_format_check": "passed",
+    "diff_check": "passed",
+    "full_check": "stopped before deployment at 80 repository-wide pre-existing or unrelated formatting findings"
+  },
+  "client_limits": {
+    "profile_v2_present": false,
+    "daily_active_integrated": false,
+    "application_version_integrated": false,
+    "real_client_e2e": "unverified",
+    "note": "Cloud resources are ready, but the target desktop client remains unchanged and will not call them until separately onboarded."
+  },
+  "unchanged_and_excluded": [
+    "no second CloudBase environment",
+    "no bifang-window-layout cloud resources or dashboard mapping",
+    "no application-version-api function or route change",
+    "no credential generation or version and advertisement records",
+    "no hosting writes",
+    "no paid plan, resource pack, auto renewal or overage",
+    "no deletes or pruning",
+    "no target client modification, build, install or release",
+    "no git commit or push"
+  ]
+}

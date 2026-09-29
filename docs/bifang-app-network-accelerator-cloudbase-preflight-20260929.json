@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-explicit-stage-4-continue",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-app-network-accelerator",
+    "local_checkout_available": true,
+    "remote_head_verified": false,
+    "remote_verification_blocker": "The private GitHub remote requires interactive credentials; this operations-assistant task used the existing local checkout and did not alter its source.",
+    "cached_default_branch": "master",
+    "cached_default_branch_commit": "3646bc8086f36b1ca7df0a7b617e56553983f1b2",
+    "checkout_branch": "codex/full-rust-tauri-migration",
+    "checkout_commit": "cd085f73a067f4eeff844161934cff5796217587",
+    "checkout_ahead_of_cached_default": 1,
+    "version": "1.3.0",
+    "version_source": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust 2024 / React / TypeScript",
+    "target_platforms": ["windows"],
+    "target_architecture": "x64",
+    "scan": {
+      "scanned_files": 330,
+      "skipped_files": [],
+      "scan_incomplete": false,
+      "application_version_api_status": "not_found",
+      "legacy_update_removal_gate": "clear",
+      "runtime_hits": 0
+    },
+    "profile_v2_present": false,
+    "client_policy": {
+      "remote_telemetry_currently_approved": false,
+      "real_auto_update_currently_approved": false,
+      "evidence": "The approved product specification keeps remote telemetry disabled and the Tauri updater NotConfigured with empty endpoints and public key."
+    },
+    "preexisting_user_changes_preserved": [
+      "D .cursor/plans/code_audit_plan.md",
+      "D .cursor/plans/first_run.md",
+      "D .vscode/settings.json"
+    ],
+    "client_changes_executed": false,
+    "client_build_or_install_executed": false,
+    "client_release_or_push_executed": false
+  },
+  "infrastructure": {
+    "repository_commit": "8c855c0837d33d1f4fa48925bdc4202f4d1a0888",
+    "existing_and_concurrent_changes_preserved": true,
+    "app_id": "bifang-app-network-accelerator",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-app-network-accelerator-windows-x64"
+      }
+    ],
+    "concurrent_local_registrations": [
+      "bifang-browser-multi-instance",
+      "bifang-multi-instance-display"
+    ]
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-29T09:46:31.3159340+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "cli_version": "3.8.1",
+    "environment_count": 1,
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "pay_mode": "PREPAYMENT",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 27.99,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0,
+      "note": "Credits are platform quota units, not a currency amount; refresh is mandatory immediately before writes."
+    },
+    "default_domain": {
+      "is_default": true,
+      "enabled": true,
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "platform_cname_dns_status": "OK",
+      "protocol": "HTTP_AND_HTTPS",
+      "all_current_routes_enabled": true
+    },
+    "current_inventory": {
+      "functions": 13,
+      "routes": 14,
+      "collections": 48,
+      "hosting_objects": 6,
+      "dashboard_apps": 11
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true,
+    "business_record_bodies_read": false,
+    "concurrent_resource_state": {
+      "bifang-browser-multi-instance": "cloud resources ready and included in the eleven-app live dashboard mapping",
+      "bifang-multi-instance-display": "four target collections now exist, but its telemetry function, route and dashboard mapping remain absent"
+    }
+  },
+  "proposed_resources": {
+    "telemetry_function": {
+      "name": "telemetry-bifang-app-network-accelerator",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256,
+      "allowed_app_ids": "bifang-app-network-accelerator"
+    },
+    "telemetry_route": {
+      "path": "/apps/bifang-app-network-accelerator/v1/track",
+      "target": "telemetry-bifang-app-network-accelerator",
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_app_network_accelerator",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "expires_at_ttl",
+            "key": { "expires_at": 1 },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_app_network_accelerator",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          },
+          {
+            "name": "idx_version_sort",
+            "key": {
+              "doc_type": 1,
+              "code": 1,
+              "version_sort_key": -1,
+              "updated_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_app_network_accelerator",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "key": {
+              "doc_type": 1,
+              "app_code": 1,
+              "created_at": -1,
+              "_id": -1
+            }
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_app_network_accelerator",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "key": { "occurred_at": -1 }
+          }
+        ]
+      }
+    ],
+    "dashboard": {
+      "action": "update-in-place-with-filtered-cloud-ready-scope",
+      "function": "operations-dashboard-api",
+      "routes_action": "preserve-existing",
+      "routes": ["/admin/v1/metrics", "/dashboard"],
+      "selected_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-codex-skins",
+        "bifang-app-launcher",
+        "bifang-multi-local-proxy",
+        "bifang-browser-sync",
+        "bifang-browser-multi-instance",
+        "bifang-app-network-accelerator"
+      ],
+      "excluded_local_only_app_ids": ["bifang-multi-instance-display"],
+      "encoded_mapping_bytes": 1826,
+      "aggregate_environment_bytes": 2126,
+      "repository_safety_limit_bytes": 3840,
+      "platform_limit_bytes": 4096,
+      "materials_sha256": "44be8037b2a517fc20bc78124399b6ed9ced3415862732c0c44f38d9d0b9a0f6",
+      "materials_files": 32,
+      "materials_bytes": 28916421,
+      "raw_secret_uploads": 0,
+      "deletes": []
+    },
+    "version_records_to_create": 0,
+    "ad_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve existing shared function and route without modification"
+  },
+  "deployment_plan_after_confirmation": {
+    "requires_stage_4_confirmation": true,
+    "write_steps": [
+      "Refresh billing, usage, functions, routes, collections, ACLs, indexes, dashboard mapping and hosting; stop on cost, upgrade, overrun, conflict, drift or material digest changes.",
+      "Create the four exact target collections with ADMINONLY and the reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-app-network-accelerator from the reviewed configuration.",
+      "Create only /apps/bifang-app-network-accelerator/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the exact twelve-app filtered mapping; preserve both existing dashboard routes.",
+      "Read back ACL, indexes, functions, routes, collection counts and dashboard mapping; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory": {
+      "functions": 14,
+      "routes": 15,
+      "collections": 52,
+      "hosting_objects": 6,
+      "dashboard_apps": 12,
+      "target_telemetry_records": 1,
+      "new_version_records": 0,
+      "new_ad_records": 0,
+      "new_audit_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "create a second CloudBase environment",
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api function or route changes",
+      "credential generation or version and advertisement records",
+      "bifang-multi-instance-display cloud resources or dashboard mapping",
+      "hosting writes",
+      "force, prune or delete commands except the dashboard wrapper's reviewed fixed-function update",
+      "paid plans, resource packs, auto renewal or overage",
+      "target client repository changes, builds, installs or releases",
+      "git push"
+    ],
+    "rollback": {
+      "dashboard": "Restore the previous reviewed mapping and prior function version if required.",
+      "new_resources": "Do not automatically delete new collections, function or route; any deletion requires a separate exact-target preview and explicit approval.",
+      "partial_failure": "Stop, reread live state and do not automatically retry side-effecting steps."
+    }
+  },
+  "client_limits": {
+    "profile_v2_created": false,
+    "client_daily_active_integrated": false,
+    "client_application_version_integrated": false,
+    "real_client_e2e_available_after_cloud_deployment": false,
+    "version_service_activation_deferred": true,
+    "follow_up_required": "A separate target-repository product/privacy decision and onboarding task must approve and implement daily_active and application-version v1 before real client E2E."
+  },
+  "verification": {
+    "source_scan": "complete-and-clear-with-no-runtime-integration",
+    "config_generation": "passed",
+    "telemetry_plan": "passed",
+    "dashboard_plan": "passed",
+    "affected_root_contract_tests": {
+      "passed": 19,
+      "failed": 0
+    },
+    "full_check": "stopped at 81 repository-wide pre-existing or unrelated formatting findings",
+    "affected_files_format_check": "passed",
+    "diff_check": "passed"
+  },
+  "target_cloud_writes_executed": false,
+  "target_dashboard_write_executed": false,
+  "credentials_generated": false,
+  "client_changes_executed": false,
+  "client_build_or_install_executed": false,
+  "client_release_executed": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue after final target review"
+}

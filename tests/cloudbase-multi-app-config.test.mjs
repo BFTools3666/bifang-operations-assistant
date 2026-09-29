@@ -90,10 +90,10 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
   assert.equal(output.version, "2.1");
   assert.deepEqual(output.errors, []);
   assert.deepEqual(output.summary, {
-    functions: 13,
+    functions: 17,
     hosting: 0,
     databases: 0,
-    gateways: 14,
+    gateways: 18,
   });
 });
 
@@ -172,6 +172,25 @@ test("release streams are the non-sensitive authority while telemetry remains is
       {
         appId: "bifang-browser-multi-instance",
         codes: ["bifang-browser-multi-instance-windows-x64"],
+      },
+      {
+        appId: "bifang-multi-instance-display",
+        codes: ["bifang-multi-instance-display-windows-x64"],
+      },
+      {
+        appId: "bifang-app-network-accelerator",
+        codes: ["bifang-app-network-accelerator-windows-x64"],
+      },
+      {
+        appId: "bifang-content-production-assistant",
+        codes: [
+          "bifang-content-production-assistant-windows-x64",
+          "bifang-content-production-assistant-macos-arm64",
+        ],
+      },
+      {
+        appId: "bifang-window-layout",
+        codes: ["bifang-window-layout-windows-x64"],
       },
     ],
   );
@@ -282,6 +301,10 @@ test("release streams are the non-sensitive authority while telemetry remains is
       "/apps/bifang-multi-local-proxy/v1/track",
       "/apps/bifang-browser-sync/v1/track",
       "/apps/bifang-browser-multi-instance/v1/track",
+      "/apps/bifang-multi-instance-display/v1/track",
+      "/apps/bifang-app-network-accelerator/v1/track",
+      "/apps/bifang-content-production-assistant/v1/track",
+      "/apps/bifang-window-layout/v1/track",
       "/tools/version-control/v1",
       "/admin/v1/metrics",
       "/dashboard",
