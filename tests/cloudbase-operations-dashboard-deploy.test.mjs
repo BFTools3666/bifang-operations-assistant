@@ -113,19 +113,24 @@ test("dashboard deployment can bind and filter an explicit app scope", async () 
     const config = {
       envVariables: {
         DASHBOARD_APPS_JSON: JSON.stringify(
-          JSON.stringify([
-            { appId: "bifang-screen-recorder" },
-            { appId: "bifang-vm-sync-agentless" },
-            { appId: "bifang-lan-file-transfer" },
-          ]),
+          JSON.stringify({
+            schema_version: 2,
+            apps: [
+              ["bifang-screen-recorder", []],
+              ["bifang-vm-sync-agentless", []],
+              ["bifang-lan-file-transfer", []],
+            ],
+          }),
         ),
       },
     };
     filterDashboardAppsEnvironment(config, selectedAppIds);
+    const filteredMapping = JSON.parse(
+      JSON.parse(config.envVariables.DASHBOARD_APPS_JSON),
+    );
+    assert.equal(filteredMapping.schema_version, 2);
     assert.deepEqual(
-      JSON.parse(JSON.parse(config.envVariables.DASHBOARD_APPS_JSON)).map(
-        ({ appId }) => appId,
-      ),
+      filteredMapping.apps.map(([appId]) => appId),
       selectedAppIds,
     );
     assert.throws(

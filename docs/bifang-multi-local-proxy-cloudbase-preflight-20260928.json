@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-explicit-stage-4-continue",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-multi-local-proxy",
+    "reachable": true,
+    "empty_repository": true,
+    "default_branch": null,
+    "commit": null,
+    "source_scan_performed": false,
+    "reason": "git ls-remote succeeded but returned no HEAD or refs; platform and release identity use the owner's confirmed scope"
+  },
+  "infrastructure": {
+    "repository_commit": "a08a77fcef2c5709d1980a9d6acdedb2c47a0734",
+    "existing_user_changes_preserved": true,
+    "app_id": "bifang-multi-local-proxy",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-multi-local-proxy-windows-x64"
+      }
+    ],
+    "dashboard_mapping": {
+      "schema_version": 2,
+      "selected_apps": 9,
+      "encoded_mapping_bytes": 1493,
+      "aggregate_environment_bytes": 1793,
+      "repository_safety_limit_bytes": 3840,
+      "platform_limit_bytes": 4096
+    }
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-28T18:30:22.7502623+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "cli_version": "3.8.1",
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": []
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 8.22,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 10,
+      "routes": 11,
+      "collections": 32,
+      "hosting_objects": 6,
+      "collections_all_adminonly": true,
+      "collection_contract_mismatches": 0
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true
+  },
+  "proposed_resources": {
+    "telemetry_function": {
+      "name": "telemetry-bifang-multi-local-proxy",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256
+    },
+    "telemetry_route": {
+      "path": "/apps/bifang-multi-local-proxy/v1/track",
+      "target": "telemetry-bifang-multi-local-proxy",
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "expires_at_ttl",
+            "key": {
+              "expires_at": 1
+            },
+            "expireAfterSeconds": 0
+          }
+        ]
+      },
+      {
+        "name": "versions_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_version_created",
+            "keys": ["doc_type:1", "code:1", "created_at:-1", "_id:-1"]
+          },
+          {
+            "name": "idx_version_sort",
+            "keys": [
+              "doc_type:1",
+              "code:1",
+              "version_sort_key:-1",
+              "updated_at:-1",
+              "_id:-1"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "ads_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_ads_created",
+            "keys": ["doc_type:1", "app_code:1", "created_at:-1", "_id:-1"]
+          }
+        ]
+      },
+      {
+        "name": "audit_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "indexes": [
+          {
+            "name": "idx_audit_occurred_at",
+            "keys": ["occurred_at:-1"]
+          }
+        ]
+      }
+    ],
+    "dashboard": {
+      "action": "update-in-place",
+      "function": "operations-dashboard-api",
+      "route_action": "preserve-existing",
+      "route": "/dashboard",
+      "selected_app_ids": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-codex-skins",
+        "bifang-app-launcher",
+        "bifang-multi-local-proxy"
+      ],
+      "materials_sha256": "5936f13224ae7e0a0a515dd77f865cd79f33fd40cb7c635aac42a72487b8b985",
+      "materials_files": 32,
+      "materials_bytes": 28911577,
+      "raw_secret_uploads": 0,
+      "deletes": []
+    },
+    "version_records_to_create": 0,
+    "ad_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve existing function and route without modification"
+  },
+  "deployment_plan_after_confirmation": {
+    "requires_stage_4_confirmation": true,
+    "write_steps": [
+      "Create the four exact target collections with ADMINONLY and the reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-multi-local-proxy from the reviewed configuration.",
+      "Create only /apps/bifang-multi-local-proxy/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the nine-app reviewed mapping; preserve the existing /dashboard route.",
+      "Read back ACL, indexes, function, route and dashboard configuration; submit one synthetic daily_active request twice and require one idempotent stored row."
+    ],
+    "expected_inventory": {
+      "functions": 11,
+      "routes": 12,
+      "collections": 36,
+      "hosting_objects": 6,
+      "new_version_records": 0,
+      "new_ad_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "create a second CloudBase environment",
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "application-version-api function or route changes",
+      "credential generation or version and advertisement records",
+      "hosting writes",
+      "force, prune or delete commands",
+      "paid plans, resource packs, auto renewal or overage",
+      "bifang-browser-sync cloud resources"
+    ]
+  },
+  "concurrent_change": {
+    "app_id": "bifang-browser-sync",
+    "present_in_local_registry": true,
+    "present_in_live_cloud_inventory": false,
+    "created_by_this_task": false,
+    "preserved": true,
+    "excluded_from_this_deployment": true
+  },
+  "verification": {
+    "config_check": "passed",
+    "affected_prettier_check": "passed",
+    "targeted_root_tests": {
+      "passed": 24,
+      "failed": 0
+    },
+    "operations_dashboard_tests": {
+      "passed": 26,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "full_check": "stopped at 80 pre-existing formatting issues",
+    "full_test_rerun": "stopped at owner request; not used as acceptance evidence"
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue after final target review"
+}

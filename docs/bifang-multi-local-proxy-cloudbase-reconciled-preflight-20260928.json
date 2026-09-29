@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "status": "target-resources-deployed-dashboard-awaiting-reconciled-owner-confirmation",
+  "checked_at": "2026-09-28T18:42:57.9031460+08:00",
+  "reason": "bifang-browser-sync was deployed concurrently after the reviewed pre-write inventory and is now present in the live dashboard",
+  "environment": {
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "package_id": "baas_trial",
+    "package_name": "体验版",
+    "status": "NORMAL",
+    "auto_renewal": false,
+    "enable_overrun": false,
+    "extension_packages": [],
+    "active_order_present": false
+  },
+  "completed_target_scope": {
+    "function": {
+      "name": "telemetry-bifang-multi-local-proxy",
+      "status": "Active",
+      "available_status": "Available",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout_seconds": 3,
+      "memory_mb": 256
+    },
+    "route": {
+      "path": "/apps/bifang-multi-local-proxy/v1/track",
+      "target": "telemetry-bifang-multi-local-proxy",
+      "enable": true,
+      "enable_auth": false,
+      "enable_safe_domain": true,
+      "enable_path_transmission": true,
+      "qps_total": 100,
+      "qps_per_client_ip": 10
+    },
+    "collections": [
+      {
+        "name": "telemetry_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "record_count": 1,
+        "indexes": ["expires_at_ttl"]
+      },
+      {
+        "name": "versions_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_version_created", "idx_version_sort"]
+      },
+      {
+        "name": "ads_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_ads_created"]
+      },
+      {
+        "name": "audit_bifang_multi_local_proxy",
+        "permission": "ADMINONLY",
+        "record_count": 0,
+        "indexes": ["idx_audit_occurred_at"]
+      }
+    ],
+    "public_http_e2e": {
+      "options_status": 204,
+      "unsupported_method_status": 405,
+      "cross_app_status": 403,
+      "unknown_field_status": 400,
+      "first_valid_status": 202,
+      "identical_retry_status": 202,
+      "final_record_count": 1,
+      "duplicate_records": 0
+    }
+  },
+  "concurrent_change": {
+    "app_id": "bifang-browser-sync",
+    "function_present": true,
+    "route_present": true,
+    "collections_present": 4,
+    "dashboard_present": true,
+    "dashboard_modified_at": "2026-09-28 18:40:28",
+    "created_by_this_task": false
+  },
+  "live_inventory_after_concurrent_and_target_writes": {
+    "functions": 12,
+    "routes": 13,
+    "collections": 40,
+    "dashboard_apps": 9,
+    "dashboard_app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-browser-sync"
+    ]
+  },
+  "reconciled_dashboard_plan": {
+    "action": "preserve all nine live dashboard applications and append bifang-multi-local-proxy",
+    "function": "operations-dashboard-api",
+    "route_action": "preserve-existing",
+    "app_ids": [
+      "bifang-screen-recorder",
+      "bifang-mouse-clicker",
+      "bifang-tools",
+      "bifang-ai-usage-collector",
+      "bifang-vm-sync-agentless",
+      "bifang-lan-file-transfer",
+      "bifang-codex-skins",
+      "bifang-app-launcher",
+      "bifang-browser-sync",
+      "bifang-multi-local-proxy"
+    ],
+    "mapping_schema_version": 2,
+    "mapping_bytes": 1590,
+    "aggregate_environment_bytes": 1890,
+    "repository_safety_limit_bytes": 3840,
+    "platform_limit_bytes": 4096,
+    "materials_sha256": "575f38174895e88fb645aba50ef5d8257004902e16684e17735a702b9369c3c9",
+    "materials_files": 32,
+    "materials_bytes": 28911577,
+    "raw_secret_uploads": 0,
+    "deletes": []
+  },
+  "expected_after_dashboard_update": {
+    "functions": 12,
+    "routes": 13,
+    "collections": 40,
+    "dashboard_apps": 10,
+    "new_version_records": 0,
+    "new_ad_records": 0,
+    "new_credentials": 0
+  },
+  "excluded_scope": [
+    "application-version-api changes",
+    "credential generation",
+    "hosting writes",
+    "paid plans, overrun or auto renewal",
+    "deletes or pruning",
+    "target client changes, builds or releases"
+  ],
+  "cloud_writes_executed_by_target_stage": true,
+  "dashboard_write_executed_by_target_stage": false,
+  "approval_status": "awaiting explicit owner confirmation to continue while preserving bifang-browser-sync"
+}

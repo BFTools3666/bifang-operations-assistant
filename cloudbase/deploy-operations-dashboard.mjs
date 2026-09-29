@@ -332,26 +332,36 @@ export function filterDashboardAppsEnvironment(dashboardFunction, appIds) {
   if (typeof encodedApps !== "string") {
     throw new TypeError("dashboard function is missing DASHBOARD_APPS_JSON");
   }
-  let apps;
+  let mapping;
   try {
-    apps = JSON.parse(JSON.parse(encodedApps));
+    mapping = JSON.parse(JSON.parse(encodedApps));
   } catch {
     throw new TypeError("dashboard application mapping is malformed");
   }
+  const compact =
+    mapping &&
+    typeof mapping === "object" &&
+    !Array.isArray(mapping) &&
+    mapping.schema_version === 2 &&
+    Object.keys(mapping).sort().join(",") === "apps,schema_version" &&
+    Array.isArray(mapping.apps);
+  const apps = compact ? mapping.apps : mapping;
   if (!Array.isArray(apps)) {
-    throw new TypeError("dashboard application mapping must be an array");
+    throw new TypeError("dashboard application mapping must contain apps");
   }
   const requested = new Set(normalizedAppIds);
-  const filtered = apps.filter(({ appId }) => requested.has(appId));
-  const found = new Set(filtered.map(({ appId }) => appId));
+  const readAppId = (item) => (compact ? item?.[0] : item?.appId);
+  const filtered = apps.filter((item) => requested.has(readAppId(item)));
+  const found = new Set(filtered.map(readAppId));
   const missing = normalizedAppIds.filter((appId) => !found.has(appId));
   if (missing.length > 0) {
     throw new TypeError(
       `dashboard application mapping is missing: ${missing.join(", ")}`,
     );
   }
+  const filteredMapping = compact ? { ...mapping, apps: filtered } : filtered;
   dashboardFunction.envVariables.DASHBOARD_APPS_JSON = JSON.stringify(
-    JSON.stringify(filtered),
+    JSON.stringify(filteredMapping),
   );
   return dashboardFunction;
 }

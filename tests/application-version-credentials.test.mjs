@@ -276,7 +276,7 @@ test(
       );
       const digestCredentials = expandCompactDigest(digestConfiguration);
       assert.equal(Buffer.byteLength(digestBase64, "utf8") > 4_096, true);
-      // Eight registered apps no longer fit the runtime credential parser. A
+      // Ten registered apps do not fit the runtime credential parser. A
       // reserved release stream must not silently bypass that deployment gate.
       assert.throws(
         () =>

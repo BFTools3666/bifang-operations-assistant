@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,6 +19,10 @@ import {
 } from "../cloudbase/generate-cloudbaserc.mjs";
 
 const repositoryRoot = new URL("../", import.meta.url);
+const require = createRequire(import.meta.url);
+const {
+  parseDashboardApps,
+} = require("../cloudbase/functions/operations-dashboard/src/handler.js");
 
 const stream = (overrides = {}) => ({
   platform: "windows",
@@ -85,10 +90,10 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
   assert.equal(output.version, "2.1");
   assert.deepEqual(output.errors, []);
   assert.deepEqual(output.summary, {
-    functions: 10,
+    functions: 12,
     hosting: 0,
     databases: 0,
-    gateways: 11,
+    gateways: 13,
   });
 });
 
@@ -156,6 +161,14 @@ test("release streams are the non-sensitive authority while telemetry remains is
           "bifang-app-launcher-macos-arm64",
         ],
       },
+      {
+        appId: "bifang-multi-local-proxy",
+        codes: ["bifang-multi-local-proxy-windows-x64"],
+      },
+      {
+        appId: "bifang-browser-sync",
+        codes: ["bifang-browser-sync-windows-x64"],
+      },
     ],
   );
 
@@ -194,9 +207,30 @@ test("release streams are the non-sensitive authority while telemetry remains is
     dashboardFunction.envVariables.CLOUDBASE_ENV_ID,
     "{{tcb.envId}}",
   );
-  const dashboardApps = JSON.parse(
+  const dashboardMapping = JSON.parse(
     JSON.parse(dashboardFunction.envVariables.DASHBOARD_APPS_JSON),
   );
+  assert.equal(dashboardMapping.schema_version, 2);
+  assert.equal(dashboardMapping.apps.length, applications.length);
+  const dashboardApps = parseDashboardApps(
+    dashboardFunction.envVariables.DASHBOARD_APPS_JSON,
+  );
+  const deployedDashboardEnvironment = {
+    ...dashboardFunction.envVariables,
+    CLOUDBASE_ENV_ID: "bftoos-sh-d3ga7hahz59229f0a",
+    DASHBOARD_ACCESS_TOKEN_SHA256: "b".repeat(64),
+    DASHBOARD_TOKEN_SHA256: "a".repeat(64),
+  };
+  const deployedDashboardEnvironmentBytes = Object.entries(
+    deployedDashboardEnvironment,
+  ).reduce(
+    (total, [key, value]) =>
+      total +
+      Buffer.byteLength(key, "utf8") +
+      Buffer.byteLength(String(value), "utf8"),
+    0,
+  );
+  assert.equal(deployedDashboardEnvironmentBytes <= 3_840, true);
   assert.deepEqual(dashboardApps[0], {
     appId: "bifang-screen-recorder",
     collectionName: "telemetry_bifang_screen_recorder",
@@ -241,6 +275,8 @@ test("release streams are the non-sensitive authority while telemetry remains is
       "/apps/bifang-lan-file-transfer/v1/track",
       "/apps/bifang-codex-skins/v1/track",
       "/apps/bifang-app-launcher/v1/track",
+      "/apps/bifang-multi-local-proxy/v1/track",
+      "/apps/bifang-browser-sync/v1/track",
       "/tools/version-control/v1",
       "/admin/v1/metrics",
       "/dashboard",

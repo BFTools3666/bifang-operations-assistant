@@ -33,6 +33,7 @@ export const APPLICATION_VERSION_API = Object.freeze({
   functionName: "application-version-api",
   path: "/tools/version-control/v1",
 });
+export const DASHBOARD_APPLICATION_MAPPING_SCHEMA_VERSION = 2;
 
 const RELEASE_STREAM_KEYS = ["architecture", "channel", "code", "platform"];
 
@@ -57,6 +58,21 @@ export function deriveApplicationVersionResources(appId) {
   };
 }
 
+export function createDashboardApplicationMapping(applications) {
+  return {
+    schema_version: DASHBOARD_APPLICATION_MAPPING_SCHEMA_VERSION,
+    apps: applications.map(({ appId, releaseStreams }) => [
+      appId,
+      releaseStreams.map(({ platform, architecture, channel, code }) => [
+        platform,
+        architecture,
+        channel,
+        code,
+      ]),
+    ]),
+  };
+}
+
 export function createCloudBaseConfig(registry) {
   const applications = validateRegistry(registry);
   const resources = applications.map(({ appId }) => deriveAppResources(appId));
@@ -76,6 +92,8 @@ export function createCloudBaseConfig(registry) {
   const applicationVersionApps = applications.map(({ appId }) =>
     deriveApplicationVersionResources(appId),
   );
+  const dashboardApplicationMapping =
+    createDashboardApplicationMapping(dashboardApps);
 
   return {
     $schema: "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
@@ -142,7 +160,12 @@ export function createCloudBaseConfig(registry) {
           CLOUDBASE_ENV_ID: "{{tcb.envId}}",
           // CLI 3.8.1 revives object-shaped JSON strings while parsing config.
           // Keep this a string for SCF; the handler accepts these two layers.
-          DASHBOARD_APPS_JSON: JSON.stringify(JSON.stringify(dashboardApps)),
+          // Keep the mapping compact enough for SCF's 4096-byte aggregate
+          // environment-variable quota while deriving collection names and
+          // platform summaries again inside the fail-closed handler.
+          DASHBOARD_APPS_JSON: JSON.stringify(
+            JSON.stringify(dashboardApplicationMapping),
+          ),
           DASHBOARD_PATH: OPERATIONS_DASHBOARD.path,
           DASHBOARD_TOKEN_SHA256: "{{env.DASHBOARD_TOKEN_SHA256}}",
           DASHBOARD_WEB_PATH: OPERATIONS_DASHBOARD.webPath,

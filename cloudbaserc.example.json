@@ -125,6 +125,36 @@
       }
     },
     {
+      "name": "telemetry-bifang-multi-local-proxy",
+      "dir": "./cloudbase/functions/telemetry",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 3,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ALLOWED_APP_IDS": "bifang-multi-local-proxy",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_multi_local_proxy",
+        "TRACK_PATH": "/apps/bifang-multi-local-proxy/v1/track"
+      }
+    },
+    {
+      "name": "telemetry-bifang-browser-sync",
+      "dir": "./cloudbase/functions/telemetry",
+      "type": "Event",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 3,
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "ALLOWED_APP_IDS": "bifang-browser-sync",
+        "TELEMETRY_COLLECTION": "telemetry_bifang_browser_sync",
+        "TRACK_PATH": "/apps/bifang-browser-sync/v1/track"
+      }
+    },
+    {
       "name": "application-version-api",
       "dir": "./cloudbase/functions/application-version-api",
       "type": "Event",
@@ -136,7 +166,7 @@
       "envVariables": {
         "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
         "APPLICATION_VERSION_API_PATH": "/tools/version-control/v1",
-        "APPLICATION_VERSION_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"adCollection\\\":\\\"ads_bifang_screen_recorder\\\",\\\"auditCollection\\\":\\\"audit_bifang_screen_recorder\\\"},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"adCollection\\\":\\\"ads_bifang_mouse_clicker\\\",\\\"auditCollection\\\":\\\"audit_bifang_mouse_clicker\\\"},{\\\"appId\\\":\\\"bifang-tools\\\",\\\"versionCollection\\\":\\\"versions_bifang_tools\\\",\\\"adCollection\\\":\\\"ads_bifang_tools\\\",\\\"auditCollection\\\":\\\"audit_bifang_tools\\\"},{\\\"appId\\\":\\\"bifang-ai-usage-collector\\\",\\\"versionCollection\\\":\\\"versions_bifang_ai_usage_collector\\\",\\\"adCollection\\\":\\\"ads_bifang_ai_usage_collector\\\",\\\"auditCollection\\\":\\\"audit_bifang_ai_usage_collector\\\"},{\\\"appId\\\":\\\"bifang-vm-sync-agentless\\\",\\\"versionCollection\\\":\\\"versions_bifang_vm_sync_agentless\\\",\\\"adCollection\\\":\\\"ads_bifang_vm_sync_agentless\\\",\\\"auditCollection\\\":\\\"audit_bifang_vm_sync_agentless\\\"},{\\\"appId\\\":\\\"bifang-lan-file-transfer\\\",\\\"versionCollection\\\":\\\"versions_bifang_lan_file_transfer\\\",\\\"adCollection\\\":\\\"ads_bifang_lan_file_transfer\\\",\\\"auditCollection\\\":\\\"audit_bifang_lan_file_transfer\\\"},{\\\"appId\\\":\\\"bifang-codex-skins\\\",\\\"versionCollection\\\":\\\"versions_bifang_codex_skins\\\",\\\"adCollection\\\":\\\"ads_bifang_codex_skins\\\",\\\"auditCollection\\\":\\\"audit_bifang_codex_skins\\\"},{\\\"appId\\\":\\\"bifang-app-launcher\\\",\\\"versionCollection\\\":\\\"versions_bifang_app_launcher\\\",\\\"adCollection\\\":\\\"ads_bifang_app_launcher\\\",\\\"auditCollection\\\":\\\"audit_bifang_app_launcher\\\"}]\"",
+        "APPLICATION_VERSION_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"adCollection\\\":\\\"ads_bifang_screen_recorder\\\",\\\"auditCollection\\\":\\\"audit_bifang_screen_recorder\\\"},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"adCollection\\\":\\\"ads_bifang_mouse_clicker\\\",\\\"auditCollection\\\":\\\"audit_bifang_mouse_clicker\\\"},{\\\"appId\\\":\\\"bifang-tools\\\",\\\"versionCollection\\\":\\\"versions_bifang_tools\\\",\\\"adCollection\\\":\\\"ads_bifang_tools\\\",\\\"auditCollection\\\":\\\"audit_bifang_tools\\\"},{\\\"appId\\\":\\\"bifang-ai-usage-collector\\\",\\\"versionCollection\\\":\\\"versions_bifang_ai_usage_collector\\\",\\\"adCollection\\\":\\\"ads_bifang_ai_usage_collector\\\",\\\"auditCollection\\\":\\\"audit_bifang_ai_usage_collector\\\"},{\\\"appId\\\":\\\"bifang-vm-sync-agentless\\\",\\\"versionCollection\\\":\\\"versions_bifang_vm_sync_agentless\\\",\\\"adCollection\\\":\\\"ads_bifang_vm_sync_agentless\\\",\\\"auditCollection\\\":\\\"audit_bifang_vm_sync_agentless\\\"},{\\\"appId\\\":\\\"bifang-lan-file-transfer\\\",\\\"versionCollection\\\":\\\"versions_bifang_lan_file_transfer\\\",\\\"adCollection\\\":\\\"ads_bifang_lan_file_transfer\\\",\\\"auditCollection\\\":\\\"audit_bifang_lan_file_transfer\\\"},{\\\"appId\\\":\\\"bifang-codex-skins\\\",\\\"versionCollection\\\":\\\"versions_bifang_codex_skins\\\",\\\"adCollection\\\":\\\"ads_bifang_codex_skins\\\",\\\"auditCollection\\\":\\\"audit_bifang_codex_skins\\\"},{\\\"appId\\\":\\\"bifang-app-launcher\\\",\\\"versionCollection\\\":\\\"versions_bifang_app_launcher\\\",\\\"adCollection\\\":\\\"ads_bifang_app_launcher\\\",\\\"auditCollection\\\":\\\"audit_bifang_app_launcher\\\"},{\\\"appId\\\":\\\"bifang-multi-local-proxy\\\",\\\"versionCollection\\\":\\\"versions_bifang_multi_local_proxy\\\",\\\"adCollection\\\":\\\"ads_bifang_multi_local_proxy\\\",\\\"auditCollection\\\":\\\"audit_bifang_multi_local_proxy\\\"},{\\\"appId\\\":\\\"bifang-browser-sync\\\",\\\"versionCollection\\\":\\\"versions_bifang_browser_sync\\\",\\\"adCollection\\\":\\\"ads_bifang_browser_sync\\\",\\\"auditCollection\\\":\\\"audit_bifang_browser_sync\\\"}]\"",
         "APPLICATION_VERSION_CREDENTIALS_B64": "{{env.APPLICATION_VERSION_CREDENTIALS_B64}}"
       }
     },
@@ -151,7 +181,7 @@
       "installDependency": true,
       "envVariables": {
         "CLOUDBASE_ENV_ID": "{{tcb.envId}}",
-        "DASHBOARD_APPS_JSON": "\"[{\\\"appId\\\":\\\"bifang-screen-recorder\\\",\\\"collectionName\\\":\\\"telemetry_bifang_screen_recorder\\\",\\\"versionCollection\\\":\\\"versions_bifang_screen_recorder\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-screen-recorder-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-mouse-clicker\\\",\\\"collectionName\\\":\\\"telemetry_bifang_mouse_clicker\\\",\\\"versionCollection\\\":\\\"versions_bifang_mouse_clicker\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-mouse-clicker\\\"}]},{\\\"appId\\\":\\\"bifang-tools\\\",\\\"collectionName\\\":\\\"telemetry_bifang_tools\\\",\\\"versionCollection\\\":\\\"versions_bifang_tools\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-tools-windows-x64\\\"}]},{\\\"appId\\\":\\\"bifang-ai-usage-collector\\\",\\\"collectionName\\\":\\\"telemetry_bifang_ai_usage_collector\\\",\\\"versionCollection\\\":\\\"versions_bifang_ai_usage_collector\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-ai-usage-collector-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-ai-usage-collector-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-vm-sync-agentless\\\",\\\"collectionName\\\":\\\"telemetry_bifang_vm_sync_agentless\\\",\\\"versionCollection\\\":\\\"versions_bifang_vm_sync_agentless\\\",\\\"platforms\\\":[\\\"windows\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-vm-sync-agentless-windows-x64\\\"}]},{\\\"appId\\\":\\\"bifang-lan-file-transfer\\\",\\\"collectionName\\\":\\\"telemetry_bifang_lan_file_transfer\\\",\\\"versionCollection\\\":\\\"versions_bifang_lan_file_transfer\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\",\\\"linux\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-lan-file-transfer-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-lan-file-transfer-macos-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-lan-file-transfer-macos-arm64\\\"},{\\\"platform\\\":\\\"linux\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-lan-file-transfer-linux-x64\\\"}]},{\\\"appId\\\":\\\"bifang-codex-skins\\\",\\\"collectionName\\\":\\\"telemetry_bifang_codex_skins\\\",\\\"versionCollection\\\":\\\"versions_bifang_codex_skins\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-codex-skins-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-codex-skins-macos-arm64\\\"}]},{\\\"appId\\\":\\\"bifang-app-launcher\\\",\\\"collectionName\\\":\\\"telemetry_bifang_app_launcher\\\",\\\"versionCollection\\\":\\\"versions_bifang_app_launcher\\\",\\\"platforms\\\":[\\\"windows\\\",\\\"macos\\\"],\\\"releaseStreams\\\":[{\\\"platform\\\":\\\"windows\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-app-launcher-windows-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"x64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-app-launcher-macos-x64\\\"},{\\\"platform\\\":\\\"macos\\\",\\\"architecture\\\":\\\"arm64\\\",\\\"channel\\\":\\\"stable\\\",\\\"code\\\":\\\"bifang-app-launcher-macos-arm64\\\"}]}]\"",
+        "DASHBOARD_APPS_JSON": "\"{\\\"schema_version\\\":2,\\\"apps\\\":[[\\\"bifang-screen-recorder\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-screen-recorder-windows-x64\\\"],[\\\"macos\\\",\\\"arm64\\\",\\\"stable\\\",\\\"bifang-screen-recorder-macos-arm64\\\"]]],[\\\"bifang-mouse-clicker\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-mouse-clicker\\\"]]],[\\\"bifang-tools\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-tools-windows-x64\\\"]]],[\\\"bifang-ai-usage-collector\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-ai-usage-collector-windows-x64\\\"],[\\\"macos\\\",\\\"arm64\\\",\\\"stable\\\",\\\"bifang-ai-usage-collector-macos-arm64\\\"]]],[\\\"bifang-vm-sync-agentless\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-vm-sync-agentless-windows-x64\\\"]]],[\\\"bifang-lan-file-transfer\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-lan-file-transfer-windows-x64\\\"],[\\\"macos\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-lan-file-transfer-macos-x64\\\"],[\\\"macos\\\",\\\"arm64\\\",\\\"stable\\\",\\\"bifang-lan-file-transfer-macos-arm64\\\"],[\\\"linux\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-lan-file-transfer-linux-x64\\\"]]],[\\\"bifang-codex-skins\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-codex-skins-windows-x64\\\"],[\\\"macos\\\",\\\"arm64\\\",\\\"stable\\\",\\\"bifang-codex-skins-macos-arm64\\\"]]],[\\\"bifang-app-launcher\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-app-launcher-windows-x64\\\"],[\\\"macos\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-app-launcher-macos-x64\\\"],[\\\"macos\\\",\\\"arm64\\\",\\\"stable\\\",\\\"bifang-app-launcher-macos-arm64\\\"]]],[\\\"bifang-multi-local-proxy\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-multi-local-proxy-windows-x64\\\"]]],[\\\"bifang-browser-sync\\\",[[\\\"windows\\\",\\\"x64\\\",\\\"stable\\\",\\\"bifang-browser-sync-windows-x64\\\"]]]]}\"",
         "DASHBOARD_PATH": "/admin/v1/metrics",
         "DASHBOARD_TOKEN_SHA256": "{{env.DASHBOARD_TOKEN_SHA256}}",
         "DASHBOARD_WEB_PATH": "/dashboard",
@@ -262,6 +292,34 @@
       {
         "path": "/apps/bifang-app-launcher/v1/track",
         "target": "function:telemetry-bifang-app-launcher",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/apps/bifang-multi-local-proxy/v1/track",
+        "target": "function:telemetry-bifang-multi-local-proxy",
+        "protocol": "HTTP_TO_HTTPS",
+        "enablePathTransmission": true,
+        "enableAuth": false,
+        "qpsPolicy": {
+          "qpsTotal": 100,
+          "qpsPerClient": {
+            "limitBy": "ClientIP",
+            "limitValue": 10
+          }
+        }
+      },
+      {
+        "path": "/apps/bifang-browser-sync/v1/track",
+        "target": "function:telemetry-bifang-browser-sync",
         "protocol": "HTTP_TO_HTTPS",
         "enablePathTransmission": true,
         "enableAuth": false,

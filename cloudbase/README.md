@@ -63,6 +63,8 @@ npm run cloudbase:dashboard:deploy -- --env-id <现有免费环境ID> --secret-f
 
 Helper 会建立私有临时快照，仅向 `operations-dashboard-api` 注入两个摘要变量，并抑制 CLI 原始输出；它不创建路由。`/dashboard` 路由必须按同一轮预检的精确目标单独创建并在创建后读回。
 
+看板应用映射使用内部 compact schema v2，仅保存 APP_ID 和发布流四元组；函数端重新派生集合名与平台汇总并按完整规则校验。这样在保留全部已上线应用时仍满足 SCF 环境变量 4096 字节平台上限与仓库 3840 字节安全门槛，不得退回冗余的逐应用对象编码。
+
 路由就绪后运行自动验收：
 
 ```powershell

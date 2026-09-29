@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "status": "prepared-awaiting-owner-deployment-confirmation",
+  "source": {
+    "repository": "https://github.com/BFTools366/bifang-browser-sync",
+    "default_branch": "master",
+    "remote_head": "ae5f1eb0ac413ed8602f2af2a9a13ea9403f415c",
+    "checkout_branch": "feature-rust-tauri-full-migration-20260923",
+    "checkout_commit": "ae5f1eb0ac413ed8602f2af2a9a13ea9403f415c",
+    "checkout_clean": false,
+    "existing_user_migration_preserved": true,
+    "version": "1.2.9",
+    "version_authority": "Cargo.toml workspace.package.version",
+    "framework": "Tauri 2 / Rust / React / TypeScript",
+    "declared_platforms": ["windows"],
+    "declared_release_targets": ["x86_64-pc-windows-msvc"],
+    "bifang_profile_present": false,
+    "daily_active_present": false,
+    "application_version_present": false,
+    "legacy_static_update_present": false,
+    "official_updater_present_but_not_configured": true,
+    "scan": {
+      "scan_version": 3,
+      "files_scanned": 304,
+      "incomplete": false,
+      "manual_review_note": "The scanner saw x64 and arm64 updater-controller tokens, but Cargo workspace metadata declares Windows only and the current Tauri updater endpoints and public key are empty."
+    }
+  },
+  "infrastructure": {
+    "repository_commit": "a08a77fcef2c5709d1980a9d6acdedb2c47a0734",
+    "existing_user_and_concurrent_changes_preserved": true,
+    "app_id": "bifang-browser-sync",
+    "registration_status": "registered-locally-not-deployed",
+    "release_streams": [
+      {
+        "platform": "windows",
+        "architecture": "x64",
+        "channel": "stable",
+        "code": "bifang-browser-sync-windows-x64"
+      }
+    ],
+    "concurrent_local_app_preserved_but_excluded_from_deployment": "bifang-multi-local-proxy"
+  },
+  "cloud_preflight": {
+    "checked_at": "2026-09-28T18:30:17.8760203+08:00",
+    "env_id": "bftoos-sh-d3ga7hahz59229f0a",
+    "region": "ap-shanghai",
+    "origin": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com",
+    "billing": {
+      "package_id": "baas_trial",
+      "package_name": "体验版",
+      "status": "NORMAL",
+      "auto_renewal": false,
+      "enable_overrun": false,
+      "expires_at": "2027-03-17 23:59:59",
+      "active_order_present": false,
+      "extension_packages": [],
+      "tips": ""
+    },
+    "usage": {
+      "billing_cycle": {
+        "start_date": "2026-09-17",
+        "end_date": "2026-10-17"
+      },
+      "total_credits": 3000,
+      "used_credits": 9.55,
+      "package_deduct": 0,
+      "pay_as_you_go_deduct": 0
+    },
+    "current_inventory": {
+      "functions": 10,
+      "routes": 11,
+      "collections": 32,
+      "hosting_objects": 6,
+      "dashboard_apps": 8
+    },
+    "default_domain": {
+      "status": "SUCCESS",
+      "dns_status": "OK",
+      "all_current_routes_enabled": true
+    },
+    "target_resources_absent": true,
+    "target_function_absent": true,
+    "target_route_absent": true,
+    "target_collections_absent": true,
+    "collection_contract_evidence": "The complete live name/count inventory was refreshed. ACL and index contracts for the 32 existing collections were verified by the immediately preceding app-launcher deployment receipt and must be refreshed again immediately before any write."
+  },
+  "proposed_resources": {
+    "telemetry_function": "telemetry-bifang-browser-sync",
+    "telemetry_route": "/apps/bifang-browser-sync/v1/track",
+    "telemetry_collection": "telemetry_bifang_browser_sync",
+    "version_collection": "versions_bifang_browser_sync",
+    "ad_collection": "ads_bifang_browser_sync",
+    "audit_collection": "audit_bifang_browser_sync",
+    "collection_permission": "ADMINONLY",
+    "telemetry_ttl_index": {
+      "name": "expires_at_ttl",
+      "key": {
+        "expires_at": 1
+      },
+      "expireAfterSeconds": 0
+    },
+    "version_indexes": [
+      {
+        "name": "idx_version_created",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "created_at": -1,
+          "_id": -1
+        }
+      },
+      {
+        "name": "idx_version_sort",
+        "key": {
+          "doc_type": 1,
+          "code": 1,
+          "version_sort_key": -1,
+          "updated_at": -1,
+          "_id": -1
+        }
+      }
+    ],
+    "ad_index": {
+      "name": "idx_ads_created",
+      "key": {
+        "doc_type": 1,
+        "app_code": 1,
+        "created_at": -1,
+        "_id": -1
+      }
+    },
+    "audit_index": {
+      "name": "idx_audit_occurred_at",
+      "key": {
+        "occurred_at": -1
+      }
+    },
+    "version_records_to_create": 0,
+    "credentials_to_create": 0,
+    "application_version_action": "preserve live shared function and route",
+    "dashboard_action": {
+      "function": "operations-dashboard-api",
+      "mode": "update-in-place",
+      "app_scope": [
+        "bifang-screen-recorder",
+        "bifang-mouse-clicker",
+        "bifang-tools",
+        "bifang-ai-usage-collector",
+        "bifang-vm-sync-agentless",
+        "bifang-lan-file-transfer",
+        "bifang-codex-skins",
+        "bifang-app-launcher",
+        "bifang-browser-sync"
+      ],
+      "excluded_local_only_app_ids": ["bifang-multi-local-proxy"],
+      "environment_utf8_bytes": 1783,
+      "platform_environment_quota_bytes": 4096,
+      "materials_sha256": "371967eb81aa7c245fe095caa1e5366df0f305d98f8ee6025632308fdc8a02ad"
+    }
+  },
+  "deployment_plan": {
+    "requires_stage_4_confirmation": true,
+    "write_steps_after_confirmation": [
+      "Refresh billing, functions, routes, collections, ACLs and indexes; stop on cost, upgrade, overrun, conflict or drift.",
+      "Create the four exact bifang-browser-sync collections with ADMINONLY and reviewed indexes; keep versions, ads and audit empty.",
+      "Deploy only telemetry-bifang-browser-sync from cloudbaserc.example.json to the reviewed environment.",
+      "Create only /apps/bifang-browser-sync/v1/track on the existing default domain.",
+      "Update operations-dashboard-api in place with the exact nine-app live scope and reviewed materials digest, excluding bifang-multi-local-proxy.",
+      "Read back ACL, indexes, function, route and dashboard mapping; submit one synthetic daily_active request twice and require one stored row."
+    ],
+    "expected_inventory_after_deployment": {
+      "functions": 11,
+      "routes": 12,
+      "collections": 36,
+      "hosting_objects": 6,
+      "dashboard_apps": 9,
+      "new_version_records": 0,
+      "new_credentials": 0
+    },
+    "forbidden_scope": [
+      "full environment deployment",
+      "deploy all functions or all gateway routes",
+      "bifang-multi-local-proxy cloud resources or dashboard mapping",
+      "application-version-api changes",
+      "hosting writes",
+      "force, prune or delete commands outside the reviewed dashboard helper",
+      "paid plans, resource packs or overage",
+      "target client repository changes, builds, installs or releases"
+    ]
+  },
+  "capacity_and_client_limits": {
+    "shared_version_service_unchanged": true,
+    "version_service_activation_deferred": true,
+    "client_changes_executed": false,
+    "real_client_telemetry_available_after_cloud_deployment": false,
+    "client_policy_conflict": "The in-progress target migration's product specification currently prohibits remote telemetry, while the shared daily_active contract requires an app-specific random install_id. No client change is safe until that product decision is explicitly updated in the target repository.",
+    "dirty_worktree_note": "The target repository contains a large user-owned Electron-to-Tauri migration. It was not reset, stashed, switched or modified."
+  },
+  "verification": {
+    "config_check": "passed",
+    "telemetry_plan": "passed",
+    "dashboard_plan": "passed",
+    "targeted_tests": {
+      "passed": 20,
+      "failed": 0
+    },
+    "affected_files_format_check": "passed",
+    "diff_check": "passed",
+    "full_check": "stopped at 80 pre-existing formatting findings",
+    "unrelated_full_test_run": "stopped at owner request; no failures observed before termination",
+    "typecheck": "passed",
+    "build": "passed",
+    "examples_typecheck": "passed"
+  },
+  "cloud_writes_executed": false,
+  "dashboard_writes_executed": false,
+  "client_changes_executed": false,
+  "credentials_generated": false,
+  "git_push_executed": false,
+  "deletes_executed": false,
+  "approval_status": "awaiting explicit owner continue"
+}

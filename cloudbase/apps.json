@@ -136,6 +136,28 @@
           "code": "bifang-app-launcher-macos-arm64"
         }
       ]
+    },
+    {
+      "app_id": "bifang-multi-local-proxy",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-multi-local-proxy-windows-x64"
+        }
+      ]
+    },
+    {
+      "app_id": "bifang-browser-sync",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-browser-sync-windows-x64"
+        }
+      ]
     }
   ]
 }

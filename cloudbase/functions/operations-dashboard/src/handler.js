@@ -18,6 +18,7 @@ const CHANNEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 const RELEASE_STREAM_KEYS = "architecture,channel,code,platform";
 const RELEASE_PLATFORMS = ["windows", "macos", "linux"];
 const RELEASE_ARCHITECTURES = ["x64", "arm64", "ia32"];
+const DASHBOARD_APPLICATION_MAPPING_SCHEMA_VERSION = 2;
 
 function createHandler(options = {}) {
   const adminPath = normalizePathValue(
@@ -163,6 +164,7 @@ function parseDashboardApps(value) {
       return [];
     }
   }
+  parsed = expandCompactDashboardApps(parsed);
   if (!Array.isArray(parsed)) return [];
   const apps = [];
   for (const item of parsed) {
@@ -250,6 +252,52 @@ function parseDashboardApps(value) {
     new Set(allCodes).size === allCodes.length
     ? apps
     : [];
+}
+
+function expandCompactDashboardApps(value) {
+  if (Array.isArray(value)) return value;
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Object.keys(value).sort().join(",") !== "apps,schema_version" ||
+    value.schema_version !== DASHBOARD_APPLICATION_MAPPING_SCHEMA_VERSION ||
+    !Array.isArray(value.apps) ||
+    value.apps.length === 0 ||
+    value.apps.length > 100
+  ) {
+    return null;
+  }
+  const apps = [];
+  for (const entry of value.apps) {
+    if (
+      !Array.isArray(entry) ||
+      entry.length !== 2 ||
+      typeof entry[0] !== "string" ||
+      !APP_ID_PATTERN.test(entry[0]) ||
+      !Array.isArray(entry[1]) ||
+      entry[1].length === 0 ||
+      entry[1].length > 12
+    ) {
+      return null;
+    }
+    const releaseStreams = [];
+    for (const stream of entry[1]) {
+      if (!Array.isArray(stream) || stream.length !== 4) return null;
+      const [platform, architecture, channel, code] = stream;
+      releaseStreams.push({ platform, architecture, channel, code });
+    }
+    const appId = entry[0];
+    apps.push({
+      appId,
+      collectionName: `telemetry_${appId.replaceAll("-", "_")}`,
+      versionCollection: `versions_${appId.replaceAll("-", "_")}`,
+      platforms: RELEASE_PLATFORMS.filter((platform) =>
+        releaseStreams.some((stream) => stream.platform === platform),
+      ),
+      releaseStreams,
+    });
+  }
+  return apps;
 }
 
 function isAuthorized(headers, expectedHash) {

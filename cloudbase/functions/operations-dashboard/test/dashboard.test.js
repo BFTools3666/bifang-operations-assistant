@@ -1182,6 +1182,23 @@ test("handler rejects unknown parameters and applications", async () => {
 
 test("dashboard app mapping has an exact fail-closed shape", () => {
   assert.deepEqual(parseDashboardApps(JSON.stringify(APPS)), APPS);
+  const compact = {
+    schema_version: 2,
+    apps: APPS.map(({ appId, releaseStreams }) => [
+      appId,
+      releaseStreams.map(({ platform, architecture, channel, code }) => [
+        platform,
+        architecture,
+        channel,
+        code,
+      ]),
+    ]),
+  };
+  assert.deepEqual(parseDashboardApps(JSON.stringify(compact)), APPS);
+  assert.deepEqual(
+    parseDashboardApps(JSON.stringify({ ...compact, unknown: true })),
+    [],
+  );
   assert.deepEqual(
     parseDashboardApps([{ ...APPS[0], secret: "not allowed" }]),
     [],
