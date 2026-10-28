@@ -206,7 +206,7 @@ test("an unknown same-name skill is never overwritten", async (t) => {
   const target = join(codexHome, "skills", skillName);
   const sentinel = await createOtherSkill(codexHome);
   await mkdir(target, { recursive: true });
-  const unknown = `---\nname: ${skillName}\ndescription: unrelated local skill\nmetadata:\n  version: "2.0.0"\n  infrastructure-version: "3.0.0"\n  infrastructure-source-commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n  application-version-contract-version: "1.0.0"\n  application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"\n  source-repository: "someone-elses-repository"\n  canonical-repository-url: "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"\n---\n\nDo not overwrite.\n`;
+  const unknown = `---\nname: ${skillName}\ndescription: unrelated local skill\nmetadata:\n  version: "2.0.0"\n  infrastructure-version: "3.0.0"\n  infrastructure-source-commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n  application-version-contract-version: "1.0.0"\n  application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"\n  source-repository: "someone-elses-repository"\n  canonical-repository-url: "https://github.com/BFTools366/bifang-operations-assistant.git"\n---\n\nDo not overwrite.\n`;
   await writeFile(join(target, "SKILL.md"), unknown, "utf8");
 
   const result = runInstaller(codexHome, source);
@@ -266,7 +266,7 @@ test("a canonical v1 infrastructure-2.1 installation upgrades atomically", async
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /\[OK\] updated:/);
   const installed = await readFile(join(target, "SKILL.md"), "utf8");
-  assert.match(installed, /^  version: "2\.1\.0"\r?$/m);
+  assert.match(installed, /^  version: "2\.1\.1"\r?$/m);
   assert.match(installed, /^  infrastructure-version: "3\.0\.0"\r?$/m);
   assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
   const entries = await readdir(join(codexHome, "skills"));
@@ -307,7 +307,7 @@ test("published v2.0.0 installations upgrade to the name-aware Skill on LF and C
     assert.match(result.stdout, /\[OK\] updated:/);
     assert.match(
       await readFile(join(target, "SKILL.md"), "utf8"),
-      /^  version: "2\.1\.0"\r?$/m,
+      /^  version: "2\.1\.1"\r?$/m,
     );
     const validator = await readFile(
       join(target, "scripts", "validate_profile.py"),
@@ -563,4 +563,49 @@ test("duplicate fields in the required JSON schema block installation", async (t
     readFile(join(codexHome, "skills", skillName, "SKILL.md"), "utf8"),
     { code: "ENOENT" },
   );
+});
+
+test("published GitLab 2.1.0 upgrades to GitHub 2.1.1 without accepting modified trees", async (t) => {
+  for (const crlf of [false, true]) {
+    const root = await temporaryDirectory(t);
+    const codexHome = join(root, "codex-home");
+    const target = await materializeCanonicalLegacySkill(
+      codexHome,
+      "e6f8cf7b8539cdc910914d96fc5d521aa50bf244",
+      crlf,
+    );
+    const result = runInstaller(codexHome, sourceSkill);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /\[OK\] updated:/);
+    assert.match(
+      await readFile(join(target, "SKILL.md"), "utf8"),
+      /canonical-repository-url: "https:\/\/github\.com\/BFTools366\/bifang-operations-assistant\.git"/,
+    );
+  }
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const target = await materializeCanonicalLegacySkill(
+    codexHome,
+    "e6f8cf7b8539cdc910914d96fc5d521aa50bf244",
+  );
+  const protectedFile = join(target, "SKILL.md");
+  const content =
+    (await readFile(protectedFile, "utf8")) + "\nLocal modification\n";
+  await writeFile(protectedFile, content);
+  const result = runInstaller(codexHome, sourceSkill);
+  assert.notEqual(result.status, 0);
+  assert.equal(await readFile(protectedFile, "utf8"), content);
+});
+
+test("incoming Skill cannot use the retired GitLab authority", async (t) => {
+  const root = await temporaryDirectory(t);
+  const source = await createInstallableSource(root);
+  await setMetadata(
+    source,
+    "canonical-repository-url",
+    "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git",
+  );
+  const result = runInstaller(join(root, "codex-home"), source);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /approved credential-free GitHub URL/);
 });

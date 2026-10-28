@@ -56,7 +56,7 @@ SEMVER_PATTERN = re.compile(
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 CANONICAL_REPOSITORY_URL = (
-    "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"
+    "https://github.com/BFTools366/bifang-operations-assistant.git"
 )
 MAX_REQUIRED_TEXT_BYTES = 2 * 1024 * 1024
 KNOWN_LEGACY_METADATA_BASE = {
@@ -80,6 +80,13 @@ KNOWN_LEGACY_TREE_SHA256 = frozenset(
 # Canonical Skill 2.0.0 at f41c0048a2ab7e73e70235829578bdcf1247aa48.
 # Both Git LF blobs and Windows CRLF checkouts are recognized exactly.
 KNOWN_PREVIOUS_TREE_SHA256 = {
+    # Exact published 2.1.0 trees at e6f8cf7b8539cdc910914d96fc5d521aa50bf244.
+    "2.1.0": frozenset(
+        (
+            "d8ba75ec9fabc43adcd529832afd0d510adaf8db24a23830133ad98892b2cf54",
+            "3f540cf78b5f1ed8d2b212c2bfb10affd78e94c02e5b54198de892a39690379c",
+        )
+    ),
     "2.0.0": frozenset(
         (
             "1a80088b30afb13b7bb3353434e5caf1ac3c88c30ed643e6edabe16ba416b6c5",
@@ -175,7 +182,9 @@ def _read_skill_frontmatter(skill_directory: Path) -> tuple[str, dict[str, str]]
     return name, metadata
 
 
-def read_skill_metadata(skill_directory: Path) -> dict[str, str]:
+def read_skill_metadata(
+    skill_directory: Path, *, allow_previous_structure: bool = False
+) -> dict[str, str]:
     skill_md = skill_directory / "SKILL.md"
     _name, metadata = _read_skill_frontmatter(skill_directory)
     missing = [key for key in REQUIRED_METADATA if key not in metadata]
@@ -200,9 +209,16 @@ def read_skill_metadata(skill_directory: Path) -> dict[str, str]:
         metadata["application-version-contract-version"],
         "application version contract version",
     )
-    if metadata["canonical-repository-url"] != CANONICAL_REPOSITORY_URL:
+    # The historical URL is accepted only while recognizing an exact published
+    # old installation. Incoming sources must always use the GitHub authority.
+    allowed_urls = {CANONICAL_REPOSITORY_URL}
+    if allow_previous_structure:
+        allowed_urls.add(
+            "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"
+        )
+    if metadata["canonical-repository-url"] not in allowed_urls:
         raise InstallError(
-            "canonical-repository-url must be the approved credential-free GitLab URL"
+            "canonical-repository-url must be the approved credential-free GitHub URL"
         )
     return metadata
 
@@ -347,7 +363,9 @@ def validate_structure(skill_directory: Path, *, allow_previous_structure: bool 
                 raise InstallError(f"required JSON file {relative} is invalid: {error}") from error
             if not isinstance(parsed, dict):
                 raise InstallError(f"required JSON file {relative} must contain an object")
-    metadata = read_skill_metadata(skill_directory)
+    metadata = read_skill_metadata(
+        skill_directory, allow_previous_structure=allow_previous_structure
+    )
     openai_yaml = required_text["agents/openai.yaml"]
     if not re.search(
         r"(?m)^policy:\s*$[\s\S]*?^ {2}allow_implicit_invocation:\s*true\s*$",

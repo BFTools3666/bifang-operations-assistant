@@ -27,7 +27,7 @@ const sourceManifest = join(repositoryRoot, "bifang-onboarding.json");
 const skillName = "bifang-public-services-onboarding";
 const sourceSkill = join(repositoryRoot, "skills", skillName);
 const canonicalRepositoryUrl =
-  "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git";
+  "https://github.com/BFTools366/bifang-operations-assistant.git";
 const python = process.env.PYTHON || "python";
 
 function run(command, arguments_, options = {}) {
@@ -220,7 +220,7 @@ test("verified bootstrap preserves the current dirty Git client and then install
   assert.equal(output.source_verification_mode, "test-only-fixed-ref");
   assert.equal(output.infrastructure_version, "3.0.0");
   assert.equal(output.application_version_contract_version, "1.0.0");
-  assert.equal(output.skill.version, "2.1.0");
+  assert.equal(output.skill.version, "2.1.1");
   assert.equal(output.writes_to_target_project, false);
   assert.equal(output.target_git_unchanged, true);
   assert.ok(
@@ -258,7 +258,7 @@ test("verified bootstrap preserves the current dirty Git client and then install
     join(codexHome, "skills", skillName, "SKILL.md"),
     "utf8",
   );
-  assert.match(installed, /^  version: "2\.1\.0"$/m);
+  assert.match(installed, /^  version: "2\.1\.1"$/m);
 });
 
 test("bootstrap manifest freezes the exact request and authorization boundary", async () => {

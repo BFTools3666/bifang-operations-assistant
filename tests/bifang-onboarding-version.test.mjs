@@ -33,7 +33,7 @@ test("onboarding, infrastructure, and application-version SDK releases stay alig
   assert.equal(lock.version, rootPackage.version);
   assert.equal(lock.packages[""].version, rootPackage.version);
   assert.equal(sdkPackage.version, "3.0.0");
-  assert.match(skill, /version:\s*["']2\.1\.0["']/);
+  assert.match(skill, /version:\s*["']2\.1\.1["']/);
   assert.match(skill, /infrastructure-version:\s*["']3\.0\.0["']/);
   assert.match(
     skill,
