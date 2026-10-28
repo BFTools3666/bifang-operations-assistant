@@ -70,3 +70,17 @@ export type {
   TelemetryTransportErrorCode,
   TelemetryTransportReceipt,
 } from "./types.js";
+export {
+  CLIENT_UPDATE_ORIGIN,
+  ClientUpdateService,
+  isSameInstallTarget,
+  parseClientUpdateSnapshot,
+} from "./client-update.js";
+export type {
+  ClientUpdateArtifact,
+  ClientUpdateServiceConfig,
+  ClientUpdateRequest,
+  ClientUpdateResult,
+  ClientUpdateSnapshot,
+  UpdateTrigger,
+} from "./client-update.js";

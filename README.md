@@ -1,5 +1,7 @@
 # 毕方运营精灵基础设施 3.0
 
+> 更新中心迁移进行中：新的客户端更新服务地址为 `https://update.meetelf.com`，其 POST 协议与下面的 application-version API 不兼容。SDK 已新增独立的更新检测实现，见 [迁移进度与接入边界](docs/client-update-center-migration.md)；当前一键接入 Skill、Profile、示例和运营流程尚未切换，不能把旧接口的接入说明当作新服务说明，也不能声称客户端已完成迁移。
+
 这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，版本与广告服务统一使用 application-version API v1。旧静态更新清单协议已经退出 3.0 设计，不再提供双轨、回退开关或长期兼容层。
 
 所有工具共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离。客户端的 application-version Base URL 可使用该默认域名，或使用运营侧精确批准且保持同一 v1 合同的生产网关；这不改变 CloudBase 环境、函数、路由或费用边界：
