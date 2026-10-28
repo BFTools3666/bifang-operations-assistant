@@ -10,7 +10,7 @@
   "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "2.1.2",
+    "version": "2.1.3",
     "path": "skills/bifang-public-services-onboarding",
     "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
     "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"

@@ -78,8 +78,13 @@ KNOWN_LEGACY_TREE_SHA256 = frozenset(
     )
 )
 # Canonical Skill 2.0.0 at f41c0048a2ab7e73e70235829578bdcf1247aa48.
-# Both Git LF blobs and Windows CRLF checkouts are recognized exactly.
+# Raw digests and canonical LF digests identify published trees. Canonicalization
+# is limited to CRLF-to-LF for old installations; all other bytes and paths must match.
 KNOWN_PREVIOUS_TREE_SHA256 = {
+    # Published 2.1.2 at b94cc813995ad54e9c127210e17a0cb4dbd5247b.
+    "2.1.2": frozenset(
+        ("ae05506bdc2bc6befce85c3b27761f5960354feddae04310fa3a4043aaea39ac",)
+    ),
     # Exact published 2.1.1 trees at 536d5ab3bbcaba7669b3453393eaf78fa6551b91.
     "2.1.1": frozenset(
         (
@@ -431,7 +436,7 @@ def run_quick_validate_if_available(skill_directory: Path, codex_home: Path) -> 
     return str(validator)
 
 
-def _tree_digest(skill_directory: Path) -> str:
+def _tree_digest(skill_directory: Path, *, normalize_crlf: bool = False) -> str:
     digest = hashlib.sha256()
     files = _collect_safe_skill_files(skill_directory)
     for path in sorted(
@@ -441,6 +446,8 @@ def _tree_digest(skill_directory: Path) -> str:
         digest.update(len(relative).to_bytes(4, "big"))
         digest.update(relative)
         data = path.read_bytes()
+        if normalize_crlf:
+            data = data.replace(b"\r\n", b"\n")
         digest.update(len(data).to_bytes(8, "big"))
         digest.update(data)
     return digest.hexdigest()
@@ -468,7 +475,10 @@ def validate_known_legacy_installation(skill_directory: Path) -> dict[str, str]:
     if set(metadata) != allowed_keys:
         raise InstallError("installed v1 Skill has unknown installation metadata")
     digest = _tree_digest(skill_directory)
-    if digest not in KNOWN_LEGACY_TREE_SHA256:
+    if (
+        digest not in KNOWN_LEGACY_TREE_SHA256
+        and _tree_digest(skill_directory, normalize_crlf=True) not in KNOWN_LEGACY_TREE_SHA256
+    ):
         raise InstallError(
             "installed v1 Skill content does not match a canonical published tree"
         )
@@ -479,8 +489,10 @@ def validate_known_previous_installation(skill_directory: Path) -> dict[str, str
     """Accept an older v2 installation only when every file matches a published tree."""
 
     metadata = validate_structure(skill_directory, allow_previous_structure=True)
-    if _tree_digest(skill_directory) not in KNOWN_PREVIOUS_TREE_SHA256.get(
-        metadata["version"], frozenset()
+    known_digests = KNOWN_PREVIOUS_TREE_SHA256.get(metadata["version"], frozenset())
+    if (
+        _tree_digest(skill_directory) not in known_digests
+        and _tree_digest(skill_directory, normalize_crlf=True) not in known_digests
     ):
         raise InstallError(
             "installed Skill content does not match a canonical published v2 tree"
@@ -602,7 +614,11 @@ def install(
                 "installed infrastructure version is newer than this source; refusing a downgrade"
             )
         if installed["version"] == incoming["version"]:
-            if _tree_digest(destination) == _tree_digest(source):
+            if (
+                _tree_digest(destination) == _tree_digest(source)
+                or _tree_digest(destination, normalize_crlf=True)
+                == _tree_digest(source, normalize_crlf=True)
+            ):
                 validator = (
                     None
                     if skip_external_quick_validate

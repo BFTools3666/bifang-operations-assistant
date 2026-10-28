@@ -5,7 +5,7 @@
 ## 权威版本
 
 - 基础设施：`3.0.0`
-- Skill：`2.1.2`
+- Skill：`2.1.3`
 - Application-version 契约：`1.0.0`
 - Application-version 实现基线：`92b0c599a42c3a094c99787e6928c30c2d2ea3af`
 - 规范来源：`https://github.com/BFTools3666/bifang-operations-assistant.git`

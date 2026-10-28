@@ -2,7 +2,7 @@
 name: bifang-public-services-onboarding
 description: Onboard the current small-tool repository to Bifang public services using the canonical GitHub URL or explicit invocation. Preserve daily-active telemetry, migrate client updates to the Bifang client update center, and keep deployment, installation, publishing, and deletion behind separate gates.
 metadata:
-  version: "2.1.2"
+  version: "2.1.3"
   infrastructure-version: "3.0.0"
   infrastructure-source-commit: "37f6dd120f082b8514a461bcfa30cee35b6259a6"
   application-version-contract-version: "1.0.0"
@@ -56,7 +56,7 @@ https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 
 涉及仍在线的历史 application-version 服务时，再读取其合同与 CloudBase 函数；不要将该服务的 GET 协议用于新客户端。
 
-若权威仓库版本高于本 Skill，先用权威 installer 更新；installer 仅允许当前规范版本，或精确匹配允许列表中已发布 v1 / infrastructure 2.1、v2 树的旧 Skill 原子升级；任何修改过或来源不明的同名 Skill 都停止。若权威版本低于已安装版本，也停止写入并报告，不能套用混合版本。
+若权威仓库版本高于本 Skill，先用权威 installer 更新；installer 仅允许当前规范版本，或匹配允许列表中已发布 v1 / infrastructure 2.1、v2 树的旧 Skill 原子升级。比较完整文件树时只忽略 CRLF 与 LF 换行差异，文件增删或其他内容变化仍会被拒绝；任何修改过或来源不明的同名 Skill 都停止。若权威版本低于已安装版本，也停止写入并报告，不能套用混合版本。
 
 ## 当前客户端迁移流程
 
