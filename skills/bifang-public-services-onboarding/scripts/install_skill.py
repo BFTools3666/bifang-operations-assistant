@@ -81,6 +81,10 @@ KNOWN_LEGACY_TREE_SHA256 = frozenset(
 # Raw digests and canonical LF digests identify published trees. Canonicalization
 # is limited to CRLF-to-LF for old installations; all other bytes and paths must match.
 KNOWN_PREVIOUS_TREE_SHA256 = {
+    # Published 2.1.3 at b74a9728cd87d8c2ce40c86ef1f4ce9e37432783.
+    "2.1.3": frozenset(
+        ("ccb0a33682e17cf22a8fc1648318da3fc55af55e616e1373a97eccf0b5240c22",)
+    ),
     # Published 2.1.2 at b94cc813995ad54e9c127210e17a0cb4dbd5247b.
     "2.1.2": frozenset(
         ("ae05506bdc2bc6befce85c3b27761f5960354feddae04310fa3a4043aaea39ac",)

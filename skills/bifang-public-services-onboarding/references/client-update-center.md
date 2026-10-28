@@ -2,6 +2,8 @@
 
 规范入口为 `https://update.meetelf.com`，与既有 application-version GET 协议不兼容。接口详细合同以更新中心项目的 `docs/api/client-integration.md`、`docs/api/client-updates.md` 为准；本文是客户端实施和验证清单，不代表服务已部署或产品已完成迁移。保留独立的 CloudBase `daily_active`，不从这里删除线上旧资源。
 
+负责人明确要求本机测试时，可用 `http://127.0.0.1:8080/`，SDK 通过 `baseUrl` 显式配置；只允许该精确 loopback 地址，使用测试 Token，不能作为生产验收证据。
+
 ## 请求与身份
 
 可信宿主调用 `POST /api/v1/apps/{app_id}/update-checks`，请求头包含 `Authorization: Bearer <运行时客户端 Token>`、`Content-Type: application/json` 和 `Accept: application/json, application/problem+json`。仅 HTTP 201 表示成功；401、429、503、超时和非法响应均为错误，不能当成已是最新。不要使用管理凭据、向前端暴露凭据或将其写入 Git、Profile、日志、命令行或截图。共享 Token 可以被提取，不代表用户身份；应有轮换及实际运行时注入机制。
@@ -18,7 +20,7 @@ Profile 必须确认 `offline_enforcement`：`service-default` 遵循服务端 `
 
 ## 下载、复检与安装
 
-从当前快照的 `artifact.download_url` 请求，允许服务端重定向到其登记的文件服务；每跳仅允许安全 HTTPS，不向文件服务转发 Token。流式写入应用私有临时文件，校验实际字节数和 SHA-256，失败不得执行。下载入口返回 409/410 时重新检测，不能长期保存或构造旧链接。
+从当前快照的 `artifact.download_url` 请求，允许服务端重定向到其登记的文件服务；生产每跳仅允许安全 HTTPS，不向文件服务转发 Token。本机测试可使用精确同源的 loopback 下载入口，重定向仍需按目的地验证。流式写入应用私有临时文件，校验实际字节数和 SHA-256，失败不得执行。下载入口返回 409/410 时重新检测，不能长期保存或构造旧链接。
 
 安装前使用实际当前版本、`trigger=pre_install` 获取新检测，确认决定仍允许安装、目标版本、包 ID、长度、摘要和 action 未变；只有全部匹配才调用固定平台安装适配器，不执行服务端任意命令。哈希证明完整性，不能单独证明发布者身份；签名策略遵循产品约束。安装是否成功以重启后的真实版本和服务端结果确认。
 

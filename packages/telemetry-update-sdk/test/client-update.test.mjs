@@ -73,6 +73,70 @@ test("sends the new POST request and preserves the service decision", async () =
   assert.equal(seen.init.redirect, "error");
 });
 
+test("allows only the explicit local origin and validates local download URLs", async () => {
+  let seen;
+  const local = {
+    ...base,
+    artifact: {
+      ...base.artifact,
+      download_url:
+        "http://127.0.0.1:8080/api/v1/apps/my-app/artifacts/art_1/download?check_id=chk_1",
+    },
+  };
+  const checker = new ClientUpdateService({
+    appId: "my-app",
+    token,
+    baseUrl: "http://127.0.0.1:8080/",
+    fetch: async (url, init) => {
+      seen = { url, init };
+      return new Response(JSON.stringify(local), { status: 201 });
+    },
+  });
+  assert.equal((await checker.check(request)).kind, "snapshot");
+  assert.equal(
+    seen.url,
+    "http://127.0.0.1:8080/api/v1/apps/my-app/update-checks",
+  );
+  assert.equal(seen.init.redirect, "error");
+  assert.equal(parseClientUpdateSnapshot(local, "my-app"), null);
+  for (const url of [
+    "http://localhost:8080",
+    "http://127.0.0.1:8081",
+    "http://127.0.0.1:8080/path",
+    "http://user@127.0.0.1:8080",
+    "http://127.0.0.1:8080.evil.test",
+  ]) {
+    let called = false;
+    const invalid = new ClientUpdateService({
+      appId: "my-app",
+      token,
+      baseUrl: url,
+      fetch: async () => {
+        called = true;
+        throw new Error("must not send");
+      },
+    });
+    assert.equal((await invalid.check(request)).reason, "invalid_config");
+    assert.equal(called, false);
+  }
+  for (const url of [
+    "http://127.0.0.1:8081/file",
+    "http://127.1:8080/file",
+    "http://user@127.0.0.1:8080/file",
+    "http://127.0.0.1:8080/file#fragment",
+    "https://update.meetelf.com/file",
+  ]) {
+    assert.equal(
+      parseClientUpdateSnapshot(
+        { ...local, artifact: { ...local.artifact, download_url: url } },
+        "my-app",
+        "http://127.0.0.1:8080",
+      ),
+      null,
+    );
+  }
+});
+
 test("invalid, unavailable and unknown outcomes never invent an update decision", async () => {
   const checker = new ClientUpdateService({
     appId: "my-app",

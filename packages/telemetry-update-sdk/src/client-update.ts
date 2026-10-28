@@ -2,6 +2,7 @@ import { isValidSemVer } from "./semver.js";
 import { isRecord, isSafeExternalUrl, isUuidV4 } from "./validation.js";
 
 export const CLIENT_UPDATE_ORIGIN = "https://update.meetelf.com";
+export const LOCAL_CLIENT_UPDATE_ORIGIN = "http://127.0.0.1:8080";
 export type UpdateTrigger = "startup" | "scheduled" | "manual" | "pre_install";
 export interface ClientUpdateRequest {
   current_version: string;
@@ -59,6 +60,8 @@ export interface ClientUpdateServiceConfig {
   appId: string;
   /** Client-only shared token, supplied by the host at runtime. */
   token: string;
+  /** Production by default; only the explicitly requested loopback endpoint is allowed for local tests. */
+  baseUrl?: string;
   fetch?: typeof fetch;
   timeoutMs?: number;
 }
@@ -78,7 +81,9 @@ export class ClientUpdateService {
   }
   async #check(request: ClientUpdateRequest): Promise<ClientUpdateResult> {
     const { appId, token } = this.config;
+    const origin = resolveUpdateOrigin(this.config.baseUrl);
     if (
+      !origin ||
       !/^[a-z][a-z0-9-]{2,63}$/.test(appId) ||
       typeof token !== "string" ||
       !/^[^\s\x00-\x1f\x7f]{32,128}$/.test(token) ||
@@ -112,7 +117,7 @@ export class ClientUpdateService {
     try {
       const response = await Promise.race([
         (this.config.fetch ?? fetch)(
-          `${CLIENT_UPDATE_ORIGIN}/api/v1/apps/${encodeURIComponent(appId)}/update-checks`,
+          `${origin}/api/v1/apps/${encodeURIComponent(appId)}/update-checks`,
           {
             method: "POST",
             headers: {
@@ -144,6 +149,7 @@ export class ClientUpdateService {
       const snapshot = parseClientUpdateSnapshot(
         JSON.parse(text) as unknown,
         appId,
+        origin,
       );
       return snapshot &&
         (snapshot.action !== "auto_install" ||
@@ -187,11 +193,40 @@ const date = (v: unknown): v is string =>
 const nullableDate = (v: unknown): boolean => v === null || date(v);
 const id = (v: unknown): v is string =>
   typeof v === "string" && v.length > 0 && v.length <= 200;
+function resolveUpdateOrigin(baseUrl: string | undefined): string | null {
+  if (baseUrl === undefined) return CLIENT_UPDATE_ORIGIN;
+  if (typeof baseUrl !== "string") return null;
+  for (const origin of [CLIENT_UPDATE_ORIGIN, LOCAL_CLIENT_UPDATE_ORIGIN]) {
+    if (baseUrl === origin || baseUrl === `${origin}/`) return origin;
+  }
+  return null;
+}
+
+function isUpdateDownloadUrl(value: unknown, origin: string): boolean {
+  if (typeof value !== "string" || !value.startsWith(`${origin}/`))
+    return false;
+  try {
+    const parsed = new URL(value);
+    if (
+      parsed.origin !== origin ||
+      parsed.username ||
+      parsed.password ||
+      parsed.hash
+    )
+      return false;
+    return origin === LOCAL_CLIENT_UPDATE_ORIGIN || isSafeExternalUrl(value);
+  } catch {
+    return false;
+  }
+}
 /** Unknown states fail closed; never render release notes as HTML. */
 export function parseClientUpdateSnapshot(
   v: unknown,
   appId: string,
+  baseUrl: string = CLIENT_UPDATE_ORIGIN,
 ): ClientUpdateSnapshot | null {
+  const origin = resolveUpdateOrigin(baseUrl);
+  if (!origin) return null;
   if (
     !isRecord(v) ||
     !id(v.id) ||
@@ -243,8 +278,7 @@ export function parseClientUpdateSnapshot(
     if (v.action === "open_download_page") {
       if (!isSafeExternalUrl(v.artifact.manual_download_page_url)) return null;
     } else if (
-      !isSafeExternalUrl(v.artifact.download_url) ||
-      new URL(v.artifact.download_url).origin !== CLIENT_UPDATE_ORIGIN ||
+      !isUpdateDownloadUrl(v.artifact.download_url, origin) ||
       !Number.isSafeInteger(v.artifact.size_bytes) ||
       (v.artifact.size_bytes as number) <= 0 ||
       typeof v.artifact.sha256 !== "string" ||

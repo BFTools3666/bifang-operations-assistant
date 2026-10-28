@@ -70,7 +70,10 @@ test("new onboarding validates center targets and derives the POST endpoint", as
 test("new onboarding rejects old transport, unsupported targets and sensitive data", async (t) => {
   for (const change of [
     { update_transport: "application-version-api-v1" },
-    { update_center_base_url: "http://127.0.0.1:8080" },
+    { update_center_base_url: "http://localhost:8080" },
+    { update_center_base_url: "http://127.0.0.1:8081" },
+    { update_center_base_url: "http://127.0.0.1:8080/path" },
+    { update_center_base_url: "http://example.com:8080" },
     { update_targets: [{ ...fixture.update_targets[0], architecture: "x64" }] },
     { update_targets: [fixture.update_targets[0], fixture.update_targets[0]] },
     {
@@ -81,6 +84,37 @@ test("new onboarding rejects old transport, unsupported targets and sensitive da
   ]) {
     const { result } = await check(t, { ...fixture, ...change });
     assert.notEqual(result.status, 0, JSON.stringify(change));
+  }
+});
+test("loopback profile derives the actual local endpoint but cannot certify production", async (t) => {
+  for (const url of ["http://127.0.0.1:8080", "http://127.0.0.1:8080/"]) {
+    const { result, path } = await check(t, {
+      ...fixture,
+      update_center_base_url: url,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const derived = spawnSync(python, ["-B", derive, "--profile", path], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    assert.equal(derived.status, 0, derived.stderr);
+    assert.equal(
+      JSON.parse(derived.stdout).update_check_url,
+      "http://127.0.0.1:8080/api/v1/apps/bifang-test-tool/update-checks",
+    );
+    const online = await check(t, {
+      ...fixture,
+      update_center_base_url: url,
+      deployment_gates: {
+        update_center_service_verified: true,
+        update_center_client_e2e_passed: true,
+      },
+    });
+    assert.notEqual(online.result.status, 0);
+    assert.match(
+      online.result.stderr,
+      /loopback tests cannot certify production/,
+    );
   }
 });
 test("a completed profile requires a confirmed offline policy and real target configuration", async (t) => {
@@ -187,7 +221,7 @@ test("the one-line skill and host example use the new protocol", async () => {
   );
   assert.match(
     skill,
-    /POST https:\/\/update\.meetelf\.com\/api\/v1\/apps\/\{app_id\}\/update-checks/,
+    /POST <update_center_base_url>\/api\/v1\/apps\/\{app_id\}\/update-checks/,
   );
   assert.match(skill, /--require-update-center/);
   assert.doesNotMatch(skill, /GET <base>\/versions/);

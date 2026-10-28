@@ -96,7 +96,11 @@
       "enum": ["application-version-api-v1", "client-update-center-v1"]
     },
     "update_center_base_url": {
-      "const": "https://update.meetelf.com"
+      "enum": [
+        "https://update.meetelf.com",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8080/"
+      ]
     },
     "update_center_auth_status": {
       "enum": ["unknown", "planned", "ready", "verified"]

@@ -268,7 +268,7 @@ test("a canonical v1 infrastructure-2.1 installation upgrades atomically", async
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /\[OK\] updated:/);
   const installed = await readFile(join(target, "SKILL.md"), "utf8");
-  assert.match(installed, /^  version: "2\.1\.3"\r?$/m);
+  assert.match(installed, /^  version: "2\.1\.4"\r?$/m);
   assert.match(installed, /^  infrastructure-version: "3\.0\.0"\r?$/m);
   assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
   const entries = await readdir(join(codexHome, "skills"));
@@ -339,7 +339,7 @@ test("published v2.0.0 installations upgrade to the name-aware Skill on LF and C
     assert.match(result.stdout, /\[OK\] updated:/);
     assert.match(
       await readFile(join(target, "SKILL.md"), "utf8"),
-      /^  version: "2\.1\.3"\r?$/m,
+      /^  version: "2\.1\.4"\r?$/m,
     );
     const validator = await readFile(
       join(target, "scripts", "validate_profile.py"),
@@ -597,7 +597,7 @@ test("duplicate fields in the required JSON schema block installation", async (t
   );
 });
 
-test("published GitLab 2.1.0 upgrades to GitHub 2.1.3 without accepting modified trees", async (t) => {
+test("published GitLab 2.1.0 upgrades to GitHub 2.1.4 without accepting modified trees", async (t) => {
   for (const crlf of [false, true, "mixed"]) {
     const root = await temporaryDirectory(t);
     const codexHome = join(root, "codex-home");
@@ -688,7 +688,7 @@ test("published 2.1.2 upgrades for mixed Windows line endings but rejects altere
   assert.match(result.stdout, /\[OK\] updated:/);
   assert.match(
     await readFile(join(target, "SKILL.md"), "utf8"),
-    /version: "2\.1\.3"/,
+    /version: "2\.1\.4"/,
   );
 
   const otherHome = join(root, "altered-home");
@@ -719,4 +719,21 @@ test("incoming Skill cannot use the former GitHub authority", async (t) => {
   const result = runInstaller(join(root, "codex-home"), source);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /approved credential-free GitHub URL/);
+});
+
+test("published 2.1.3 with mixed Windows line endings upgrades to the new Skill", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const target = await materializeCanonicalLegacySkill(
+    codexHome,
+    "b74a9728cd87d8c2ce40c86ef1f4ce9e37432783",
+    "mixed",
+  );
+  const result = runInstaller(codexHome, sourceSkill);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /\[OK\] updated:/);
+  assert.match(
+    await readFile(join(target, "SKILL.md"), "utf8"),
+    /version: "2\.1\.4"/,
+  );
 });

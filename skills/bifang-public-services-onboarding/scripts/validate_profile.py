@@ -284,6 +284,12 @@ def _validate_update_center_semantics(profile: dict[str, Any], errors: list[str]
                 errors.append(f"$.update_targets[{index}].architecture: architecture is not declared")
     gates = profile.get("deployment_gates") if isinstance(profile.get("deployment_gates"), dict) else {}
     stage = profile.get("current_stage")
+    if profile.get("update_center_base_url") in ("http://127.0.0.1:8080", "http://127.0.0.1:8080/"):
+        for gate in ("update_center_service_verified", "update_center_client_e2e_passed"):
+            if gates.get(gate) is True:
+                errors.append(f"$.deployment_gates.{gate}: loopback tests cannot certify production update-center verification")
+        if stage in (6, 7):
+            errors.append("$.current_stage: loopback update-center configuration cannot complete production client E2E or release")
     for gate in ("version_api_config_reviewed", "version_api_service_verified", "version_api_client_integrated", "version_api_client_e2e_passed", "platform_code_mapping_confirmed"):
         if gates.get(gate) is True:
             errors.append(f"$.deployment_gates.{gate}: legacy application-version evidence cannot certify update-center onboarding")

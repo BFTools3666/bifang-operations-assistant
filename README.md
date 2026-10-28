@@ -45,6 +45,8 @@ https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 
 ### 客户端更新中心
 
+生产地址默认为 `https://update.meetelf.com`。明确要求本机联调时可配置 `http://127.0.0.1:8080/`；本地测试不能代替生产服务或客户端 E2E 验收。
+
 客户端在可信宿主调用 `POST https://update.meetelf.com/api/v1/apps/{app_id}/update-checks`，使用运行时客户端 Token，发送真实运行版本、平台、程序架构、安装形态、持久随机 UUID、通道、触发方式和已实现能力。仅 201 表示成功。下载须验证大小、SHA-256，并在安装前重新检查目标；强更和离线处理以产品明确选择的策略为准。
 
 ### 既有 Application-version API v1

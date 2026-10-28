@@ -72,6 +72,7 @@ export type {
 } from "./types.js";
 export {
   CLIENT_UPDATE_ORIGIN,
+  LOCAL_CLIENT_UPDATE_ORIGIN,
   ClientUpdateService,
   isSameInstallTarget,
   parseClientUpdateSnapshot,

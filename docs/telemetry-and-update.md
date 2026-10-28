@@ -2,10 +2,12 @@
 
 ## 1. 现行协议
 
-基础设施根版本为 `3.0.0`，接入 Skill 为 `2.1.3`。新客户端接入包含：
+基础设施根版本为 `3.0.0`，接入 Skill 为 `2.1.4`。新客户端接入包含：
 
 1. 固定 `daily_active` 的低频启动遥测；
 2. 客户端更新中心 `https://update.meetelf.com` 的 POST 更新协议。
+
+负责人明确要求本机联调时，可使用 `http://127.0.0.1:8080/`；该本地地址及测试结果不作为生产服务或客户端线上 E2E 的验证依据。
 
 旧 application-version 版本、广告和管理服务仍可能在线运行，下文第 3 节仅记录其历史合同；不得当作新客户端接入说明或自动删除。新协议见 [客户端更新中心接入合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)。
 

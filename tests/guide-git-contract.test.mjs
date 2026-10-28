@@ -128,7 +128,7 @@ test("the complete onboarding guide has tracked human and AI entrypoints", async
   );
   assert.match(
     onboardingGuide,
-    /https:\/\/gitlab\.kuajingvs\.com\/qiuyang\/bifang-operations-assistant\.git 帮我接入/,
+    /https:\/\/github\.com\/BFTools3666\/bifang-operations-assistant\.git 帮我接入/,
   );
   assert.match(onboardingGuide, /基础设施：`3\.0\.0`/);
 

@@ -26,6 +26,8 @@ export interface ReleaseConfig {
   APP_VERSION: string;
   /** Supplied at runtime by the trusted host, never stored in a Profile. */
   CLIENT_UPDATE_TOKEN: string;
+  /** Omit in production. An explicitly approved local test may use http://127.0.0.1:8080/. */
+  CLIENT_UPDATE_BASE_URL?: string;
   /** This tool's dedicated telemetry function route. */
   TELEMETRY_ENDPOINT: string;
   telemetry_enabled: boolean;
@@ -89,6 +91,7 @@ async function checkForUpdates(options: InitializeOptions): Promise<void> {
   const checker = new ClientUpdateService({
     appId: release.APP_ID,
     token: release.CLIENT_UPDATE_TOKEN,
+    baseUrl: release.CLIENT_UPDATE_BASE_URL,
   });
   const result = await checker.check({
     ...options.updateRequest,

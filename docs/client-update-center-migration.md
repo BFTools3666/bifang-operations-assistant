@@ -1,5 +1,7 @@
 # 客户端更新中心迁移进度
 
+生产更新中心默认使用 `https://update.meetelf.com`；负责人明确要求本地联调时，宿主可将 SDK 的 `baseUrl` 设为 `http://127.0.0.1:8080/` 并使用本地测试 Token。Profile 与资源派生保留该实际地址；本地验证不能替代生产服务或真实客户端 E2E，不能用于完成生产发布门禁。
+
 新的更新中心地址为 `https://update.meetelf.com`。服务端接入来源是 `bifang-client-update-center` 项目的 `docs/api/client-integration.md` 和 `docs/api/client-updates.md`。它与仓库中现有 application-version API 是不同协议，不能将域名简单替换到旧的 GET 路径上。此文记录本分支的本地实现进度，不代表线上部署或客户端迁移已经完成。
 
 公共 SDK 新增 `ClientUpdateService`：使用客户端运行时提供的 Token，向 `/api/v1/apps/{app_id}/update-checks` 发起 POST；请求由宿主提供实际版本、系统、程序架构、安装形态、持久随机 UUID、触发原因和已实现能力。返回 201 才解析决定；HTTP 错误、超时或无效响应均报告错误，不能当作已是最新版本。日志不能记录 Token 或下载链接。服务端 Token 为共享访问凭据，无法代表用户身份，也无法保证不被客户端提取。

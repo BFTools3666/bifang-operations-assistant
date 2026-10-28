@@ -5,7 +5,7 @@
 ## 权威版本
 
 - 基础设施：`3.0.0`
-- Skill：`2.1.3`
+- Skill：`2.1.4`
 - Application-version 契约：`1.0.0`
 - Application-version 实现基线：`92b0c599a42c3a094c99787e6928c30c2d2ea3af`
 - 规范来源：`https://github.com/BFTools3666/bifang-operations-assistant.git`
@@ -59,7 +59,7 @@ APP_ID 用于隔离 telemetry 和更新中心中的应用身份。telemetry 仍�
 
 ## Profile v2
 
-路径固定为 `.bifang/public-services-profile.json`。新接入设置 `update_transport=client-update-center-v1`、`update_center_base_url=https://update.meetelf.com`、非敏感 `update_center_auth_status`、按真实目标填写的 `update_targets`，并明确 `offline_enforcement=service-default|persist-until-resolved`。后一项仅用于产品负责人明确要求的离线持续强更例外。
+路径固定为 `.bifang/public-services-profile.json`。新接入设置 `update_transport=client-update-center-v1`、生产地址 `update_center_base_url=https://update.meetelf.com`、非敏感 `update_center_auth_status`、按真实目标填写的 `update_targets`，并明确 `offline_enforcement=service-default|persist-until-resolved`。明确要求本地联调时地址可用 `http://127.0.0.1:8080/`；仅本地证据不能标记生产服务及客户端 E2E 已验证。后一项策略仅用于产品负责人明确要求的离线持续强更例外。
 
 继续保存确认的中文 `display_name`、APP_ID、版本来源、telemetry 信息、运行时钩子、门禁及阶段；不得存 Token、凭据摘要、硬件 ID 或绝对路径。旧 Profile v1/v2 先只读核验，迁移到新 transport 时删除客户端旧协议字段，不把旧 code 当作新接口目标。
 

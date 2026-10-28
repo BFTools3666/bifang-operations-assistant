@@ -2,7 +2,7 @@
 name: bifang-public-services-onboarding
 description: Onboard the current small-tool repository to Bifang public services using the canonical GitHub URL or explicit invocation. Preserve daily-active telemetry, migrate client updates to the Bifang client update center, and keep deployment, installation, publishing, and deletion behind separate gates.
 metadata:
-  version: "2.1.3"
+  version: "2.1.4"
   infrastructure-version: "3.0.0"
   infrastructure-source-commit: "37f6dd120f082b8514a461bcfa30cee35b6259a6"
   application-version-contract-version: "1.0.0"
@@ -66,7 +66,7 @@ https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 4. 从实际发布配置确认唯一 SemVer 来源、框架、平台、架构、主窗口 ready hook、安全外链和完整退出。`current_version` 是本次快照，`version_source` 指向真实发布/运行时来源，不把 Profile 当运行时版本配置。不得从 README 猜运行时事实。
 5. 使用 `scripts/derive_resources.py --profile ...` 展示中文 `display_name`、APP_ID、telemetry 资源、新更新中心 POST 地址和每个实际目标。将名称映射连同资源清单交接给运营精灵任务；本地交接不表示已登记或已上线。旧 application-version 的 code 和集合是历史运营事实，不作为新服务的配置推导，也不由客户端接入删除。
 6. 保留已经正确隔离的 `daily_active` 实现，并核对其请求必含真实应用 SemVer `app_version`。公共 SDK 由宿主的 `appVersion` 自动映射；其他框架按同一协议发送。从唯一版本来源取值，与版本检查的当前版本一致，禁止漏传、固定占位、误用 SDK 版本或另增版本上报接口。`sdk_version` 单独表示适配器版本。删除旧 `UPDATE_BASE_URL=/updates`、静态 manifest URL、14 字段解析、旧 rollout/manifest 决策、兼容开关和相关测试；不要删除通用 SemVer、安全 HTTPS 外链或完整退出能力。
-7. 在可信宿主层实现 `POST https://update.meetelf.com/api/v1/apps/{app_id}/update-checks`，按 [新协议](references/client-update-center.md) 填真实版本、平台、安装形态、随机持久 UUID、触发方式和已实现能力；HTTP 201 才解析决定。只有 `enforcement=block_new_operations` 才阻止新业务，保留更新、重试和退出，不中断已有任务。
+7. 在可信宿主层实现 `POST <update_center_base_url>/api/v1/apps/{app_id}/update-checks`，按 [新协议](references/client-update-center.md) 填真实版本、平台、安装形态、随机持久 UUID、触发方式和已实现能力；HTTP 201 才解析决定。只有 `enforcement=block_new_operations` 才阻止新业务，保留更新、重试和退出，不中断已有任务。
 8. 使用服务端匹配的客户端专用 Bearer Token，管理凭据永不进入客户端。原值不进 Git、Profile、源码、命令行参数、普通日志或测试证据，只从运行时注入；共享 Token 可被提取，不能当作用户身份。缺少真实 Token 或后台应用策略时保持线上验证未完成，不伪造成功。
 9. 本地测试覆盖请求字段和认证、201/错误处理、推荐与强更、断网策略、下载大小和 SHA-256、安装前重新检测与目标变化、失败重试和完整退出；不转发 Token 给文件服务。捕获实际 `daily_active` 请求并验证版本来源和同日去重，通过后记录 `telemetry_app_version_verified=true`。SDK 当前只提供检测和目标对照，不能把它当成完整下载/安装实现。不得在未授权时访问真实服务。
 10. 再次运行 Profile 校验、资源派生、旧协议扫描和项目测试。只有扫描完整、`update_center_migration_gate=clear` 且人工确认生产代码、配置和活跃测试均没有旧静态或旧 application-version 更新客户端，才把 `legacy_update_status` 记为 `removed`。新服务的字符串命中只是线索，不能单凭扫描宣称接入完成。
@@ -80,7 +80,7 @@ python <skill-root>/scripts/validate_profile.py .bifang/public-services-profile.
 python <skill-root>/scripts/derive_resources.py --profile .bifang/public-services-profile.json
 ```
 
-Windows 使用 `py -3 -X utf8 -B`。新接入 Profile v2 的 `update_transport` 固定为 `client-update-center-v1`，`update_center_base_url` 固定为 `https://update.meetelf.com`；`update_targets` 记录每个 `os + architecture + installation_type + channel`，以当前进程架构而非硬件架构为准。`x64` 映射为 `x86_64`，Linux 必须从真实发行版确认 `ubuntu` 或 `debian`。旧 v2 Profile 可作为历史输入读取，但新接入必须去掉旧协议配置并通过 `--require-update-center`。
+Windows 使用 `py -3 -X utf8 -B`。新接入 Profile v2 的 `update_transport` 固定为 `client-update-center-v1`；生产 `update_center_base_url` 为 `https://update.meetelf.com`，负责人明确要求本机联调时可使用 `http://127.0.0.1:8080/`。本地地址不能标记生产服务或客户端线上 E2E 已验证，也不能完成阶段 6/7；不要把生产 Token 用于本地测试。`update_targets` 记录每个 `os + architecture + installation_type + channel`，以当前进程架构而非硬件架构为准。`x64` 映射为 `x86_64`，Linux 必须从真实发行版确认 `ubuntu` 或 `debian`。旧 v2 Profile 可作为历史输入读取，但新接入必须去掉旧协议配置并通过 `--require-update-center`。
 
 Profile 只记录 `update_center_auth_status` 和已确认的 `offline_enforcement`，不记录 Token、凭据摘要或下载临时链接。`service-default` 遵循服务端强更缓存期限；`persist-until-resolved` 是产品明确要求的离线强更例外，不能未经确认套用到其他工具。
 

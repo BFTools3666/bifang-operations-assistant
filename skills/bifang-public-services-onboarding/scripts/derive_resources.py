@@ -253,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
                 normalized = app_id.replace("-", "_")
                 route = f"/apps/{app_id}/v1/track"
                 origin = profile.get("cloudbase_origin")
+                update_origin = profile.get("update_center_base_url", "https://update.meetelf.com").rstrip("/")
                 resources = {
                     "app_id": app_id,
                     "display_name": profile["display_name"],
@@ -261,8 +262,8 @@ def main(argv: list[str] | None = None) -> int:
                     "collection_name": f"telemetry_{normalized}",
                     "telemetry_route": route,
                     "update_transport": "client-update-center-v1",
-                    "update_center_base_url": "https://update.meetelf.com",
-                    "update_check_url": f"https://update.meetelf.com/api/v1/apps/{app_id}/update-checks",
+                    "update_center_base_url": update_origin,
+                    "update_check_url": f"{update_origin}/api/v1/apps/{app_id}/update-checks",
                     "update_targets": profile.get("update_targets", []),
                     "offline_enforcement": profile.get("offline_enforcement"),
                 }
