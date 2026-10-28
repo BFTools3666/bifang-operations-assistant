@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { validateRegistry } from "./generate-cloudbaserc.mjs";
+
+const require = createRequire(import.meta.url);
+const {
+  APP_LABELS,
+  validateAppLabels,
+} = require("./functions/operations-dashboard/src/app-labels.js");
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -10,11 +18,24 @@ export async function verifyOperationsDashboard({
   secretFile,
   fetchImplementation = globalThis.fetch,
   waitImplementation = wait,
+  registry,
 }) {
   const normalizedOrigin = normalizeOrigin(origin);
   if (typeof fetchImplementation !== "function") {
     throw new TypeError("fetch implementation is unavailable");
   }
+  const applications = validateRegistry(
+    registry ??
+      JSON.parse(
+        await readFile(new URL("./apps.json", import.meta.url), "utf8"),
+      ),
+  );
+  const expectedAppIds = applications.map(({ appId }) => appId);
+  const expectedStreams = new Set(
+    applications.flatMap(({ appId, releaseStreams }) =>
+      releaseStreams.map((stream) => releaseIdentity({ ...stream, appId })),
+    ),
+  );
   const { metricsToken, accessToken } = parseRawSecrets(
     await readFile(secretFile, "utf8"),
   );
@@ -120,12 +141,15 @@ export async function verifyOperationsDashboard({
     metricsToken,
     accessToken,
     "authenticated browser metrics",
+    expectedAppIds,
+    expectedStreams,
   );
   checks.push({
     name: "authenticated_metrics",
     status: 200,
     selected_app_id: browserSnapshot.selectedAppId,
     range_days: browserSnapshot.rangeDays,
+    named_application_count: browserSnapshot.appIds.length,
   });
 
   // The preserved admin route intentionally permits only two requests per
@@ -155,6 +179,8 @@ export async function verifyOperationsDashboard({
     metricsToken,
     accessToken,
     "correct admin token",
+    expectedAppIds,
+    expectedStreams,
   );
   checks.push({ name: "correct_admin_token", status: 200 });
 
@@ -189,7 +215,7 @@ async function request(fetchImplementation, url, init = {}) {
     const response = await fetchImplementation(url, {
       ...init,
       cache: "no-store",
-      redirect: "follow",
+      redirect: "error",
       signal: controller.signal,
     });
     const body = await response.text();
@@ -207,7 +233,24 @@ async function request(fetchImplementation, url, init = {}) {
   }
 }
 
-function validateSnapshot(response, metricsToken, accessToken, label) {
+function releaseIdentity(stream) {
+  return JSON.stringify([
+    stream.appId,
+    stream.platform,
+    stream.architecture,
+    stream.channel,
+    stream.code,
+  ]);
+}
+
+function validateSnapshot(
+  response,
+  metricsToken,
+  accessToken,
+  label,
+  expectedAppIds,
+  expectedStreams,
+) {
   let snapshot;
   try {
     snapshot = JSON.parse(response.body);
@@ -228,6 +271,48 @@ function validateSnapshot(response, metricsToken, accessToken, label) {
     !Array.isArray(snapshot.releaseStreams)
   ) {
     throw new Error(`${label} returned an invalid dashboard snapshot`);
+  }
+  try {
+    const names = validateAppLabels(snapshot.appLabels);
+    if (
+      snapshot.appIds.length === 0 ||
+      new Set(snapshot.appIds).size !== snapshot.appIds.length ||
+      snapshot.appIds.length !== expectedAppIds.length ||
+      expectedAppIds.some((appId) => !snapshot.appIds.includes(appId)) ||
+      Object.keys(names).length !== snapshot.appIds.length ||
+      snapshot.appIds.some(
+        (appId) =>
+          !Object.hasOwn(APP_LABELS, appId) ||
+          !Object.hasOwn(names, appId) ||
+          names[appId] !== APP_LABELS[appId],
+      )
+    ) {
+      throw new TypeError("application names do not match reviewed metadata");
+    }
+  } catch {
+    throw new Error(
+      `${label} returned incomplete or unreviewed application names`,
+    );
+  }
+  const actualStreams = new Set();
+  for (const stream of snapshot.releaseStreams) {
+    if (!stream || typeof stream !== "object" || Array.isArray(stream)) {
+      throw new Error(
+        `${label} returned incomplete or unreviewed release streams`,
+      );
+    }
+    const identity = releaseIdentity(stream);
+    if (!expectedStreams.has(identity) || actualStreams.has(identity)) {
+      throw new Error(
+        `${label} returned incomplete or unreviewed release streams`,
+      );
+    }
+    actualStreams.add(identity);
+  }
+  if (actualStreams.size !== expectedStreams.size) {
+    throw new Error(
+      `${label} returned incomplete or unreviewed release streams`,
+    );
   }
   const serialized = JSON.stringify(snapshot);
   assertNoSecrets(serialized, metricsToken, accessToken, label);

@@ -44,7 +44,26 @@ CloudBase 默认 HTTPS 域名 /dashboard
 - 发布流只来自 `DASHBOARD_APPS_JSON` 已登记的 APP_ID/code 映射；每个 code 在其应用固定 `versions_*` 集合内按内部排序键读取最高版本。
 - 空集合是合法生产结果，返回 `status=empty` 与空最高版本；未知 code、跨应用结果、字段异常或任一集合读取失败会让整次请求 fail closed，前端显示“生产数据暂时不可用”。
 - 发布状态只返回安全枚举：普通更新、提示更新、强制更新、暂停更新或暂无版本；不返回下载地址、提示正文、富文本、管理字段或任何凭据。
+
+版本画像与发布流最高版本是两个独立口径。前者来自客户端 `daily_active.app_version`，表示实际使用中的版本；后者来自运营端发布的 `versions_*` 记录。即使客户端版本画像已有数据，没有正式发布记录的发布流仍显示“暂无版本”，不能据此认定客户端漏传版本，也不能自动把遥测版本写成可下载的正式发行版。
+
 - 原始记录只在函数内短暂用于聚合，响应绝不序列化 `install_id`、`event_id` 或 `source_ip`。
+
+## 应用中文名称维护
+
+中文显示名统一维护在 [`cloudbase/functions/operations-dashboard/src/app-labels.json`](../cloudbase/functions/operations-dashboard/src/app-labels.json)。它是展示元数据的唯一权威；`cloudbase/apps.json` 仍独立负责 schema v3 的应用登记、发布流与技术身份。修改显示名不会修改 APP_ID、code、函数、集合、路由或客户端协议。
+
+```powershell
+npm run cloudbase:app:name -- bifang-window-layout "毕方多窗口排布器"
+npm run cloudbase:labels:check
+node cloudbase/app-labels.mjs list
+```
+
+名称命令只原子更新本地名称 JSON，不访问云端、不部署。显示名必须为 1–100 个 Unicode 字符、包含中文、无首尾空白、控制或格式字符及 `<`、`>`。检查命令验证每个当前已登记 APP_ID 都有安全的中文名称，并已接入 `npm run check`；新增应用登记后须补名称，再通过全量检查。
+
+名称表可以保存已确认但尚未登记的展示元数据。为未知 APP_ID 设置名称只添加元数据，`list` 以 `registered=false` 标明；不会替它创建应用、发布流或资源，也不会把它自动加入看板查询范围。未知且未命名的应用显示时回退为 APP_ID。已在线上启用的应用必须先按实际发布流核对登记，不能仅靠名称表补齐其身份。
+
+生产页面与本地看板使用同一份名称表。名称源码修改完成后，线上生效仍需按下述最新预检与确认门禁进行看板部署；本地名称维护命令不会自动发布。
 
 ## 可重现部署配置
 

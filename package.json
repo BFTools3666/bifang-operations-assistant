@@ -18,6 +18,8 @@
     "cloudbase:version-api:deploy:plan": "node cloudbase/plan-application-version-api-deployment.mjs",
     "cloudbase:dashboard:deploy:plan": "node cloudbase/deploy-operations-dashboard.mjs plan",
     "cloudbase:dashboard:deploy": "node cloudbase/deploy-operations-dashboard.mjs deploy",
+    "cloudbase:dashboard:code:plan": "node cloudbase/deploy-operations-dashboard-code.mjs plan",
+    "cloudbase:dashboard:code:deploy": "node cloudbase/deploy-operations-dashboard-code.mjs deploy",
     "cloudbase:dashboard:verify": "node cloudbase/verify-operations-dashboard.mjs",
     "cloudbase:config": "node cloudbase/generate-cloudbaserc.mjs",
     "cloudbase:config:check": "node cloudbase/generate-cloudbaserc.mjs --check",

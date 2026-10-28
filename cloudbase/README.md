@@ -136,6 +136,24 @@ npm run cloudbase:labels:check
 npm run check
 ```
 
+### 已有生产看板的中文名代码更新
+
+已有生产看板仅修改显示名时，使用 `deploy-operations-dashboard-code.mjs`。本地腾讯凭据写入 Git 忽略且未跟踪的 `cloudbase/.env.dashboard-deploy.local`，字段为 `SecretId`、`SecretKey`、可选 `Token`。凭据只在内存中用于 TC3 签名，不传入命令参数、CLI 登录状态、函数环境变量或上传代码包；原有看板口令无需重新提供。
+
+```powershell
+npm run cloudbase:dashboard:code:plan -- --env-id <现有环境ID> --origin https://<平台默认域名>
+```
+
+预览会实时核对完整工具/发布流映射、函数、路由、体验版、自动续费、超限扣费及资源点额度。只打包看板的 `index.js`、`package.json`、`src/` 和 `public/`，将源码、控制脚本、原有代码和需保留的配置绑定到 `materials_sha256`。线上映射与本地登记必须完全匹配；新增应用或更改发布流应另走相应部署流程。
+
+展示最终目标与最新预检并取得负责人明确继续后，执行同一份摘要：
+
+```powershell
+npm run cloudbase:dashboard:code:deploy -- --env-id <现有环境ID> --origin https://<平台默认域名> --expected-materials-sha256 <预览摘要>
+```
+
+此入口先下载并校验旧代码 ZIP，保存在 Git 忽略的 `.cloudbase/dashboard-code-backups/`，再复核材料与线上状态；任何漂移都会在写入前停止。唯一写 API 是固定函数 `operations-dashboard-api` 的 `UpdateFunctionCode`，不提交环境变量、运行资源配置或路由。依赖按函数 `package.json` 的精确版本由云端安装，不发布函数版本。更新后等待 `Active`、检查代码摘要已改变，并复核原配置与全部路由保持一致；返回 `code-updated-awaiting-functional-verification` 后仍需核对线上静态资源、已登录接口的全部中文名和页面展示，不能仅凭函数状态宣称验收完成。备份保留供后续明确授权的恢复操作使用，不自动回滚或删除。
+
 ## 单应用 telemetry 计划
 
 单应用计划只覆盖该应用的 telemetry 函数、路由和集合：

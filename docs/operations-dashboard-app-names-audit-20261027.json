@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "observation_date": "2026-10-27",
+  "source_baseline_commit": "f41c0048a2ab7e73e70235829578bdcf1247aa48",
+  "environment_id": "bftoos-sh-d3ga7hahz59229f0a",
+  "dashboard_url": "https://bftoos-sh-d3ga7hahz59229f0a-1484029710.ap-shanghai.app.tcloudbase.com/dashboard",
+  "read_only_sources": [
+    "authenticated dashboard rendered application filter and release-stream table",
+    "authenticated /dashboard/api/metrics?days=14&app_id=all rendered JSON"
+  ],
+  "appIds": [
+    "bifang-screen-recorder",
+    "bifang-mouse-clicker",
+    "bifang-tools",
+    "bifang-ai-usage-collector",
+    "bifang-vm-sync-agentless",
+    "bifang-lan-file-transfer",
+    "bifang-codex-skins",
+    "bifang-app-launcher",
+    "bifang-multi-local-proxy",
+    "bifang-browser-sync",
+    "bifang-browser-multi-instance",
+    "bifang-multi-instance-display",
+    "bifang-app-network-accelerator",
+    "bifang-content-production-assistant",
+    "bifang-window-layout",
+    "bifang-multi-instance-display-plus"
+  ],
+  "observed_application_count": 16,
+  "observed_release_stream_count": 25,
+  "observed_chinese_name_count": 3,
+  "observed_english_name_count": 13,
+  "desiredAppLabels": {
+    "bifang-screen-recorder": "毕方录屏助手",
+    "bifang-mouse-clicker": "毕方鼠标精灵",
+    "bifang-tools": "毕方小工具",
+    "bifang-ai-usage-collector": "毕方AI用量看板",
+    "bifang-vm-sync-agentless": "毕方VM虚拟机同步助手",
+    "bifang-lan-file-transfer": "毕方局域网文件传输",
+    "bifang-codex-skins": "毕方CodeX皮肤工坊",
+    "bifang-app-launcher": "毕方应用启动器",
+    "bifang-multi-local-proxy": "毕方本地代理多开器",
+    "bifang-browser-sync": "毕方浏览器多开同步器",
+    "bifang-browser-multi-instance": "毕方浏览器多开器",
+    "bifang-multi-instance-display": "毕方多窗口显示助手",
+    "bifang-app-network-accelerator": "毕方多应用加速器",
+    "bifang-content-production-assistant": "毕方内容生产助手",
+    "bifang-window-layout": "毕方多窗口排布器",
+    "bifang-multi-instance-display-plus": "毕方多窗口显示助手Plus"
+  },
+  "reconciled_existing_release_stream": {
+    "app_id": "bifang-multi-instance-display-plus",
+    "platform": "windows",
+    "architecture": "x64",
+    "channel": "stable",
+    "code": "bifang-multi-instance-display-plus-windows-x64"
+  },
+  "status": "local-source-updated-not-deployed",
+  "remote_deployment_executed": false,
+  "git_push_executed": false,
+  "purchase_executed": false,
+  "cloud_resource_deletion_executed": false
+}

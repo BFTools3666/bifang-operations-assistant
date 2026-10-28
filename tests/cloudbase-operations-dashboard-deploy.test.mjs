@@ -237,6 +237,7 @@ test("post-deploy verifier covers the web session and preserved admin API withou
     selectedAppId: "all",
     rangeDays: 7,
     appIds: ["bifang-tools"],
+    appLabels: { "bifang-tools": "毕方小工具" },
     totals: { todayActive: 1 },
     trend: Array.from({ length: 7 }, (_, index) => ({
       date: `2026-09-${String(index + 1).padStart(2, "0")}`,
@@ -244,8 +245,13 @@ test("post-deploy verifier covers the web session and preserved admin API withou
     })),
     releaseStreams: [],
   };
+  const registry = {
+    schema_version: 3,
+    apps: [{ app_id: "bifang-tools", release_streams: [] }],
+  };
   const calls = [];
   const fakeFetch = async (urlValue, init = {}) => {
+    assert.equal(init.redirect, "error");
     const url = new URL(urlValue);
     const method = init.method || "GET";
     const headers = new Headers(init.headers || {});
@@ -317,6 +323,7 @@ test("post-deploy verifier covers the web session and preserved admin API withou
     const result = await verifyOperationsDashboard({
       origin: "https://dashboard.example.test",
       secretFile,
+      registry,
       fetchImplementation: fakeFetch,
       waitImplementation: async () => {},
     });
@@ -333,6 +340,82 @@ test("post-deploy verifier covers the web session and preserved admin API withou
         ({ path }) => path === "/dashboard/api/metrics?days=7&app_id=all",
       ),
     );
+    assert.equal(
+      result.checks.find(({ name }) => name === "authenticated_metrics")
+        .named_application_count,
+      1,
+    );
+    for (const appLabels of [
+      undefined,
+      {},
+      { "bifang-tools": "bifang-tools" },
+      { "bifang-tools": "其他中文名称" },
+      { "bifang-tools": "毕方小工具", "unregistered-app": "额外工具" },
+    ]) {
+      snapshot.appLabels = appLabels;
+      await assert.rejects(
+        verifyOperationsDashboard({
+          origin: "https://dashboard.example.test",
+          secretFile,
+          registry,
+          fetchImplementation: fakeFetch,
+          waitImplementation: async () => {},
+        }),
+        /incomplete or unreviewed application names/,
+      );
+    }
+    snapshot.appLabels = { "bifang-tools": "毕方小工具" };
+    const incompleteRegistry = {
+      ...registry,
+      apps: [
+        ...registry.apps,
+        { app_id: "bifang-screen-recorder", release_streams: [] },
+      ],
+    };
+    await assert.rejects(
+      verifyOperationsDashboard({
+        origin: "https://dashboard.example.test",
+        secretFile,
+        registry: incompleteRegistry,
+        fetchImplementation: fakeFetch,
+        waitImplementation: async () => {},
+      }),
+      /incomplete or unreviewed application names/,
+    );
+    const stream = {
+      platform: "windows",
+      architecture: "x64",
+      channel: "stable",
+      code: "bifang-tools",
+    };
+    const streamRegistry = {
+      ...registry,
+      apps: [{ app_id: "bifang-tools", release_streams: [stream] }],
+    };
+    const verifyStreamRegistry = () =>
+      verifyOperationsDashboard({
+        origin: "https://dashboard.example.test",
+        secretFile,
+        registry: streamRegistry,
+        fetchImplementation: fakeFetch,
+        waitImplementation: async () => {},
+      });
+    for (const streams of [
+      [],
+      [{ ...stream, appId: "bifang-tools", code: "wrong-code" }],
+      [
+        { ...stream, appId: "bifang-tools" },
+        { ...stream, appId: "bifang-tools" },
+      ],
+    ]) {
+      snapshot.releaseStreams = streams;
+      await assert.rejects(
+        verifyStreamRegistry(),
+        /incomplete or unreviewed release streams/,
+      );
+    }
+    snapshot.releaseStreams = [{ ...stream, appId: "bifang-tools" }];
+    assert.equal((await verifyStreamRegistry()).status, "passed");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
