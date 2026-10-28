@@ -56,7 +56,7 @@ SEMVER_PATTERN = re.compile(
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 CANONICAL_REPOSITORY_URL = (
-    "https://github.com/BFTools366/bifang-operations-assistant.git"
+    "https://github.com/BFTools3666/bifang-operations-assistant.git"
 )
 MAX_REQUIRED_TEXT_BYTES = 2 * 1024 * 1024
 KNOWN_LEGACY_METADATA_BASE = {
@@ -80,6 +80,13 @@ KNOWN_LEGACY_TREE_SHA256 = frozenset(
 # Canonical Skill 2.0.0 at f41c0048a2ab7e73e70235829578bdcf1247aa48.
 # Both Git LF blobs and Windows CRLF checkouts are recognized exactly.
 KNOWN_PREVIOUS_TREE_SHA256 = {
+    # Exact published 2.1.1 trees at 536d5ab3bbcaba7669b3453393eaf78fa6551b91.
+    "2.1.1": frozenset(
+        (
+            "d2ac9fb2fd2bd0172d01535e557e73c4776a0d9020bf809b83d6ade55959b422",
+            "5a63c410e925902d10d928fd73c645072d5ed025f37c2087312fb242cf2219d2",
+        )
+    ),
     # Exact published 2.1.0 trees at e6f8cf7b8539cdc910914d96fc5d521aa50bf244.
     "2.1.0": frozenset(
         (
@@ -215,6 +222,9 @@ def read_skill_metadata(
     if allow_previous_structure:
         allowed_urls.add(
             "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git"
+        )
+        allowed_urls.add(
+            "https://github.com/BFTools366/bifang-operations-assistant.git"
         )
     if metadata["canonical-repository-url"] not in allowed_urls:
         raise InstallError(

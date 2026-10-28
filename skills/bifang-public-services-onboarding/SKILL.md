@@ -2,13 +2,13 @@
 name: bifang-public-services-onboarding
 description: Onboard the current small-tool repository to Bifang public services using the canonical GitHub URL or explicit invocation. Preserve daily-active telemetry, migrate client updates to the Bifang client update center, and keep deployment, installation, publishing, and deletion behind separate gates.
 metadata:
-  version: "2.1.1"
+  version: "2.1.2"
   infrastructure-version: "3.0.0"
   infrastructure-source-commit: "37f6dd120f082b8514a461bcfa30cee35b6259a6"
   application-version-contract-version: "1.0.0"
   application-version-baseline-commit: "92b0c599a42c3a094c99787e6928c30c2d2ea3af"
   source-repository: "bifang-operations-assistant"
-  canonical-repository-url: "https://github.com/BFTools366/bifang-operations-assistant.git"
+  canonical-repository-url: "https://github.com/BFTools3666/bifang-operations-assistant.git"
 ---
 
 # 毕方公共服务接入向导
@@ -20,7 +20,7 @@ metadata:
 以下请求是本 Skill 的规范入口：
 
 ```text
-https://github.com/BFTools366/bifang-operations-assistant.git 帮我接入
+https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 ```
 
 这句话明确授权在**当前客户端仓库**完成以下一个结果：获取并验证权威仓库、安装/更新本 Skill、只读扫描、创建或迁移非敏感 Profile、接入新更新中心并替换该客户端旧更新实现、运行本地静态和单元验证。它不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送、购买或修改其他项目。

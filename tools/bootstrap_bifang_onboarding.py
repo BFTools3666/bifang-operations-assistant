@@ -34,7 +34,7 @@ REPOSITORY_ROOT = RAW_BOOTSTRAP_PATH.parents[1].resolve()
 MANIFEST_PATH = REPOSITORY_ROOT / "bifang-onboarding.json"
 BOOTSTRAP_PATH = REPOSITORY_ROOT / "tools" / "bootstrap_bifang_onboarding.py"
 CANONICAL_REPOSITORY_URL = (
-    "https://github.com/BFTools366/bifang-operations-assistant.git"
+    "https://github.com/BFTools3666/bifang-operations-assistant.git"
 )
 CANONICAL_ONE_LINE_REQUEST = f"{CANONICAL_REPOSITORY_URL} 帮我接入"
 APPLICATION_VERSION_BASELINE_COMMIT = (

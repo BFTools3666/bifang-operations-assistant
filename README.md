@@ -18,7 +18,7 @@
 在任意客户端项目中只需发送：
 
 ```text
-https://github.com/BFTools366/bifang-operations-assistant.git 帮我接入
+https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 ```
 
 根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitHub 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 在当前客户端内迁移非敏感 Profile、确认中文 `display_name` 并生成名称交接、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。阶段 2 在运营精灵中同步登记中文名，阶段 3 检查全部名称覆盖，阶段 4 实际核对线上显示；本地名称登记和生产生效分别记录门禁，不能互相替代。

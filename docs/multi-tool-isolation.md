@@ -19,7 +19,7 @@
 在目标小工具自己的 Codex Task 中发送：
 
 ```text
-https://github.com/BFTools366/bifang-operations-assistant.git 帮我接入
+https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 ```
 
 它授权该客户端完成权威来源验证、Skill 安装、Profile v2、旧版本协议替换/删除和本地测试；不授权修改另一个客户端，也不授权云端部署/删除、打包安装、发布或推送。运营精灵仓库不能反向扫描和主动修改未知工具。

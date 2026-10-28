@@ -18,7 +18,7 @@
 
 ## 接入方式
 
-- 接入必须由每个小工具在自己的项目中发起；规范一句话是 `https://github.com/BFTools366/bifang-operations-assistant.git 帮我接入`，也可显式调用 `$bifang-public-services-onboarding`。不要从本仓库扫描、发现或主动修改未知小工具。
+- 接入必须由每个小工具在自己的项目中发起；规范一句话是 `https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入`，也可显式调用 `$bifang-public-services-onboarding`。不要从本仓库扫描、发现或主动修改未知小工具。
 - Skill 权威源码位于 `skills/bifang-public-services-onboarding/`，入口为 `skills/bifang-public-services-onboarding/SKILL.md`，Codex 展示与调用策略为 `skills/bifang-public-services-onboarding/agents/openai.yaml`。开始任何下游接入前完整阅读 Skill，并遵守一次只执行一个已获授权阶段的规则。
 - 同一现有免费 CloudBase 环境可以承载多个工具。Telemetry 按 APP_ID 使用独立函数、路由、集合和本地状态；仅使用新更新中心的工具无需登记旧发布流。历史 application-version 使用共享函数/路由，各已有发布流按应用隔离 code、凭据与 versions/ads/audit 集合。
 - 新客户端版本检查使用客户端更新中心 POST 协议，携带真实目标字段和运行时客户端 Token；旧 application-version 资源仍按既有部署事实管理，客户端迁移不自动授权删除或改变其他客户端。

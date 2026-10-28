@@ -1,7 +1,7 @@
 {
   "$schema": "https://bifang.local/schemas/onboarding-bootstrap-v1.json",
   "schemaVersion": 1,
-  "canonicalRepositoryUrl": "https://github.com/BFTools366/bifang-operations-assistant.git",
+  "canonicalRepositoryUrl": "https://github.com/BFTools3666/bifang-operations-assistant.git",
   "repositoryIdentity": "bifang-operations-assistant",
   "minimumInfrastructureCommit": "37f6dd120f082b8514a461bcfa30cee35b6259a6",
   "infrastructureVersion": "3.0.0",
@@ -10,12 +10,12 @@
   "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "path": "skills/bifang-public-services-onboarding",
     "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
     "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"
   },
-  "oneLineRequest": "https://github.com/BFTools366/bifang-operations-assistant.git 帮我接入",
+  "oneLineRequest": "https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入",
   "initialAuthorization": {
     "allows": [
       "fetch-authoritative-repository",
