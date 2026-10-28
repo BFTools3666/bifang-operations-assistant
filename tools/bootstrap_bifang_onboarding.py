@@ -604,6 +604,8 @@ def _verify_manifest_and_source(
         raise BootstrapError("manifest repositoryIdentity is not approved")
     if _require_string(manifest, "oneLineRequest") != CANONICAL_ONE_LINE_REQUEST:
         raise BootstrapError("manifest oneLineRequest is not the canonical request")
+    if _require_string(manifest, "updateTransport") != "client-update-center-v1":
+        raise BootstrapError("manifest updateTransport must select client-update-center-v1")
 
     minimum = _require_string(manifest, "minimumInfrastructureCommit")
     if COMMIT_PATTERN.fullmatch(minimum) is None:

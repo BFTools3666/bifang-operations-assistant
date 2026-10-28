@@ -121,8 +121,11 @@ async function createOtherSkill(codexHome) {
   return sentinel;
 }
 
-async function materializeCanonicalLegacySkill(codexHome) {
-  const commit = "55f4a031df2756a4e37b1f2e6fe1d9cb91c9db37";
+async function materializeCanonicalLegacySkill(
+  codexHome,
+  commit = "55f4a031df2756a4e37b1f2e6fe1d9cb91c9db37",
+  crlf = false,
+) {
   const prefix = `skills/${skillName}/`;
   const listed = run(
     "git",
@@ -139,7 +142,11 @@ async function materializeCanonicalLegacySkill(codexHome) {
     const relative = repositoryPath.slice(prefix.length);
     const output = join(destination, ...relative.split("/"));
     await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, shown.stdout, "utf8");
+    await writeFile(
+      output,
+      crlf ? shown.stdout.replace(/\r?\n/g, "\r\n") : shown.stdout,
+      "utf8",
+    );
   }
   return destination;
 }
@@ -259,7 +266,7 @@ test("a canonical v1 infrastructure-2.1 installation upgrades atomically", async
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /\[OK\] updated:/);
   const installed = await readFile(join(target, "SKILL.md"), "utf8");
-  assert.match(installed, /^  version: "2\.0\.0"\r?$/m);
+  assert.match(installed, /^  version: "2\.1\.0"\r?$/m);
   assert.match(installed, /^  infrastructure-version: "3\.0\.0"\r?$/m);
   assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
   const entries = await readdir(join(codexHome, "skills"));
@@ -283,6 +290,56 @@ test("modified content cannot impersonate the canonical v1 installation", async 
   assert.equal(await readFile(protectedFile, "utf8"), "do not replace\n");
   const installed = await readFile(join(target, "SKILL.md"), "utf8");
   assert.match(installed, /^  version: "1\.0\.0"\r?$/m);
+});
+
+test("published v2.0.0 installations upgrade to the name-aware Skill on LF and CRLF checkouts", async (t) => {
+  for (const crlf of [false, true]) {
+    const root = await temporaryDirectory(t);
+    const codexHome = join(root, "codex-home");
+    const target = await materializeCanonicalLegacySkill(
+      codexHome,
+      "f41c0048a2ab7e73e70235829578bdcf1247aa48",
+      crlf,
+    );
+    const sentinel = await createOtherSkill(codexHome);
+    const result = runInstaller(codexHome, sourceSkill);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /\[OK\] updated:/);
+    assert.match(
+      await readFile(join(target, "SKILL.md"), "utf8"),
+      /^  version: "2\.1\.0"\r?$/m,
+    );
+    const validator = await readFile(
+      join(target, "scripts", "validate_profile.py"),
+      "utf8",
+    );
+    assert.match(validator, /def validate_display_name/);
+    assert.equal(await readFile(sentinel, "utf8"), "must remain unchanged\n");
+  }
+});
+
+test("a modified published v2 installation is not overwritten by a patch upgrade", async (t) => {
+  const root = await temporaryDirectory(t);
+  const codexHome = join(root, "codex-home");
+  const target = await materializeCanonicalLegacySkill(
+    codexHome,
+    "f41c0048a2ab7e73e70235829578bdcf1247aa48",
+  );
+  const protectedFile = join(target, "scripts", "derive_resources.py");
+  const content =
+    (await readFile(protectedFile, "utf8")) + "\n# local owner change\n";
+  await writeFile(protectedFile, content, "utf8");
+  const result = runInstaller(codexHome, sourceSkill);
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /unrecognized older same-name Skill|unknown same-name skill/,
+  );
+  assert.equal(await readFile(protectedFile, "utf8"), content);
+  assert.match(
+    await readFile(join(target, "SKILL.md"), "utf8"),
+    /^  version: "2\.0\.0"\r?$/m,
+  );
 });
 
 test("a newer same-source installation is preserved and downgrade is refused", async (t) => {

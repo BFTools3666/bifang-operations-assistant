@@ -4,7 +4,8 @@
 The source of truth is the skill directory containing this script.  The
 destination is ``$CODEX_HOME/skills`` when CODEX_HOME is set, otherwise
 ``~/.codex/skills``.  Existing skills are only updated when their frontmatter
-proves that they came from the same repository and are older than this source.
+matches an exact previously published tree from the same repository and is older
+than this source.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ REQUIRED_FILES = (
     "SKILL.md",
     "agents/openai.yaml",
     "references/integration-contract.md",
+    "references/client-update-center.md",
     "references/cloudbase-gates.md",
     "references/framework-adapters.md",
     "references/public-services-profile.schema.json",
@@ -75,6 +77,16 @@ KNOWN_LEGACY_TREE_SHA256 = frozenset(
         "c11942aa2e0463f37536a6362c3d1812a5c378025beb75730f1c603e72fb9a98",
     )
 )
+# Canonical Skill 2.0.0 at f41c0048a2ab7e73e70235829578bdcf1247aa48.
+# Both Git LF blobs and Windows CRLF checkouts are recognized exactly.
+KNOWN_PREVIOUS_TREE_SHA256 = {
+    "2.0.0": frozenset(
+        (
+            "1a80088b30afb13b7bb3353434e5caf1ac3c88c30ed643e6edabe16ba416b6c5",
+            "c0a8b66b5f8b6680b1d20b1409ba898f423341ee79350b721185094e21a976cc",
+        )
+    ),
+}
 
 
 class InstallError(RuntimeError):
@@ -308,19 +320,20 @@ def _assert_no_unsafe_entries(skill_directory: Path) -> None:
     _collect_safe_skill_files(skill_directory)
 
 
-def validate_structure(skill_directory: Path) -> dict[str, str]:
+def validate_structure(skill_directory: Path, *, allow_previous_structure: bool = False) -> dict[str, str]:
     if not skill_directory.is_dir():
         raise InstallError(f"skill directory not found: {skill_directory}")
     _assert_no_unsafe_entries(skill_directory)
+    required_files = tuple(relative for relative in REQUIRED_FILES if not (allow_previous_structure and relative == "references/client-update-center.md"))
     missing = [
         relative
-        for relative in REQUIRED_FILES
+        for relative in required_files
         if not (skill_directory / relative).is_file()
     ]
     if missing:
         raise InstallError(f"skill structure is incomplete: {', '.join(missing)}")
     required_text: dict[str, str] = {}
-    for relative in REQUIRED_FILES:
+    for relative in required_files:
         required_text[relative] = _read_required_utf8(
             skill_directory / relative, relative
         )
@@ -434,6 +447,19 @@ def validate_known_legacy_installation(skill_directory: Path) -> dict[str, str]:
     return metadata
 
 
+def validate_known_previous_installation(skill_directory: Path) -> dict[str, str]:
+    """Accept an older v2 installation only when every file matches a published tree."""
+
+    metadata = validate_structure(skill_directory, allow_previous_structure=True)
+    if _tree_digest(skill_directory) not in KNOWN_PREVIOUS_TREE_SHA256.get(
+        metadata["version"], frozenset()
+    ):
+        raise InstallError(
+            "installed Skill content does not match a canonical published v2 tree"
+        )
+    return metadata
+
+
 def _ensure_direct_child(path: Path, parent: Path) -> None:
     resolved_path = path.resolve()
     resolved_parent = parent.resolve()
@@ -516,6 +542,7 @@ def install(
 
     action = "installed"
     installed_was_legacy = False
+    installed_was_previous = False
     if destination.exists():
         if _is_link_or_reparse(destination) or not destination.is_dir():
             raise InstallError(f"refusing to overwrite unknown destination: {destination}")
@@ -523,13 +550,17 @@ def install(
             installed = validate_structure(destination)
         except InstallError as current_error:
             try:
-                installed = validate_known_legacy_installation(destination)
-            except InstallError as legacy_error:
-                raise InstallError(
-                    "refusing to overwrite an unknown same-name skill at "
-                    f"{destination}: current={current_error}; legacy={legacy_error}"
-                ) from legacy_error
-            installed_was_legacy = True
+                installed = validate_known_previous_installation(destination)
+                installed_was_previous = True
+            except InstallError:
+                try:
+                    installed = validate_known_legacy_installation(destination)
+                except InstallError as legacy_error:
+                    raise InstallError(
+                        "refusing to overwrite an unknown same-name skill at "
+                        f"{destination}: current={current_error}; legacy={legacy_error}"
+                    ) from legacy_error
+                installed_was_legacy = True
         if installed["source-repository"] != incoming["source-repository"]:
             raise InstallError(f"refusing to overwrite a skill from another source: {destination}")
         if compare_semver(installed["version"], incoming["version"]) > 0:
@@ -553,12 +584,16 @@ def install(
             raise InstallError(
                 "same skill version has different content; bump metadata.version before updating"
             )
-        if not installed_was_legacy:
-            raise InstallError(
-                "refusing to overwrite an unrecognized older same-name Skill; "
-                "only an exact canonical published v1 / infrastructure-2.1 tree "
-                "may be upgraded"
-            )
+        if not installed_was_legacy and not installed_was_previous:
+            try:
+                validate_known_previous_installation(destination)
+            except InstallError as error:
+                raise InstallError(
+                    "refusing to overwrite an unrecognized older same-name Skill; "
+                    "only an exact canonical published v1 / infrastructure-2.1 or v2 tree "
+                    "may be upgraded"
+                ) from error
+            installed_was_previous = True
         action = "updated"
 
     skills_root.mkdir(parents=True, exist_ok=True)
@@ -591,6 +626,8 @@ def install(
         if previous_moved:
             if installed_was_legacy:
                 validate_known_legacy_installation(backup)
+            elif installed_was_previous:
+                validate_known_previous_installation(backup)
             else:
                 validate_structure(backup)
             _remove_directory(backup, skills_root)

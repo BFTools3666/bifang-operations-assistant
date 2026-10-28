@@ -1,11 +1,6 @@
-const APP_LABELS = {
-  "bifang-screen-recorder": "毕方录屏助手",
-  "bifang-mouse-clicker": "毕方鼠标精灵",
-  "bifang-tools": "毕方小工具",
-};
-
 const state = {
   app: "all",
+  pendingApp: null,
   days: 14,
   snapshot: null,
   distribution: "versions",
@@ -153,23 +148,36 @@ async function loadMetrics() {
   state.loading = true;
   setLoadingState(true);
   try {
-    const params = new URLSearchParams({
-      app: state.app,
-      days: String(state.days),
-    });
-    const response = await fetch(`/api/metrics?${params}`, {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    if (response.status === 401) {
-      showLogin("会话已过期，请重新输入访问密钥。");
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const params = new URLSearchParams({
+        app: state.app,
+        days: String(state.days),
+      });
+      const response = await fetch(`/api/metrics?${params}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (response.status === 401) {
+        showLogin("会话已过期，请重新输入访问密钥。");
+        return;
+      }
+      if (!response.ok) throw new Error("metrics_unavailable");
+      state.snapshot = await response.json();
+      const pendingApp = state.pendingApp;
+      state.pendingApp = null;
+      if (pendingApp !== null) {
+        state.app = state.snapshot.appIds.includes(pendingApp)
+          ? pendingApp
+          : "all";
+        updateUrl();
+      }
+      hydrateAppFilter(state.snapshot.appIds);
+      if (state.app !== state.snapshot.selectedAppId) continue;
+      elements["error-panel"].hidden = true;
+      renderSnapshot();
       return;
     }
-    if (!response.ok) throw new Error("metrics_unavailable");
-    state.snapshot = await response.json();
-    hydrateAppFilter(state.snapshot.appIds);
-    elements["error-panel"].hidden = true;
-    renderSnapshot();
+    throw new Error("invalid_metrics_selection");
   } catch {
     state.snapshot = null;
     renderUnavailable();
@@ -364,9 +372,11 @@ function renderAlerts(alerts) {
 
 function hydrateAppFilter(appIds) {
   const select = elements["app-filter"];
-  const known = new Set([...select.options].map((option) => option.value));
+  const all = document.createElement("option");
+  all.value = "all";
+  all.textContent = "全部应用";
+  select.replaceChildren(all);
   appIds.forEach((appId) => {
-    if (known.has(appId)) return;
     const option = document.createElement("option");
     option.value = appId;
     option.textContent = appLabel(appId);
@@ -381,7 +391,7 @@ function readUrlState() {
   const days = Number(params.get("days"));
   if ([7, 14, 30].includes(days)) state.days = days;
   const app = params.get("app");
-  if (app === "all" || Object.hasOwn(APP_LABELS, app)) state.app = app;
+  if (app && app !== "all") state.pendingApp = app;
   setRangeButtons();
 }
 
@@ -479,7 +489,7 @@ function signedPercent(current, previous) {
 
 function appLabel(appId) {
   if (appId === "all") return "全部应用";
-  return APP_LABELS[appId] ?? appId;
+  return state.snapshot?.appLabels[appId] ?? appId;
 }
 
 function platformLabel(platform) {

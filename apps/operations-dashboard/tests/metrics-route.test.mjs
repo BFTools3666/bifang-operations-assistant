@@ -19,6 +19,15 @@ const appRegistry = JSON.parse(
     'utf8',
   ),
 );
+const appLabels = JSON.parse(
+  readFileSync(
+    new URL(
+      '../../../cloudbase/functions/operations-dashboard/src/app-labels.json',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+);
 function compile(source, context = {}) {
   const exports = {};
   vm.runInNewContext(
@@ -41,10 +50,17 @@ function compile(source, context = {}) {
   );
   return exports;
 }
-const data = compile(dataSource);
+const data = compile(dataSource, {
+  require: (name) => {
+    if (name.endsWith('cloudbase/apps.json')) return appRegistry;
+    if (name.endsWith('app-labels.json')) return appLabels;
+    throw new Error(`unexpected data dependency: ${name}`);
+  },
+});
 function route({
   user = { userId: 'test-owner' },
   token = 'offline-test-token',
+  registry = appRegistry,
   transport = async () => {
     throw new Error('offline');
   },
@@ -58,7 +74,7 @@ function route({
       name.includes('chatgpt-auth')
         ? { getChatGPTUser: async () => user }
         : name.endsWith('cloudbase/apps.json')
-          ? appRegistry
+          ? registry
           : data,
   }).GET;
 }
@@ -67,6 +83,19 @@ const request = (query = 'app=all&days=7') =>
 const registeredReleaseStreams = appRegistry.apps.flatMap((app) =>
   app.release_streams.map((stream) => ({ appId: app.app_id, ...stream })),
 );
+
+test('a telemetry-only selection accepts an empty legacy release list', async () => {
+  const appId = 'bifang-screen-recorder';
+  const registry = structuredClone(appRegistry);
+  registry.apps.find((app) => app.app_id === appId).release_streams = [];
+  const payload = fixture(appId);
+  payload.releaseStreams = [];
+  const response = await route({ registry, transport: async () => Response.json(payload) })(request(`app=${appId}&days=7`));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.releaseStreams, []);
+  assert.equal(body.appLabels[appId], appLabels[appId]);
+});
 function releaseSummary(stream) {
   const populated = stream.code !== 'bifang-screen-recorder-macos-arm64';
   return {
@@ -89,6 +118,7 @@ function releaseSummary(stream) {
   };
 }
 function fixture(selectedAppId = 'all') {
+  const appIds = appRegistry.apps.map((app) => app.app_id);
   return {
     schemaVersion: 2,
     mode: 'live',
@@ -99,6 +129,10 @@ function fixture(selectedAppId = 'all') {
     generatedAt: '2026-09-07T05:00:00Z',
     rangeDays: 7,
     selectedAppId,
+    appIds,
+    appLabels: Object.fromEntries(
+      appIds.map((appId) => [appId, appLabels[appId]]),
+    ),
     totals: {
       todayActive: 0,
       yesterdayActive: 0,
@@ -110,11 +144,7 @@ function fixture(selectedAppId = 'all') {
     trend: Array.from({ length: 7 }, (_, i) => ({
       date: `2026-09-0${i + 1}`,
       total: 0,
-      byApp: {
-        'bifang-screen-recorder': 0,
-        'bifang-mouse-clicker': 0,
-        'bifang-tools': 0,
-      },
+      byApp: Object.fromEntries(appIds.map((appId) => [appId, 0])),
     })),
     versions: [],
     platforms: [],
@@ -190,13 +220,16 @@ test('live response is explicitly rebuilt and credentials stay server-side', asy
     ),
     false,
   );
-  assert.equal(JSON.parse(text).totals.todayActive, 0);
+  const projected = JSON.parse(text);
+  assert.equal(projected.totals.todayActive, 0);
+  assert.deepEqual(projected.appIds, fixture().appIds);
+  assert.deepEqual(projected.appLabels, fixture().appLabels);
+  assert.deepEqual(Object.keys(projected.trend[0].byApp), fixture().appIds);
 });
 test('all and selected-app responses require the exact registered stream set', async () => {
   for (const selectedAppId of [
     'all',
-    'bifang-screen-recorder',
-    'bifang-mouse-clicker',
+    ...appRegistry.apps.map((app) => app.app_id),
   ]) {
     const payload = fixture(selectedAppId);
     payload.releaseStreams.reverse();
@@ -222,6 +255,77 @@ test('all and selected-app responses require the exact registered stream set', a
       selectedAppId,
     );
   }
+});
+
+test('application options derive every registered identity from the shared label metadata', () => {
+  assert.deepEqual(
+    Array.from(data.APP_OPTIONS, (app) => ({
+      id: app.id,
+      label: app.label,
+      shortLabel: app.shortLabel,
+    })),
+    appRegistry.apps.map((app) => ({
+      id: app.app_id,
+      label: appLabels[app.app_id],
+      shortLabel: appLabels[app.app_id],
+    })),
+  );
+  assert.equal(data.isAppFilter('bifang-multi-instance-display-plus'), true);
+  assert.equal(data.isAppFilter('unregistered-app'), false);
+});
+
+test('runtime application identities and safe display names are mandatory and projected', async () => {
+  const appId = appRegistry.apps[0].app_id;
+  const renamed = fixture();
+  renamed.appLabels[appId] = '更新后的正式名称';
+  const successful = await route({
+    transport: async () => Response.json(renamed),
+  })(request());
+  assert.equal(successful.status, 200);
+  assert.equal((await successful.json()).appLabels[appId], '更新后的正式名称');
+
+  const mutations = [
+    (value) => delete value.appIds,
+    (value) => (value.appIds = value.appIds.slice(1)),
+    (value) => (value.appIds[0] = value.appIds[1]),
+    (value) => value.appIds.push('unregistered-app'),
+    (value) => delete value.appLabels,
+    (value) => delete value.appLabels[appId],
+    (value) => (value.appLabels['unregistered-app'] = '未登记应用'),
+    ...[
+      '',
+      ' 名称',
+      '名称 ',
+      '<script>',
+      '名称\n换行',
+      '名称\u202e',
+      '名'.repeat(101),
+      42,
+    ].map((name) => (value) => (value.appLabels[appId] = name)),
+    (value) => delete value.trend[0].byApp[appId],
+    (value) => (value.trend[0].byApp['unregistered-app'] = 0),
+  ];
+  for (const mutate of mutations) {
+    const payload = fixture();
+    mutate(payload);
+    const result = await route({
+      transport: async () => Response.json(payload),
+    })(request());
+    assert.equal(result.status, 503);
+    assert.deepEqual(await result.json(), { error: 'metrics_unavailable' });
+  }
+});
+
+test('distribution labels allow a full Unicode display name plus version', async () => {
+  const payload = fixture();
+  const label = `${'\u{20000}'.repeat(100)} ${'1'.repeat(64)}`;
+  payload.appLabels[appRegistry.apps[0].app_id] = '\u{20000}'.repeat(100);
+  payload.versions = [{ label, value: 0, percent: 0 }];
+  const result = await route({ transport: async () => Response.json(payload) })(
+    request(),
+  );
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).versions[0].label, label);
 });
 test('wrong environment, query, schema and demo responses fail closed', async () => {
   for (const change of [

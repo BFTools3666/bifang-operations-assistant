@@ -222,6 +222,41 @@ function runGit(cwd, args) {
 }
 
 test(
+  "telemetry-only registration does not generate legacy credentials",
+  { skip: process.platform !== "win32", timeout: 120_000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "bifang-empty-stream-"));
+    try {
+      const registry = JSON.parse(await readFile(registryPath, "utf8"));
+      registry.apps.push({ app_id: "new-center-tool", release_streams: [] });
+      const path = join(directory, "registry.json");
+      await writeFile(path, JSON.stringify(registry));
+      const result = runTool([
+        "-Mode",
+        "generate",
+        "-RegistryPath",
+        path,
+        "-DigestOutputPath",
+        join(directory, "digest.b64"),
+        "-VaultPath",
+        join(directory, "private", "vault.json"),
+      ]);
+      assert.equal(result.result.status, 0, result.result.stderr);
+      const summary = JSON.parse(result.result.stdout);
+      assert.ok(summary.credentials.length > 0);
+      assert.equal(
+        summary.credentials.some(
+          (credential) => credential.app_id === "new-center-tool",
+        ),
+        false,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   "Windows credential tool generates, protects and exports only runtime credentials",
   { skip: process.platform !== "win32", timeout: 120_000 },
   async () => {

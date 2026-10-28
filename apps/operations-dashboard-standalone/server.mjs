@@ -411,7 +411,6 @@ function readRegistry(value) {
       !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(app.app_id) ||
       seenApps.has(app.app_id) ||
       !Array.isArray(app.release_streams) ||
-      app.release_streams.length === 0 ||
       app.release_streams.length > MAX_RELEASE_STREAMS_PER_APP
     ) {
       throw new Error("invalid_apps_registry");
@@ -479,6 +478,9 @@ function toSafeDashboardSnapshot(payload, appIds) {
     rangeDays: payload.rangeDays,
     selectedAppId: payload.selectedAppId,
     appIds,
+    appLabels: Object.fromEntries(
+      appIds.map((appId) => [appId, payload.appLabels[appId]]),
+    ),
     totals: {
       todayActive: payload.totals.todayActive,
       yesterdayActive: payload.totals.yesterdayActive,
@@ -538,6 +540,8 @@ function isDashboardSnapshot(value, expectedDays, expectedApp, registry) {
     value.environmentId === "bftoos-sh-d3ga7hahz59229f0a" &&
     value.rangeDays === expectedDays &&
     value.selectedAppId === expectedApp &&
+    isAppIds(value.appIds, registry.appIds) &&
+    isAppLabels(value.appLabels, registry.appIds) &&
     isTotals(value.totals) &&
     Array.isArray(value.trend) &&
     value.trend.length === expectedDays &&
@@ -553,6 +557,33 @@ function isDashboardSnapshot(value, expectedDays, expectedApp, registry) {
 
 function isRecord(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isAppIds(value, appIds) {
+  return (
+    Array.isArray(value) &&
+    value.length === appIds.length &&
+    new Set(value).size === appIds.length &&
+    value.every((appId) => appIds.includes(appId))
+  );
+}
+
+function isAppLabels(value, appIds) {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === appIds.length &&
+    appIds.every((appId) => {
+      const label = value[appId];
+      return (
+        Object.hasOwn(value, appId) &&
+        typeof label === "string" &&
+        label.trim() === label &&
+        Array.from(label).length >= 1 &&
+        Array.from(label).length <= 100 &&
+        !/[\p{Cc}\p{Cf}<>]/u.test(label)
+      );
+    })
+  );
 }
 
 function isShortText(value, maxLength) {
@@ -603,7 +634,7 @@ function isDistribution(value) {
     value.every(
       (item) =>
         isRecord(item) &&
-        isShortText(item.label, 100) &&
+        isShortText(item.label, 265) &&
         isCount(item.value) &&
         isPercent(item.percent) &&
         (item.tone === undefined ||

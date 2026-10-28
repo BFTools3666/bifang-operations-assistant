@@ -90,10 +90,10 @@ test("the pinned CloudBase CLI 3.8.1 accepts the generated template offline", ()
   assert.equal(output.version, "2.1");
   assert.deepEqual(output.errors, []);
   assert.deepEqual(output.summary, {
-    functions: 17,
+    functions: 18,
     hosting: 0,
     databases: 0,
-    gateways: 18,
+    gateways: 19,
   });
 });
 
@@ -191,6 +191,10 @@ test("release streams are the non-sensitive authority while telemetry remains is
       {
         appId: "bifang-window-layout",
         codes: ["bifang-window-layout-windows-x64"],
+      },
+      {
+        appId: "bifang-multi-instance-display-plus",
+        codes: ["bifang-multi-instance-display-plus-windows-x64"],
       },
     ],
   );
@@ -305,6 +309,7 @@ test("release streams are the non-sensitive authority while telemetry remains is
       "/apps/bifang-app-network-accelerator/v1/track",
       "/apps/bifang-content-production-assistant/v1/track",
       "/apps/bifang-window-layout/v1/track",
+      "/apps/bifang-multi-instance-display-plus/v1/track",
       "/tools/version-control/v1",
       "/admin/v1/metrics",
       "/dashboard",
@@ -411,7 +416,7 @@ test("registry v3 rejects ambiguous, duplicate and unsafe release identities", (
           },
         ]),
       ),
-    /between 1 and 12 items/,
+    /at most 12 items/,
   );
 });
 
@@ -442,6 +447,59 @@ test("the app scaffold registers app and streams without creating update files",
     );
     assert.deepEqual(nextConfig, createCloudBaseConfig(nextRegistry));
     assert.equal("hosting" in nextConfig, false);
+  });
+});
+
+test("a telemetry-only tool registers without creating a legacy update mapping", async () => {
+  await withTemporaryCloudBaseFixture(async (fixture) => {
+    const result = await addApp("second-tool", fixture);
+    const nextRegistry = JSON.parse(
+      await readFile(fixture.registryUrl, "utf8"),
+    );
+    const config = JSON.parse(await readFile(fixture.configUrl, "utf8"));
+    assert.deepEqual(result.releaseStreams, []);
+    assert.deepEqual(nextRegistry.apps[1], {
+      app_id: "second-tool",
+      release_streams: [],
+    });
+    assert.ok(
+      config.functions.some(({ name }) => name === "telemetry-second-tool"),
+    );
+    assert.ok(
+      config.gateway.routes.some(
+        ({ path }) => path === "/apps/second-tool/v1/track",
+      ),
+    );
+    const legacy = config.functions.find(
+      ({ name }) => name === APPLICATION_VERSION_API.functionName,
+    );
+    assert.deepEqual(
+      JSON.parse(JSON.parse(legacy.envVariables.APPLICATION_VERSION_APPS_JSON)),
+      [deriveApplicationVersionResources("first-tool")],
+    );
+    const dashboard = config.functions.find(
+      ({ name }) => name === OPERATIONS_DASHBOARD.functionName,
+    );
+    const parsed = parseDashboardApps(
+      dashboard.envVariables.DASHBOARD_APPS_JSON,
+    );
+    assert.deepEqual(
+      parsed.map(({ appId, releaseStreams }) => ({ appId, releaseStreams })),
+      [
+        { appId: "first-tool", releaseStreams: [stream()] },
+        { appId: "second-tool", releaseStreams: [] },
+      ],
+    );
+  });
+});
+
+test("registration accepts the generated template with Windows checkout line endings", async () => {
+  await withTemporaryCloudBaseFixture(async (fixture) => {
+    const config = await readFile(fixture.configUrl, "utf8");
+    await writeFile(fixture.configUrl, config.replaceAll("\n", "\r\n"), "utf8");
+    await addApp("second-tool", fixture);
+    const registry = JSON.parse(await readFile(fixture.registryUrl, "utf8"));
+    assert.deepEqual(registry.apps[1].release_streams, []);
   });
 });
 

@@ -1,7 +1,7 @@
 interface:
   display_name: "毕方公共服务接入向导"
-  short_description: "用一个仓库 URL 将当前小工具迁移到毕方 application-version API v1"
-  default_prompt: "Use $bifang-public-services-onboarding to migrate this client from the unpublished static-update protocol to Bifang application-version API v1 while preserving daily-active telemetry."
+  short_description: "用一个仓库 URL 将当前小工具接入毕方客户端更新中心"
+  default_prompt: "Use $bifang-public-services-onboarding to integrate the current client with the Bifang client update center while preserving daily-active telemetry."
 
 policy:
   allow_implicit_invocation: true

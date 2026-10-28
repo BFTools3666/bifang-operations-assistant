@@ -120,6 +120,36 @@ function versionDocument(overrides = {}) {
   };
 }
 
+test("telemetry-only apps show observed versions without reading legacy collections", async () => {
+  const app = { ...APPS[0], platforms: [], releaseStreams: [] };
+  assert.deepEqual(parseDashboardApps([app]), [app]);
+  assert.deepEqual(
+    parseDashboardApps({ schema_version: 2, apps: [[app.appId, []]] }),
+    [app],
+  );
+  let databaseOpened = false;
+  const reader = createCloudBaseVersionReader({
+    appFactory: () => {
+      databaseOpened = true;
+      throw new Error("unexpected database");
+    },
+  });
+  const summaries = await reader({ apps: [app] });
+  assert.equal(databaseOpened, false);
+  const snapshot = createDashboardSnapshot({
+    apps: [app],
+    days: 7,
+    events: [event({ app_version: "1.2.3" })],
+    releaseSummaries: summaries,
+    now: NOW,
+    selectedAppId: app.appId,
+  });
+  assert.equal(snapshot.appLabels[app.appId], "毕方录屏助手");
+  assert.equal(snapshot.versions[0].label, "1.2.3");
+  assert.deepEqual(snapshot.releaseStreams, []);
+  assert.match(snapshot.alerts.at(-1).title, /未登记旧发布流/);
+});
+
 test("aggregation returns only dashboard-safe summaries", () => {
   const snapshot = createDashboardSnapshot({
     apps: APPS,
@@ -150,6 +180,10 @@ test("aggregation returns only dashboard-safe summaries", () => {
     snapshot.appIds,
     APPS.map((app) => app.appId),
   );
+  assert.deepEqual(snapshot.appLabels, {
+    "bifang-screen-recorder": "毕方录屏助手",
+    "bifang-mouse-clicker": "毕方鼠标精灵",
+  });
   const serialized = JSON.stringify(snapshot);
   assert.equal(serialized.includes("source_ip"), false);
   assert.equal(serialized.includes("install_id"), false);
@@ -159,6 +193,64 @@ test("aggregation returns only dashboard-safe summaries", () => {
     serialized.includes("11111111-1111-4111-8111-111111111111"),
     false,
   );
+});
+
+test("aggregation projects names only for enabled apps and names observed versions", () => {
+  const appIds = [
+    "bifang-vm-sync-agentless",
+    "bifang-multi-instance-display-plus",
+    "future-runtime-app",
+  ];
+  const apps = appIds.map((appId) => ({
+    ...APPS[1],
+    appId,
+    releaseStreams: [{ ...APPS[1].releaseStreams[0], code: appId }],
+  }));
+  const events = appIds.map((appId, index) =>
+    event({
+      app_id: appId,
+      app_version: `1.2.${index}`,
+      install_id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    }),
+  );
+  const create = (selectedAppId) =>
+    createDashboardSnapshot({
+      apps,
+      days: 7,
+      events: events.filter(
+        (value) => selectedAppId === "all" || value.app_id === selectedAppId,
+      ),
+      releaseSummaries: releaseSummaries(
+        apps.filter(
+          (value) => selectedAppId === "all" || value.appId === selectedAppId,
+        ),
+      ),
+      now: NOW,
+      selectedAppId,
+    });
+  const snapshot = create("all");
+  assert.deepEqual(snapshot.appLabels, {
+    "bifang-vm-sync-agentless": "毕方VM虚拟机同步助手",
+    "bifang-multi-instance-display-plus": "毕方多窗口显示助手Plus",
+    "future-runtime-app": "future-runtime-app",
+  });
+  assert.deepEqual(
+    snapshot.versions.map((item) => item.label).sort(),
+    [
+      "毕方VM虚拟机同步助手 1.2.0",
+      "毕方多窗口显示助手Plus 1.2.1",
+      "future-runtime-app 1.2.2",
+    ].sort(),
+  );
+  assert.equal(snapshot.totals.todayActive, 3);
+  assert.deepEqual(snapshot.appIds, appIds);
+  assert.equal(snapshot.releaseStreams[1].code, appIds[1]);
+  assert.equal(snapshot.releaseStreams[1].highestVersion, null);
+  assert.equal(snapshot.releaseStreams[1].status, "empty");
+  const selected = create(appIds[0]);
+  assert.deepEqual(selected.appLabels, snapshot.appLabels);
+  assert.equal(selected.versions[0].label, "1.2.0");
+  assert.equal(selected.totals.todayActive, 1);
 });
 
 test("handler fails closed without a valid bearer token", async () => {
@@ -573,7 +665,7 @@ test("DAU deduplicates per app/install/day and distributions select the newest o
   assert.equal(result.totals.returningToday, 1);
   assert.equal(result.totals.returningRate, 50);
   assert.equal(
-    result.versions.find((item) => item.label === "录屏 0.7.1").value,
+    result.versions.find((item) => item.label === "毕方录屏助手 0.7.1").value,
     1,
   );
   assert.equal(result.versions.length, 2);

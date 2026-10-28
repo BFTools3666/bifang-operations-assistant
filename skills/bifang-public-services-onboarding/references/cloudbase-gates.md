@@ -2,6 +2,8 @@
 
 在阶段 2–4、6–8 读取。只复用负责人确认的现有免费环境和平台默认 HTTPS 域名。
 
+本文件中 application-version 的集合、code 和鉴权门禁只约束既有 CloudBase 历史服务；新客户端更新中心是独立服务，按 [新接入合同](client-update-center.md) 验证 APP_ID、目标、Token 和策略。客户端迁移不授权部署或删除任一服务。
+
 ## 费用红线
 
 不创建第二环境，不购买域名、证书、套餐或资源包，不开启按量超限、超限扣费或自动续费。控制台、API 或 CLI 一旦出现非零金额、升级、连续包月、资源包、自定义域名、证书购买或 EdgeOne 提示，立即停止并保留只读证据。
@@ -25,14 +27,17 @@ Application-version 全环境共享：
 
 ## 阶段 2：登记
 
-- APP_ID 与每个 `(platform, architecture, channel)` 的 code 已由负责人确认；code 唯一且长度不超过 50。
+- APP_ID、中文 `display_name` 与新更新中心目标已确认。没有真实旧发布流时运行 `npm run cloudbase:app:add -- <app_id>`，登记仅统计资源，不编造旧 code；已有旧发布流保留其真实 `(platform, architecture, channel, code)`，code 唯一且长度不超过 50。名称随 Profile 的 `derive_resources.py --profile` 输出交接，不从 APP_ID 猜名。
 - `cloudbase/apps.json` 是非敏感拓扑唯一权威；凭据原值不写入登记表。
 - 使用受测登记命令，一次只新增一个应用或一个发布流；不并发写文件。
-- 本阶段只修改运营精灵本地登记与生成配置，不部署。
+- 在已获阶段 2 授权的运营精灵任务中，登记 APP_ID 和已有旧发布流后执行 `npm run cloudbase:app:name -- <app_id> "<已确认中文名>"`，写入 `cloudbase/functions/operations-dashboard/src/app-labels.json`；随后执行 `npm run cloudbase:labels:check -- --profile-file "<已校验的 Profile 交接文件>"` 和 `npm run cloudbase:config:check`。前者同时核对 Profile 的 APP_ID 已登记、名称精确一致及所有已登记应用的名称覆盖，不能只验本次工具。`cloudbase/apps.json` 继续只承载技术拓扑，不加入另一份中文名来源。
+- 名称必须与 Profile 精确一致；普通版与 Plus 分别登记并保留独立 APP_ID/code，不因同名或近似名字合并。发现名称冲突时先核实产品事实，不覆盖其他工具。
+- 只有名称表、登记表和检查结果齐备后，才标记 `app_display_name_registered=true`、`app_registered=true`。仅执行 APP_ID 登记或仅保存客户端 Profile 不满足名称登记。
+- 本阶段只修改运营精灵本地登记、名称表与生成配置，不部署。客户端的一句话接入授权不允许自行修改运营精灵仓库。
 
 ## 阶段 3：本地计划
 
-- `npm run cloudbase:config:check` 和完整测试通过；生成配置包含全部已登记 telemetry、共享 version 函数/路由和看板，无旧静态 hosting/route/env。
+- `npm run cloudbase:config:check`、`npm run cloudbase:labels:check` 和完整测试通过；生成配置包含全部已登记 telemetry、共享 version 函数/路由和看板，无旧静态 hosting/route/env。核对看板应用映射及中文名覆盖完整集合；新工具接入计划列出看板需同步的名称和应用映射，不覆盖或漏掉既有工具。
 - Version 部署计划输入完整只读 live-state。没有 live-state 时不得生成写步骤。
 - 计划区分首次创建、已有兼容资源更新与冲突阻塞；不得用“存在”一概覆盖，也不得删除非空数据、未知索引、陌生凭据或其他应用。
 - 每份客户端运行凭据只绑定一个 code 且仅有 `versions:check`；管理读取固定为独立 `versions:read + ads:read`，管理写入固定为独立 `versions:write + ads:write`。每条发布流必须有三类覆盖，全局还需恰好一份不可导出的 `contract-ads-*` 凭据执行 `ads:show` 契约测试；只显示 credential ID/fingerprint/scopes，不回显原值或摘要配置。
@@ -52,22 +57,32 @@ Application-version 全环境共享：
 
 公网 E2E 覆盖十个端点、两个认证头、scope、跨 APP/code 拒绝、无/提示/强制/停止更新、空/单广告、列表/详情/写入、数字点分比较、内容消毒、429、事务和审计。测试记录不得包含 Key/Secret。
 
+看板更新也必须在同一最终目标中明确列出并获得授权，不能因客户端接入或名称文件已修改就自动部署。新增应用或变更看板映射时，必须另行审查代码和完整配置更新顺序，并保留现有登录哈希、已有应用及路由。
+
+使用负责人现有登录会话核对看板接口和页面：`appIds`、`appLabels` 与完整登记清单一致，`appLabels[app_id]` 精确等于 Profile 的 `display_name`；下拉框、发布流应用名和“全部应用”的版本画像均显示中文。APP_ID/code 保持英文技术身份。覆盖所有平台/架构/渠道发布流，不能只验证 Windows 或首个应用；不能通过改数据库记录、重命名 code 或重置登录口令来修正展示。完成这些实际验证后才记录 `dashboard_display_name_verified=true`；纯本地名称修改、mock 或未登录 401 不能作为此 gate 的证据。
+
 ## 阶段 5：客户端本地迁移
 
 规范 URL 一句话授权当前客户端完成 Profile v2、替换/删除旧静态版本协议和本地测试，不授权访问真实 CloudBase。使用注入 transport 和假凭据，真实服务状态仍标 `Unverified`。
 
+本地捕获实际序列化的 `daily_active`，验证 `app_version` 来自唯一应用版本来源且与 `sdk_version` 职责分离；更换测试版本和日期后值随之变化，同日升级不重报。证据齐备后才标记 `telemetry_app_version_verified=true`；只在 Profile 写了 `current_version` 或 SDK 示例测试通过不算宿主接入证据。
+
 ## 阶段 6：真实客户端 E2E
 
 - 阶段 4 有当前公网证据，运行凭据已安全准备，阶段 5 已通过。
+- 阶段 4 的实际看板名称验证证据完整，`dashboard_display_name_verified=true`；本地客户端阶段 5 不要求提前完成这一云端验证。
+- 正常启动产生的已接受遥测 `app_version` 与安装制品版本一致，核对对应应用/平台/架构的活跃版本画像后才标记 `telemetry_app_version_online_verified=true`。原始安装标识、IP 和凭据不进回执；当日门禁已领取时等待新日，不能重置或增加生产上报。
 - 构建与安装使用准确版本；记录 EXE/APP 和安装包 SHA-256、路径、进程与窗口。
-- 网络观测证明单层 v1 URL、正确 code、两个认证头存在且值遮挡，并证明不再访问旧静态版本协议。
-- 验证无更新、提示、强制、停止、错误/超时、安全外链和完整退出；telemetry 无回归。
+- 网络观测证明更新中心 POST URL、真实目标字段和 Bearer 认证存在且值遮挡，并证明不再访问该客户端旧更新协议。
+- 验证无更新、推荐、强制、不可更新、断网/超时、下载校验、安装前复检、安装后版本及完整退出；telemetry 无回归。
 - 鼠标精灵只需 Windows x64；录屏助手 Windows 与 macOS 分开，真实 Mac 未运行时保持 `Unverified`。
 - DOM、mock、单元测试、编译或 HTTP 请求不能冒充原生 GUI E2E。
 
 ## 阶段 7：发布与推送
 
 展示版本、制品哈希/签名、下载 URL、发布说明、隐私、回滚、远端状态和费用，再等待明确授权。不要因 E2E 通过自动推送或发布。
+
+若明确授权发布正式版本，最终目标应列出更新中心的 APP_ID、版本、目标平台与安装形态、制品摘要和下载地址，并核对策略；旧看板的 application-version `code_version` 是独立历史数据，不假装由新更新中心自动同步。客户端 `app_version` 和版本检查请求不创建发布记录，也不授权赋予客户端管理写入权限。
 
 ## 阶段 8：线上旧静态资源退役
 

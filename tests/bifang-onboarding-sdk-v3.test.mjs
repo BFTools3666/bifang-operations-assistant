@@ -214,6 +214,48 @@ test("repository-copy and workspace distributions require the SDK 3 application-
   }
 });
 
+test("new update-center onboarding rejects an old-only SDK and accepts the new public surface", async (t) => {
+  const root = await temporaryDirectory(t);
+  const old = await createSdkDirectory(root, "vendor/old");
+  let profile = await writeProfile(root, {
+    kind: "workspace",
+    source: "vendor/old",
+    digest: stableTreeHash(old),
+  });
+  let data = JSON.parse(await readFile(profile, "utf8"));
+  data.update_transport = "client-update-center-v1";
+  await writeFile(profile, JSON.stringify(data));
+  let result = verify(profile, root);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing client-update-center exports/);
+
+  const names = [
+    "TelemetryClient",
+    "ClientUpdateService",
+    "parseClientUpdateSnapshot",
+    "isSameInstallTarget",
+  ];
+  const sdk = await createSdkDirectory(root, "vendor/new", {
+    runtime: runtimeSource(names),
+    declarations: fakeExportText([
+      ...names,
+      "ClientUpdateRequest",
+      "ClientUpdateResult",
+      "ClientUpdateSnapshot",
+    ]),
+  });
+  profile = await writeProfile(root, {
+    kind: "workspace",
+    source: "vendor/new",
+    digest: stableTreeHash(sdk),
+  });
+  data = JSON.parse(await readFile(profile, "utf8"));
+  data.update_transport = "client-update-center-v1";
+  await writeFile(profile, JSON.stringify(data));
+  result = verify(profile, root);
+  assert.equal(result.status, 0, result.stderr);
+});
+
 test("a matching hash cannot make a self-reported 2.x SDK compatible", async (t) => {
   const root = await temporaryDirectory(t);
   const relative = "vendor/sdk-v2";
@@ -435,4 +477,20 @@ test("private-package evidence remains explicit about the unverified artifact co
   assert.equal(verification.artifact_bytes_verified, false);
   assert.equal(verification.artifact_contract_verified, false);
   assert.equal(verification.verification_status, "manual_evidence_verified");
+  const profileData = JSON.parse(await readFile(profile, "utf8"));
+  profileData.update_transport = "client-update-center-v1";
+  await writeFile(profile, JSON.stringify(profileData));
+  const missingCenterEvidence = verify(profile, root);
+  assert.equal(missingCenterEvidence.status, 1);
+  assert.match(missingCenterEvidence.stderr, /update_transport/);
+  const evidencePath = join(root, ...evidenceRelative.split("/"));
+  const evidenceData = JSON.parse(await readFile(evidencePath, "utf8"));
+  evidenceData.update_transport = "client-update-center-v1";
+  await writeFile(evidencePath, JSON.stringify(evidenceData));
+  const centerResult = verify(profile, root);
+  assert.equal(centerResult.status, 0, centerResult.stderr);
+  assert.equal(
+    JSON.parse(centerResult.stdout).artifact_contract_verified,
+    false,
+  );
 });

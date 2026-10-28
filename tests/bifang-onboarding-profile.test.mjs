@@ -153,10 +153,165 @@ function legacyV1Profile(overrides = {}) {
   };
 }
 
+test("Profile handoff preserves a confirmed Chinese product name without changing technical identities", async () => {
+  for (const displayName of [
+    "毕方VM虚拟机同步助手",
+    "毕方多窗口显示助手Plus",
+    "𠀀工具",
+    "毕" + "🙂".repeat(99),
+  ]) {
+    await withTempProfile(
+      completeV2Profile({ display_name: displayName }),
+      async (path) => {
+        const before = await readFile(path, "utf8");
+        assert.equal(runPython(validateScript, [path]).status, 0);
+        const result = runPython(deriveScript, ["--profile", path]);
+        assert.equal(result.status, 0, result.stderr);
+        const resources = JSON.parse(result.stdout);
+        assert.equal(resources.display_name, displayName);
+        assert.deepEqual(resources.dashboard_app_labels, {
+          "bifang-screen-recorder": displayName,
+        });
+        assert.equal(resources.app_id, "bifang-screen-recorder");
+        assert.equal(
+          resources.function_name,
+          "telemetry-bifang-screen-recorder",
+        );
+        assert.equal(resources.release_streams.length, 2);
+        assert.equal(await readFile(path, "utf8"), before);
+      },
+    );
+  }
+});
+
+test("missing, English-only and unsafe product names cannot become a completed Profile or handoff", async () => {
+  for (const displayName of [
+    undefined,
+    "bifang-screen-recorder",
+    "Bifang Tools",
+    "",
+    " 中文名",
+    "中文名 ",
+    "毕方\n工具",
+    "毕方\u200b工具",
+    "毕方<工具>",
+    "毕".repeat(101),
+    "毕方\ud800",
+  ]) {
+    const profile = completeV2Profile();
+    if (displayName === undefined) delete profile.display_name;
+    else profile.display_name = displayName;
+    await withTempProfile(profile, async (path) => {
+      const before = await readFile(path, "utf8");
+      const validation = runPython(validateScript, [path]);
+      assert.equal(validation.status, 1, validation.stdout);
+      assert.match(validation.stderr, /display_name/);
+      const derivation = runPython(deriveScript, ["--profile", path]);
+      assert.equal(derivation.status, 1, derivation.stdout);
+      assert.match(derivation.stderr, /display_name/);
+      assert.equal(await readFile(path, "utf8"), before);
+    });
+  }
+  await withTempProfile(
+    { profile_schema_version: 2, app_id: "bifang-tools", current_stage: 1 },
+    async (path) => {
+      assert.equal(runPython(validateScript, [path]).status, 0);
+      const result = runPython(deriveScript, ["--profile", path]);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /display_name/);
+    },
+  );
+});
+
+test("technical previews accept a confirmed name while Profile names cannot be overridden", async () => {
+  const result = runPython(deriveScript, [
+    "bifang-tools",
+    "--display-name",
+    "毕方小工具",
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).dashboard_app_labels, {
+    "bifang-tools": "毕方小工具",
+  });
+  await withTempProfile(completeV2Profile(), async (path) => {
+    const result = runPython(deriveScript, [
+      "--profile",
+      path,
+      "--display-name",
+      "另一个名字",
+    ]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /cannot override a Profile/);
+  });
+});
+
+test("local name registration and verified production display are separate stage gates", async () => {
+  const registered = completeV2Profile({
+    current_stage: 3,
+    registration_status: "registered",
+    deployment_gates: {
+      ...completeV2Profile().deployment_gates,
+      app_registered: true,
+      platform_code_mapping_confirmed: true,
+    },
+  });
+  await withTempProfile(registered, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /app_display_name_registered/);
+  });
+  registered.deployment_gates.app_display_name_registered = true;
+  await withTempProfile(registered, async (path) => {
+    assert.equal(runPython(validateScript, [path]).status, 0);
+  });
+  const online = completeV2Profile({
+    current_stage: 4,
+    registration_status: "verified",
+    deployment_gates: deployedV2Gates({
+      client_integration_complete: false,
+      version_api_client_integrated: false,
+      legacy_client_update_removed: false,
+      dashboard_display_name_verified: false,
+    }),
+  });
+  await withTempProfile(online, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /dashboard_display_name_verified/);
+  });
+  online.deployment_gates.dashboard_display_name_verified = true;
+  await withTempProfile(online, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+});
+
+test("an existing registered client can finish local stage five while name registration is still unverified", async () => {
+  const gates = deployedV2Gates();
+  delete gates.app_display_name_registered;
+  delete gates.dashboard_display_name_verified;
+  const profile = completeV2Profile({
+    framework: "Tauri/Rust",
+    current_stage: 5,
+    registration_status: "registered",
+    legacy_update_status: "removed",
+    deployment_gates: gates,
+  });
+  await withTempProfile(profile, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 0, result.stderr);
+    const handoff = runPython(deriveScript, ["--profile", path]);
+    assert.equal(handoff.status, 0, handoff.stderr);
+    assert.equal(JSON.parse(handoff.stdout).display_name, profile.display_name);
+  });
+});
+
 function deployedV2Gates(overrides = {}) {
   return {
     ...completeProfile().deployment_gates,
     app_registered: true,
+    app_display_name_registered: true,
+    dashboard_display_name_verified: true,
     platform_code_mapping_confirmed: true,
     cloudbase_config_reviewed: true,
     version_api_config_reviewed: true,
@@ -168,6 +323,8 @@ function deployedV2Gates(overrides = {}) {
     runtime_auth_ready: true,
     version_api_service_verified: true,
     client_integration_complete: true,
+    telemetry_app_version_verified: true,
+    telemetry_app_version_online_verified: true,
     version_api_client_integrated: true,
     legacy_client_update_removed: true,
     ...overrides,
@@ -289,10 +446,10 @@ test("profile schema is resumable, strict, and enumerates only non-sensitive fie
       .type,
     "boolean",
   );
-  assert.equal(
-    schema.properties.update_transport.const,
+  assert.deepEqual(schema.properties.update_transport.enum, [
     "application-version-api-v1",
-  );
+    "client-update-center-v1",
+  ]);
   assert.equal(
     schema.properties.application_version_contract_version.const,
     "1.0.0",
@@ -628,6 +785,8 @@ test("v2 completion records obsolete static updates as removed without retaining
     uses_existing_free_environment: true,
     free_environment_confirmed: true,
     app_registered: true,
+    app_display_name_registered: true,
+    dashboard_display_name_verified: true,
     platform_code_mapping_confirmed: true,
     cloudbase_config_reviewed: true,
     version_api_config_reviewed: true,
@@ -639,6 +798,8 @@ test("v2 completion records obsolete static updates as removed without retaining
     runtime_auth_ready: true,
     version_api_service_verified: true,
     client_integration_complete: true,
+    telemetry_app_version_verified: true,
+    telemetry_app_version_online_verified: true,
     version_api_client_integrated: true,
     client_e2e_passed: true,
     version_api_client_e2e_passed: true,
@@ -783,12 +944,57 @@ test("stage five is a local migration and does not require CloudBase or runtime 
     deployment_gates: {
       ...completeProfile().deployment_gates,
       client_integration_complete: true,
+      telemetry_app_version_verified: true,
       version_api_client_integrated: true,
       legacy_client_update_removed: true,
     },
   });
 
   await withTempProfile(profile, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+});
+
+test("a version snapshot alone cannot certify telemetry wiring or real-client version delivery", async () => {
+  const local = completeV2Profile({
+    framework: "Tauri/Rust",
+    current_stage: 5,
+    legacy_update_status: "removed",
+    deployment_gates: {
+      ...completeProfile().deployment_gates,
+      client_integration_complete: true,
+      version_api_client_integrated: true,
+      legacy_client_update_removed: true,
+    },
+  });
+  await withTempProfile(local, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /telemetry_app_version_verified/);
+  });
+  local.deployment_gates.telemetry_app_version_verified = true;
+  await withTempProfile(local, async (path) => {
+    assert.equal(runPython(validateScript, [path]).status, 0);
+  });
+  const real = completeV2Profile({
+    framework: "Tauri/Rust",
+    current_stage: 6,
+    registration_status: "verified",
+    legacy_update_status: "removed",
+    deployment_gates: deployedV2Gates({
+      client_e2e_passed: true,
+      version_api_client_e2e_passed: true,
+      telemetry_app_version_online_verified: false,
+    }),
+  });
+  await withTempProfile(real, async (path) => {
+    const result = runPython(validateScript, [path]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /telemetry_app_version_online_verified/);
+  });
+  real.deployment_gates.telemetry_app_version_online_verified = true;
+  await withTempProfile(real, async (path) => {
     const result = runPython(validateScript, [path]);
     assert.equal(result.status, 0, result.stderr);
   });

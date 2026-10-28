@@ -9,12 +9,13 @@
   "properties": {
     "profile_schema_version": {
       "const": 2,
-      "description": "Profile v2 selects the application-version API v1 update transport. Legacy v1 profiles must be migrated explicitly and are not valid against this schema."
+      "description": "Profile v2 uses update_transport to distinguish historical application-version records from new client update center onboarding. Legacy v1 profiles require explicit migration."
     },
     "display_name": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 100
+      "maxLength": 100,
+      "description": "Confirmed Chinese product display name. The profile validator also requires a Han ideograph and rejects surrounding whitespace, control/format characters and markup. This is display metadata; app_id and release code remain technical identities."
     },
     "product_purpose": {
       "type": "string",
@@ -92,7 +93,23 @@
       "$ref": "#/$defs/httpsUrl"
     },
     "update_transport": {
-      "const": "application-version-api-v1"
+      "enum": ["application-version-api-v1", "client-update-center-v1"]
+    },
+    "update_center_base_url": {
+      "const": "https://update.meetelf.com"
+    },
+    "update_center_auth_status": {
+      "enum": ["unknown", "planned", "ready", "verified"]
+    },
+    "offline_enforcement": {
+      "enum": ["service-default", "persist-until-resolved"]
+    },
+    "update_targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/updateTarget" }
     },
     "application_version_contract_version": {
       "const": "1.0.0"
@@ -198,6 +215,14 @@
         "app_registered": {
           "type": "boolean"
         },
+        "app_display_name_registered": {
+          "type": "boolean",
+          "description": "Only true after the operator task verifies the registered APP_ID has exactly this display_name in the shared app-labels.json and runs the complete label coverage check."
+        },
+        "dashboard_display_name_verified": {
+          "type": "boolean",
+          "description": "Only true after authorized production verification finds this APP_ID and display_name in authenticated metrics and the rendered application filter and release-stream table. Local metadata alone does not prove deployment."
+        },
         "cloudbase_config_reviewed": {
           "type": "boolean"
         },
@@ -234,6 +259,14 @@
         "client_integration_complete": {
           "type": "boolean"
         },
+        "telemetry_app_version_verified": {
+          "type": "boolean",
+          "description": "Local host-level serialized daily_active requests were captured and their app_version matched the single application version source, including a changed test version on a new test day. Not merely SDK tests or a Profile snapshot."
+        },
+        "telemetry_app_version_online_verified": {
+          "type": "boolean",
+          "description": "Authorized real-client evidence binds the installed artifact version to an accepted telemetry app_version and the live dashboard version distribution. Never inferred from mocks or release records."
+        },
         "version_api_client_integrated": {
           "type": "boolean"
         },
@@ -246,6 +279,9 @@
         "version_api_client_e2e_passed": {
           "type": "boolean"
         },
+        "update_center_client_integrated": { "type": "boolean" },
+        "update_center_service_verified": { "type": "boolean" },
+        "update_center_client_e2e_passed": { "type": "boolean" },
         "legacy_client_update_removed": {
           "type": "boolean"
         },
@@ -294,6 +330,17 @@
       "type": "string",
       "pattern": "^https://[^/?#]+\\.app\\.tcloudbase\\.com(?::443)?/?$",
       "maxLength": 2048
+    },
+    "updateTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture", "installation_type", "channel"],
+      "properties": {
+        "os": { "enum": ["windows", "macos", "ubuntu", "debian"] },
+        "architecture": { "enum": ["x86_64", "arm64"] },
+        "installation_type": { "enum": ["installed", "portable"] },
+        "channel": { "enum": ["stable", "beta"] }
+      }
     },
     "releaseStream": {
       "type": "object",

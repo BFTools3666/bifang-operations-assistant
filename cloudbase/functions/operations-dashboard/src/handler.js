@@ -185,13 +185,11 @@ function parseDashboardApps(value) {
       item.versionCollection !==
         `versions_${item.appId.replaceAll("-", "_")}` ||
       !Array.isArray(item.platforms) ||
-      item.platforms.length === 0 ||
       item.platforms.some(
         (platform) => !RELEASE_PLATFORMS.includes(platform),
       ) ||
       new Set(item.platforms).size !== item.platforms.length ||
       !Array.isArray(item.releaseStreams) ||
-      item.releaseStreams.length === 0 ||
       item.releaseStreams.length > 12
     ) {
       return [];
@@ -275,7 +273,6 @@ function expandCompactDashboardApps(value) {
       typeof entry[0] !== "string" ||
       !APP_ID_PATTERN.test(entry[0]) ||
       !Array.isArray(entry[1]) ||
-      entry[1].length === 0 ||
       entry[1].length > 12
     ) {
       return null;

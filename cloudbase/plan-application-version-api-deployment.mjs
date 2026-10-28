@@ -387,9 +387,9 @@ export function validateApplicationVersionDeploymentInputs(
     );
   }
 
-  const applicationResources = applications.map(({ appId }) =>
-    deriveApplicationVersionResources(appId),
-  );
+  const applicationResources = applications
+    .filter(({ releaseStreams }) => releaseStreams.length > 0)
+    .map(({ appId }) => deriveApplicationVersionResources(appId));
   const plannedCredentialConfiguration = credentials.map((credential) => ({
     credential_id: credential.fingerprint,
     app_id: credential.appId,
@@ -512,7 +512,7 @@ export function createApplicationVersionDeploymentPlan(
   const reconciliation = reconcileLiveState(liveState, {
     envId,
     origin: `https://${domain}`,
-    appIds: applications.map(({ appId }) => appId),
+    appIds: applicationResources.map(({ appId }) => appId),
     credentials: plannedCredentialConfiguration,
     resources,
   });

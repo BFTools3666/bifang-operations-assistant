@@ -1,20 +1,12 @@
-export const APP_OPTIONS = [
-  {
-    id: 'bifang-screen-recorder',
-    label: '毕方录屏助手',
-    shortLabel: '录屏助手',
-  },
-  {
-    id: 'bifang-mouse-clicker',
-    label: '毕方鼠标精灵',
-    shortLabel: '鼠标精灵',
-  },
-  {
-    id: 'bifang-tools',
-    label: '毕方小工具',
-    shortLabel: '小工具',
-  },
-] as const;
+import appRegistry from '../../../cloudbase/apps.json';
+import appLabels from '../../../cloudbase/functions/operations-dashboard/src/app-labels.json';
+
+const labels: Readonly<Record<string, string>> = appLabels;
+export const APP_OPTIONS = appRegistry.apps.map((app) => ({
+  id: app.app_id,
+  label: labels[app.app_id] ?? app.app_id,
+  shortLabel: labels[app.app_id] ?? app.app_id,
+}));
 
 export type AppId = (typeof APP_OPTIONS)[number]['id'];
 export type AppFilter = 'all' | AppId;
@@ -62,6 +54,8 @@ export type DashboardSnapshot = {
   generatedAt: string;
   rangeDays: RangeDays;
   selectedAppId: AppFilter;
+  appIds: AppId[];
+  appLabels: Record<AppId, string>;
   totals: {
     todayActive: number;
     yesterdayActive: number;

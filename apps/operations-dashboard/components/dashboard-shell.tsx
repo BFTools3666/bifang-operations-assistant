@@ -325,14 +325,15 @@ export function DashboardShell() {
                     <SelectValue>
                       {app === 'all'
                         ? '全部应用'
-                        : APP_OPTIONS.find((item) => item.id === app)?.label}
+                        : (snapshot?.appLabels[app] ??
+                          APP_OPTIONS.find((item) => item.id === app)?.label)}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="end">
                     <SelectItem value="all">全部应用</SelectItem>
                     {APP_OPTIONS.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
-                        {item.label}
+                        {snapshot?.appLabels[item.id] ?? item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -551,7 +552,7 @@ export function DashboardShell() {
                     {snapshot.releaseStreams.map((item) => (
                       <TableRow key={item.code}>
                         <TableCell className="py-4 pl-5 font-medium sm:pl-6">
-                          {appName(item.appId)}
+                          {snapshot.appLabels[item.appId]}
                         </TableCell>
                         <TableCell className="max-w-[260px] break-all py-4 font-mono text-xs text-muted-foreground">
                           {item.code}
@@ -1058,10 +1059,6 @@ function percentChange(
     label: `${value > 0 ? '+' : ''}${value.toFixed(1)}%`,
     trend: value > 0 ? 'up' : 'down',
   };
-}
-
-function appName(appId: string): string {
-  return APP_OPTIONS.find((item) => item.id === appId)?.shortLabel ?? appId;
 }
 
 function releaseStatus(item: ReleaseStreamSummary): {

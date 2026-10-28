@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only scan for Bifang telemetry and application-version API evidence."""
+"""Read-only scan for telemetry, old update clients and update-center markers."""
 
 from __future__ import annotations
 
@@ -480,6 +480,7 @@ def scan_project(root: Path) -> dict[str, Any]:
     legacy_static_update_hits: list[dict[str, Any]] = []
     application_version_api_hits: list[dict[str, Any]] = []
     invalid_application_version_api_hits: list[dict[str, Any]] = []
+    client_update_center_hits: list[dict[str, Any]] = []
     app_id_candidates: list[dict[str, Any]] = []
     invalid_app_id_evidence: list[dict[str, Any]] = []
     unresolved_app_id_evidence: list[dict[str, Any]] = []
@@ -504,6 +505,8 @@ def scan_project(root: Path) -> dict[str, Any]:
         relative_path = relative.as_posix()
         evidence_kind = _classify_path(relative)
         for line_number, line in enumerate(text.splitlines(), start=1):
+            if "update.meetelf.com" in line or "/update-checks" in line:
+                client_update_center_hits.append({"kind": evidence_kind, "line": line_number, "marker": "update_center_origin" if "update.meetelf.com" in line else "update_check_path", "path": relative_path})
             for match in MODERN_TRACK_PATTERN.finditer(line):
                 candidate = match.group("app_id")
                 valid = candidate == "<app_id>" or APP_ID_PATTERN.fullmatch(candidate) is not None
@@ -724,6 +727,7 @@ def scan_project(root: Path) -> dict[str, Any]:
     application_version_api_hits = _deduplicate_and_sort_evidence(
         application_version_api_hits
     )
+    client_update_center_hits = _deduplicate_and_sort_evidence(client_update_center_hits)
     invalid_application_version_api_hits = _deduplicate_and_sort_evidence(
         invalid_application_version_api_hits
     )
@@ -836,6 +840,13 @@ def scan_project(root: Path) -> dict[str, Any]:
         "architecture_candidates": architecture_candidates,
         "application_version_api_hits": application_version_api_hits,
         "application_version_api_status": application_version_api_status,
+        "client_update_center_hits": client_update_center_hits,
+        "client_update_center_status": "unknown" if scan_incomplete else ("marker-only" if client_update_center_hits else "not_found"),
+        "update_center_migration_gate": (
+            "blocked" if scan_incomplete or runtime_static_update_hits or runtime_application_hits or runtime_invalid_application_hits
+            else "review" if legacy_static_update_hits or application_version_api_hits or invalid_application_version_api_hits
+            else "clear"
+        ),
         "detected_app_ids": sorted(runtime_app_ids),
         "detected_architectures": [
             architecture

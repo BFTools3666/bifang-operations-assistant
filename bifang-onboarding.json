@@ -3,13 +3,14 @@
   "schemaVersion": 1,
   "canonicalRepositoryUrl": "https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git",
   "repositoryIdentity": "bifang-operations-assistant",
-  "minimumInfrastructureCommit": "6419aa99e069933d6f659b4dc7231fc8ef3d78e8",
+  "minimumInfrastructureCommit": "37f6dd120f082b8514a461bcfa30cee35b6259a6",
   "infrastructureVersion": "3.0.0",
+  "updateTransport": "client-update-center-v1",
   "applicationVersionContractVersion": "1.0.0",
   "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "path": "skills/bifang-public-services-onboarding",
     "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
     "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"

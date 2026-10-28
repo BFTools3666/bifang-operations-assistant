@@ -8,6 +8,7 @@
 2. `docs/毕方小工具公共服务分步接入指南.md`：面向小工具开发者的完整分阶段接入流程。
 3. `docs/multi-tool-isolation.md`：APP_ID、函数、集合、路由和应用版本发布流的隔离规则。
 4. `docs/telemetry-and-update.md`：统计/更新协议、客户端时序、隐私要求和验收标准。
+   新客户端更新还须读 `docs/client-update-center-migration.md` 与 `skills/bifang-public-services-onboarding/references/client-update-center.md`；一键接入使用 `client-update-center-v1`，不得把旧 GET 合同或网关当成新协议。
 5. 涉及应用版本 API 时，再读 `docs/application-version-api-zero-code-contract.md`、`contracts/application-version-api-v1/`、`cloudbase/functions/application-version-api/` 和 `cloudbase/plan-application-version-api-deployment.mjs`。
 6. `examples/host-integration.ts`、`packages/telemetry-update-sdk`：协议的示例与公共 SDK 实现。
 7. `cloudbase/apps.json`、`cloudbase/generate-cloudbaserc.mjs`：已登记应用与资源配置的机器权威源。
@@ -19,7 +20,8 @@
 
 - 接入必须由每个小工具在自己的项目中发起；规范一句话是 `https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接入`，也可显式调用 `$bifang-public-services-onboarding`。不要从本仓库扫描、发现或主动修改未知小工具。
 - Skill 权威源码位于 `skills/bifang-public-services-onboarding/`，入口为 `skills/bifang-public-services-onboarding/SKILL.md`，Codex 展示与调用策略为 `skills/bifang-public-services-onboarding/agents/openai.yaml`。开始任何下游接入前完整阅读 Skill，并遵守一次只执行一个已获授权阶段的规则。
-- 同一现有免费 CloudBase 环境可以承载多个工具。Telemetry 按 APP_ID 使用独立函数、路由、集合和本地状态；application-version 使用共享函数/路由，但每个工具必须使用独立发布流 code、凭据绑定和 versions/ads/audit 集合。
+- 同一现有免费 CloudBase 环境可以承载多个工具。Telemetry 按 APP_ID 使用独立函数、路由、集合和本地状态；仅使用新更新中心的工具无需登记旧发布流。历史 application-version 使用共享函数/路由，各已有发布流按应用隔离 code、凭据与 versions/ads/audit 集合。
+- 新客户端版本检查使用客户端更新中心 POST 协议，携带真实目标字段和运行时客户端 Token；旧 application-version 资源仍按既有部署事实管理，客户端迁移不自动授权删除或改变其他客户端。
 - `cloudbase/apps.json` 是登记状态的唯一权威；文档中的产品名和资源名仅是示例或时间点回执。
 - 基础设施 3.0 不保留静态更新清单协议。修改运营精灵或未公开客户端时，保留 `daily_active` telemetry，删除旧静态更新实现、回退开关和双轨文档；不要重新引入兼容层。
 

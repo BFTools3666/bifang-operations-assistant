@@ -8,6 +8,7 @@ import ipaddress
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 from urllib.parse import SplitResult, urlsplit
@@ -107,7 +108,11 @@ STAGE_PREREQUISITE_GATES = {
         "uses_existing_free_environment",
         "free_environment_confirmed",
     ),
-    3: ("app_registered", "platform_code_mapping_confirmed"),
+    3: (
+        "app_registered",
+        "app_display_name_registered",
+        "platform_code_mapping_confirmed",
+    ),
     4: (
         "cloudbase_config_reviewed",
         "version_api_config_reviewed",
@@ -118,13 +123,17 @@ STAGE_PREREQUISITE_GATES = {
         "online_e2e_passed",
         "version_api_service_verified",
         "runtime_auth_ready",
+        "dashboard_display_name_verified",
     ),
     5: (
         "client_integration_complete",
+        "telemetry_app_version_verified",
         "version_api_client_integrated",
         "legacy_client_update_removed",
     ),
     6: (
+        "telemetry_app_version_online_verified",
+        "dashboard_display_name_verified",
         "online_e2e_passed",
         "version_api_service_verified",
         "runtime_auth_ready",
@@ -134,6 +143,8 @@ STAGE_PREREQUISITE_GATES = {
         "version_api_client_e2e_passed",
     ),
     7: (
+        "telemetry_app_version_online_verified",
+        "dashboard_display_name_verified",
         "client_e2e_passed",
         "version_api_client_e2e_passed",
         "privacy_notice_ready",
@@ -197,6 +208,7 @@ def validate_profile(
     schema: dict[str, Any] | None = None,
     *,
     project_root: Path | None = None,
+    require_update_center: bool = False,
 ) -> list[str]:
     """Return deterministic validation errors; an empty list means valid."""
 
@@ -208,8 +220,187 @@ def validate_profile(
     _validate_schema_value(profile, active_schema, active_schema, "$", errors)
     _scan_sensitive_content(profile, "$", errors)
     if isinstance(profile, dict):
-        _validate_profile_semantics(profile, errors, project_root)
+        if require_update_center and profile.get("update_transport") != "client-update-center-v1":
+            errors.append("$.update_transport: migrate to client-update-center-v1 before onboarding")
+        if profile.get("update_transport") == "client-update-center-v1":
+            _validate_update_center_semantics(profile, errors, project_root)
+        else:
+            for field in ("update_center_base_url", "update_center_auth_status", "update_targets", "offline_enforcement"):
+                if field in profile:
+                    errors.append(f"$.{field}: requires client-update-center-v1 transport")
+            _validate_profile_semantics(profile, errors, project_root)
     return sorted(set(errors))
+
+
+def _validate_update_center_semantics(profile: dict[str, Any], errors: list[str], project_root: Path | None) -> None:
+    """Check new update-center profiles without treating old release streams as active."""
+    for field in ("application_version_base_url", "application_version_contract_version", "release_streams", "version_api_auth_binding_id", "version_api_auth_status"):
+        if field in profile:
+            errors.append(f"$.{field}: legacy application-version field must be removed after migration")
+    if "display_name" in profile:
+        try:
+            validate_display_name(profile["display_name"])
+        except ValueError as error:
+            errors.append(f"$.display_name: {error}")
+    app_id = profile.get("app_id")
+    if isinstance(app_id, str) and not re.fullmatch(r"[a-z][a-z0-9-]{2,49}", app_id):
+        errors.append("$.app_id: update center requires a lowercase letter followed by 2-49 lowercase letters, digits or hyphens")
+    parsed = {}
+    for field in ("cloudbase_origin", "telemetry_endpoint"):
+        value = profile.get(field)
+        if isinstance(value, str):
+            url = _validate_https_url(value, f"$.{field}", errors)
+            if url:
+                parsed[field] = url
+                if not (url.hostname or "").endswith(".app.tcloudbase.com"):
+                    errors.append(f"$.{field}: must use the confirmed CloudBase default gateway")
+    origin = parsed.get("cloudbase_origin")
+    telemetry = parsed.get("telemetry_endpoint")
+    if origin and origin.path not in ("", "/"):
+        errors.append("$.cloudbase_origin: must not contain a path")
+    if telemetry:
+        match = TRACK_PATH_PATTERN.fullmatch(telemetry.path)
+        if not match or match.group(1) != app_id:
+            errors.append("$.telemetry_endpoint: path must match the app_id")
+        if origin and _url_origin(telemetry) != _url_origin(origin):
+            errors.append("$.telemetry_endpoint: origin does not match cloudbase_origin")
+    targets = profile.get("update_targets")
+    if isinstance(targets, list):
+        seen = set()
+        for index, target in enumerate(targets):
+            if not isinstance(target, dict):
+                continue
+            key = tuple(target.get(k) for k in ("os", "architecture", "installation_type", "channel"))
+            if not all(isinstance(value, str) for value in key):
+                continue
+            if key in seen:
+                errors.append(f"$.update_targets[{index}]: duplicate target")
+            seen.add(key)
+            host_platform = "linux" if target.get("os") in ("ubuntu", "debian") else target.get("os")
+            host_arch = "x64" if target.get("architecture") == "x86_64" else target.get("architecture")
+            if isinstance(profile.get("platforms"), list) and host_platform not in profile["platforms"]:
+                errors.append(f"$.update_targets[{index}].os: platform is not declared")
+            if isinstance(profile.get("architectures"), list) and host_arch not in profile["architectures"]:
+                errors.append(f"$.update_targets[{index}].architecture: architecture is not declared")
+    gates = profile.get("deployment_gates") if isinstance(profile.get("deployment_gates"), dict) else {}
+    stage = profile.get("current_stage")
+    for gate in ("version_api_config_reviewed", "version_api_service_verified", "version_api_client_integrated", "version_api_client_e2e_passed", "platform_code_mapping_confirmed"):
+        if gates.get(gate) is True:
+            errors.append(f"$.deployment_gates.{gate}: legacy application-version evidence cannot certify update-center onboarding")
+    registration_status = profile.get("registration_status")
+    if registration_status in ("registered", "verified") and gates.get("app_registered") is False:
+        errors.append("$.deployment_gates.app_registered: conflicts with registration_status")
+    if registration_status == "not_registered" and gates.get("app_registered") is True:
+        errors.append("$.deployment_gates.app_registered: conflicts with registration_status")
+    if gates.get("profile_complete") is True or (isinstance(stage, int) and not isinstance(stage, bool) and stage >= 2):
+        for field in (*PROFILE_COMPLETION_FIELDS, "update_transport", "update_center_base_url", "update_center_auth_status", "update_targets", "offline_enforcement", "legacy_update_status"):
+            if field not in profile:
+                errors.append(f"$.{field}: required for a complete update-center profile")
+        if "product_purpose" not in profile and "product_key" not in profile:
+            errors.append("$.product_purpose: product_purpose or product_key is required")
+        if isinstance(targets, list):
+            actual_targets = [t for t in targets if isinstance(t, dict) and isinstance(t.get("os"), str) and isinstance(t.get("architecture"), str)]
+            mapped_platforms = {"linux" if t.get("os") in ("ubuntu", "debian") else t.get("os") for t in actual_targets}
+            mapped_architectures = {"x64" if t.get("architecture") == "x86_64" else t.get("architecture") for t in actual_targets}
+            for platform in profile.get("platforms", []) if isinstance(profile.get("platforms"), list) else []:
+                if platform not in mapped_platforms:
+                    errors.append(f"$.update_targets: no confirmed target for platform {platform!r}")
+            for architecture in profile.get("architectures", []) if isinstance(profile.get("architectures"), list) else []:
+                if architecture not in mapped_architectures:
+                    errors.append(f"$.update_targets: no confirmed target for architecture {architecture!r}")
+    _validate_legacy_update_removal(profile, gates, errors)
+    dependencies = {
+        "telemetry_app_version_verified": ("profile_complete",),
+        "telemetry_app_version_online_verified": ("telemetry_app_version_verified", "function_deployed", "collection_admin_only", "route_deployed"),
+        "app_display_name_registered": ("profile_complete", "app_id_confirmed"),
+        "dashboard_display_name_verified": ("app_registered", "app_display_name_registered", "cloudbase_config_reviewed"),
+        "cloudbase_config_reviewed": ("app_registered",),
+        "function_deployed": ("cloudbase_config_reviewed",),
+        "collection_created": ("cloudbase_config_reviewed",),
+        "collection_admin_only": ("collection_created",),
+        "route_deployed": ("function_deployed",),
+        "online_e2e_passed": ("function_deployed", "collection_created", "collection_admin_only", "route_deployed"),
+        "client_e2e_passed": ("client_integration_complete",),
+    }
+    for gate, required in dependencies.items():
+        if gates.get(gate) is True:
+            for dependency in required:
+                if gates.get(dependency) is not True:
+                    errors.append(f"$.deployment_gates.{gate}: requires {dependency}=true")
+    requirements = {
+        2: ("profile_complete", "app_id_confirmed", "uses_existing_free_environment", "free_environment_confirmed"),
+        3: ("app_registered", "app_display_name_registered"),
+        4: ("cloudbase_config_reviewed", "function_deployed", "collection_created", "collection_admin_only", "route_deployed", "online_e2e_passed", "dashboard_display_name_verified"),
+        5: ("client_integration_complete", "telemetry_app_version_verified", "update_center_client_integrated", "legacy_client_update_removed"),
+        6: ("client_integration_complete", "update_center_client_integrated", "update_center_service_verified", "runtime_auth_ready", "client_e2e_passed", "update_center_client_e2e_passed", "telemetry_app_version_online_verified"),
+        7: ("client_e2e_passed", "update_center_client_e2e_passed", "privacy_notice_ready"),
+        8: ("migration_observation_complete", "legacy_usage_assessed", "owner_approved", "legacy_client_update_removed", "legacy_cloud_resources_removed"),
+    }
+    if isinstance(stage, int) and not isinstance(stage, bool):
+        for gate in requirements.get(stage, ()):
+            if gates.get(gate) is not True:
+                errors.append(f"$.deployment_gates.{gate}: must be true before stage {stage}")
+        if stage in (3, 4, 6, 7, 8) and registration_status not in ("registered", "verified"):
+            errors.append("$.registration_status: must be registered or verified for this stage")
+    if gates.get("update_center_client_e2e_passed") is True and (gates.get("update_center_client_integrated") is not True or gates.get("update_center_service_verified") is not True):
+        errors.append("$.deployment_gates.update_center_client_e2e_passed: requires integrated client and verified service")
+    if gates.get("runtime_auth_ready") is True and profile.get("update_center_auth_status") != "verified":
+        errors.append("$.update_center_auth_status: must be verified when runtime_auth_ready is true")
+    if gates.get("update_center_service_verified") is True and gates.get("runtime_auth_ready") is not True:
+        errors.append("$.deployment_gates.update_center_service_verified: requires runtime_auth_ready=true")
+    if gates.get("client_integration_complete") is True and (gates.get("telemetry_app_version_verified") is not True or gates.get("update_center_client_integrated") is not True):
+        errors.append("$.deployment_gates.client_integration_complete: requires telemetry verification and update-center integration")
+    distribution = profile.get("sdk_distribution")
+    if isinstance(distribution, dict):
+        for field in ("source", "verification_evidence"):
+            value = distribution.get(field)
+            if isinstance(value, str) and not _is_safe_relative_sdk_source(value):
+                errors.append(f"$.sdk_distribution.{field}: must be a safe project-relative path or fixed package spec")
+        if distribution.get("kind") == "private_package":
+            for field in ("verification_evidence", "immutable_reference"):
+                if field not in distribution:
+                    errors.append(f"$.sdk_distribution.{field}: required for private_package")
+            if isinstance(distribution.get("version"), str) and distribution.get("source") != f"@bifang/telemetry-update-sdk@{distribution['version']}":
+                errors.append("$.sdk_distribution.source: private package must use the exact immutable package spec")
+    framework = profile.get("framework")
+    if stage in (5, 6, 7) and isinstance(framework, str) and re.search(r"(?i)(?:^|[^a-z0-9])(?:node(?:\.?js)?|electron(?:\.?js)?|nw(?:\.?js)?)(?:$|[^a-z0-9])", framework):
+        if gates.get("sdk_distribution_ready") is not True:
+            errors.append("$.deployment_gates.sdk_distribution_ready: must be true before Node/Electron stage 5")
+        if not isinstance(profile.get("sdk_distribution"), dict) or not isinstance(profile.get("sdk_artifact_sha256"), str):
+            errors.append("$.sdk_distribution: verified distribution and artifact SHA-256 are required")
+        elif project_root is None:
+            errors.append("$.deployment_gates.sdk_distribution_ready: offline verification requires the target project root")
+        else:
+            try:
+                from verify_sdk_distribution import SDKDistributionVerificationError, verify_sdk_distribution
+                verify_sdk_distribution(profile, project_root)
+            except (SDKDistributionVerificationError, OSError, ValueError) as error:
+                errors.append(f"$.deployment_gates.sdk_distribution_ready: offline SDK distribution verification failed: {error}")
+
+
+def validate_display_name(value: Any) -> None:
+    """Require a confirmed Chinese product name suitable for dashboard labels."""
+
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 100
+        or value != value.strip()
+        or any(
+            unicodedata.category(c) in {"Cc", "Cf", "Cs"} or c in "<>"
+            for c in value
+        )
+        or not any(
+            c == "〇"
+            or unicodedata.name(c, "").startswith(
+                ("CJK UNIFIED IDEOGRAPH-", "CJK COMPATIBILITY IDEOGRAPH-")
+            )
+            for c in value
+        )
+    ):
+        raise ValueError(
+            "display_name must be confirmed Chinese text of 1-100 Unicode characters, "
+            "without surrounding whitespace, control/format characters, or markup"
+        )
 
 
 def _validate_schema_value(
@@ -363,6 +554,11 @@ def _scan_sensitive_content(value: Any, path: str, errors: list[str]) -> None:
 def _validate_profile_semantics(
     profile: dict[str, Any], errors: list[str], project_root: Path | None
 ) -> None:
+    if "display_name" in profile:
+        try:
+            validate_display_name(profile["display_name"])
+        except ValueError as error:
+            errors.append(f"$.display_name: {error}")
     app_id = profile.get("app_id")
     if isinstance(app_id, str) and not APP_ID_PATTERN.fullmatch(app_id):
         # The schema emits the user-facing format error. Avoid a duplicate here.
@@ -628,6 +824,20 @@ def _validate_gate_dependencies(
     gates: dict[str, Any], errors: list[str]
 ) -> None:
     dependencies = {
+        "client_integration_complete": ("telemetry_app_version_verified",),
+        "telemetry_app_version_verified": ("profile_complete",),
+        "telemetry_app_version_online_verified": (
+            "telemetry_app_version_verified",
+            "function_deployed",
+            "collection_admin_only",
+            "route_deployed",
+        ),
+        "app_display_name_registered": ("profile_complete", "app_id_confirmed"),
+        "dashboard_display_name_verified": (
+            "app_registered",
+            "app_display_name_registered",
+            "cloudbase_config_reviewed",
+        ),
         "cloudbase_config_reviewed": ("app_registered",),
         "function_deployed": ("cloudbase_config_reviewed",),
         "collection_created": ("cloudbase_config_reviewed",),
@@ -813,6 +1023,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         description="Validate .bifang/public-services-profile.json locally."
     )
     parser.add_argument("profile", type=Path, help="path to the profile JSON file")
+    parser.add_argument("--require-update-center", action="store_true", help="reject legacy application-version profiles for new onboarding")
     return parser.parse_args(argv)
 
 
@@ -834,6 +1045,7 @@ def main(argv: list[str] | None = None) -> int:
         profile,
         schema,
         project_root=_default_project_root(args.profile),
+        require_update_center=args.require_update_center,
     )
     if errors:
         print("profile validation failed:", file=sys.stderr)

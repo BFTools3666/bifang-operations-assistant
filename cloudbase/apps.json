@@ -219,6 +219,17 @@
           "code": "bifang-window-layout-windows-x64"
         }
       ]
+    },
+    {
+      "app_id": "bifang-multi-instance-display-plus",
+      "release_streams": [
+        {
+          "platform": "windows",
+          "architecture": "x64",
+          "channel": "stable",
+          "code": "bifang-multi-instance-display-plus-windows-x64"
+        }
+      ]
     }
   ]
 }

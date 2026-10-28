@@ -14,6 +14,7 @@ from validate_profile import (
     APP_ID_PATTERN,
     APPROVED_APPLICATION_VERSION_BASE_URLS,
     read_json_file,
+    validate_display_name,
     validate_profile,
 )
 
@@ -35,6 +36,7 @@ def derive_resources(
     application_version_base_url: str | None = None,
     release_streams: Iterable[dict[str, Any]] = (),
     legacy_update_status: str | None = None,
+    display_name: str | None = None,
 ) -> dict[str, Any]:
     """Return the complete collision-free resource mapping for an app id."""
 
@@ -90,6 +92,11 @@ def derive_resources(
             for stream in normalized_streams
         ],
     }
+
+    if display_name is not None:
+        validate_display_name(display_name)
+        resources["display_name"] = display_name
+        resources["dashboard_app_labels"] = {app_id: display_name}
 
     if legacy_update_status is not None:
         resources["legacy_update_status"] = legacy_update_status
@@ -196,6 +203,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="validated .bifang/public-services-profile.json",
     )
     parser.add_argument(
+        "--display-name",
+        help="confirmed Chinese product name for an app-id-only preview",
+    )
+    parser.add_argument(
         "--platform",
         action="append",
         default=[],
@@ -221,6 +232,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
         if args.profile is not None:
+            if args.display_name is not None:
+                raise ValueError(
+                    "--display-name cannot override a Profile; "
+                    "confirm its display_name instead"
+                )
             profile = _load_profile(args.profile)
             if profile.get("profile_schema_version") != 2:
                 raise ValueError(
@@ -230,6 +246,30 @@ def main(argv: list[str] | None = None) -> int:
             app_id = profile.get("app_id")
             if not isinstance(app_id, str):
                 raise ValueError("profile does not yet contain a confirmed app_id")
+            if profile.get("update_transport") == "client-update-center-v1":
+                if args.platform:
+                    raise ValueError("--platform cannot override Profile update_targets")
+                validate_display_name(profile.get("display_name"))
+                normalized = app_id.replace("-", "_")
+                route = f"/apps/{app_id}/v1/track"
+                origin = profile.get("cloudbase_origin")
+                resources = {
+                    "app_id": app_id,
+                    "display_name": profile["display_name"],
+                    "dashboard_app_labels": {app_id: profile["display_name"]},
+                    "function_name": f"telemetry-{app_id}",
+                    "collection_name": f"telemetry_{normalized}",
+                    "telemetry_route": route,
+                    "update_transport": "client-update-center-v1",
+                    "update_center_base_url": "https://update.meetelf.com",
+                    "update_check_url": f"https://update.meetelf.com/api/v1/apps/{app_id}/update-checks",
+                    "update_targets": profile.get("update_targets", []),
+                    "offline_enforcement": profile.get("offline_enforcement"),
+                }
+                if isinstance(origin, str):
+                    resources["telemetry_endpoint"] = origin.rstrip("/") + route
+                print(json.dumps(resources, ensure_ascii=False, indent=2, sort_keys=True))
+                return 0
             platforms = args.platform or profile.get("platforms", [])
             cloudbase_origin = profile.get("cloudbase_origin")
             application_version_base_url = profile.get(
@@ -237,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             release_streams = profile.get("release_streams", [])
             legacy_update_status = profile.get("legacy_update_status")
+            display_name = profile.get("display_name")
+            validate_display_name(display_name)
         else:
             app_id = args.app_id
             platforms = args.platform
@@ -244,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
             application_version_base_url = None
             release_streams = []
             legacy_update_status = None
+            display_name = args.display_name
 
         resources = derive_resources(
             app_id,
@@ -252,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             application_version_base_url=application_version_base_url,
             release_streams=release_streams,
             legacy_update_status=legacy_update_status,
+            display_name=display_name,
         )
     except (OSError, ValueError) as error:
         print(f"resource derivation failed: {error}", file=sys.stderr)

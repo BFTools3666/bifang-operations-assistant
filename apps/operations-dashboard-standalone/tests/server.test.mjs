@@ -10,6 +10,15 @@ const apps = JSON.parse(
     "utf8",
   ),
 );
+const labels = JSON.parse(
+  await readFile(
+    new URL(
+      "../../../cloudbase/functions/operations-dashboard/src/app-labels.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 const ACCESS_TOKEN = "standalone-access-token-for-tests-123456";
 const METRICS_TOKEN = "cloudbase-metrics-token-for-tests-123456";
 const streams = apps.apps.flatMap((app) =>
@@ -28,6 +37,10 @@ function fixture(selectedAppId = "all", days = 7) {
     generatedAt: "2026-09-21T05:00:00.000Z",
     rangeDays: days,
     selectedAppId,
+    appIds,
+    appLabels: Object.fromEntries(
+      appIds.map((appId) => [appId, labels[appId]]),
+    ),
     totals: {
       todayActive: 3,
       yesterdayActive: 2,
@@ -60,7 +73,7 @@ function fixture(selectedAppId = "all", days = 7) {
 
 async function withServer(run, options = {}) {
   const server = await createDashboardServer({
-    apps,
+    apps: options.apps ?? apps,
     env: {
       NODE_ENV: "test",
       COOKIE_SECURE: "false",
@@ -130,6 +143,29 @@ test("metrics require a standalone signed session before upstream access", async
   );
 });
 
+test("a telemetry-only app can be selected without a legacy release summary", async () => {
+  const appId = "bifang-screen-recorder";
+  const registry = structuredClone(apps);
+  registry.apps.find((app) => app.app_id === appId).release_streams = [];
+  const payload = fixture(appId);
+  payload.releaseStreams = [];
+  await withServer(
+    async (origin) => {
+      const { cookie } = await login(origin);
+      const response = await fetch(
+        `${origin}/api/metrics?app=${appId}&days=7`,
+        { headers: { Cookie: cookie } },
+      );
+      assert.equal(response.status, 200);
+      const snapshot = await response.json();
+      assert.deepEqual(snapshot.releaseStreams, []);
+      assert.equal(snapshot.appLabels[appId], labels[appId]);
+      assert.equal(snapshot.versions[0].label, "1.0.0");
+    },
+    { apps: registry, fetchImpl: async () => Response.json(payload) },
+  );
+});
+
 test("login rejects a wrong key and creates an HttpOnly strict session for the right key", async () => {
   await withServer(async (origin) => {
     const wrong = await login(origin, "wrong-token");
@@ -165,6 +201,12 @@ test("authenticated metrics stay same-origin, bind filters and remove extra upst
         payload.appIds,
         apps.apps.map((app) => app.app_id),
       );
+      assert.deepEqual(payload.appLabels, fixture().appLabels);
+      assert.equal(
+        Object.hasOwn(payload.appLabels, "bifang-multi-instance-display-plus"),
+        true,
+      );
+      assert.equal(Object.hasOwn(payload.appLabels, "unregistered-app"), false);
     },
     {
       fetchImpl: async (url, options) => {
@@ -179,6 +221,94 @@ test("authenticated metrics stay same-origin, bind filters and remove extra upst
       },
     },
   );
+});
+
+test("every registered app can be selected with its upstream display name", async () => {
+  const appId = "bifang-ai-usage-collector";
+  const payload = fixture(appId);
+  payload.appLabels[appId] = "新的正式名称";
+  await withServer(
+    async (origin) => {
+      const { cookie } = await login(origin);
+      const response = await fetch(
+        `${origin}/api/metrics?app=${appId}&days=7`,
+        {
+          headers: { Cookie: cookie },
+        },
+      );
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.selectedAppId, appId);
+      assert.equal(result.appLabels[appId], "新的正式名称");
+      assert.ok(
+        result.releaseStreams.every((stream) => stream.appId === appId),
+      );
+    },
+    {
+      fetchImpl: async (url) => {
+        assert.equal(url.searchParams.get("app_id"), appId);
+        return Response.json(payload);
+      },
+    },
+  );
+});
+
+test("distribution labels allow the full display name and version without expanding snapshot fields", async () => {
+  const payload = fixture();
+  const label = `${"\u{20000}".repeat(100)} ${"1".repeat(64)}`;
+  payload.appLabels[apps.apps[0].app_id] = "\u{20000}".repeat(100);
+  payload.versions[0].label = label;
+  await withServer(
+    async (origin) => {
+      const { cookie } = await login(origin);
+      const response = await fetch(`${origin}/api/metrics?app=all&days=7`, {
+        headers: { Cookie: cookie },
+      });
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).versions[0].label, label);
+    },
+    { fetchImpl: async () => Response.json(payload) },
+  );
+});
+
+test("app identity and display metadata must exactly cover the runtime registry", async () => {
+  const appId = apps.apps[0].app_id;
+  const mutations = [
+    (value) => delete value.appIds,
+    (value) => (value.appIds = value.appIds.slice(1)),
+    (value) => (value.appIds[0] = value.appIds[1]),
+    (value) => value.appIds.push("unregistered-app"),
+    (value) => delete value.appLabels,
+    (value) => delete value.appLabels[appId],
+    (value) => (value.appLabels["unregistered-app"] = "未登记应用"),
+    ...[
+      "",
+      " 名称",
+      "名称 ",
+      "<script>",
+      "名称\n换行",
+      "名称\u202e",
+      "名".repeat(101),
+      42,
+    ].map((name) => (value) => (value.appLabels[appId] = name)),
+  ];
+  for (const mutate of mutations) {
+    const payload = fixture();
+    mutate(payload);
+    await withServer(
+      async (origin) => {
+        const { cookie } = await login(origin);
+        const response = await fetch(`${origin}/api/metrics?app=all&days=7`, {
+          headers: { Cookie: cookie },
+        });
+        assert.equal(response.status, 503);
+        assert.deepEqual(await response.json(), {
+          error: "metrics_unavailable",
+        });
+      },
+      { fetchImpl: async () => Response.json(payload) },
+    );
+  }
 });
 
 test("invalid filters and invalid upstream shapes fail closed without demo data", async () => {

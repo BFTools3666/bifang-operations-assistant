@@ -1,15 +1,15 @@
 # 毕方运营精灵基础设施 3.0
 
-> 更新中心迁移进行中：新的客户端更新服务地址为 `https://update.meetelf.com`，其 POST 协议与下面的 application-version API 不兼容。SDK 已新增独立的更新检测实现，见 [迁移进度与接入边界](docs/client-update-center-migration.md)；当前一键接入 Skill、Profile、示例和运营流程尚未切换，不能把旧接口的接入说明当作新服务说明，也不能声称客户端已完成迁移。
+> 新客户端接入使用 `https://update.meetelf.com` 的 POST 协议，与旧 application-version API 不兼容。SDK 仅提供检测与目标对照；下载、校验、安装和强更生命周期仍由宿主实现。服务部署与真实客户端验证状态见 [迁移进度与接入边界](docs/client-update-center-migration.md)。
 
-这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，版本与广告服务统一使用 application-version API v1。旧静态更新清单协议已经退出 3.0 设计，不再提供双轨、回退开关或长期兼容层。
+这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，新客户端更新使用客户端更新中心。现有 application-version 版本与广告服务继续按历史运营事实管理；迁移单个客户端不代表线上旧资源可删除。旧静态更新清单协议已经退出 3.0 设计。
 
-所有工具共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离。客户端的 application-version Base URL 可使用该默认域名，或使用运营侧精确批准且保持同一 v1 合同的生产网关；这不改变 CloudBase 环境、函数、路由或费用边界：
+统计共用负责人现有的一个免费 CloudBase 环境和平台默认 HTTPS 域名，但按应用隔离。旧 application-version 服务仍可使用该默认域名或已批准的生产网关；新更新中心不使用该 GET 合同，也不改变 CloudBase 费用边界：
 
 - telemetry 使用独立 `app_id`、函数、路由、集合和本地状态；
 - application-version 使用共享函数和单一 `/tools/version-control/v1` 路由，凭据绑定准确 `app_id + codes + scopes`；
 - 每个应用使用独立 `versions_*`、`ads_*`、`audit_*` 集合；
-- 每个 `(platform, architecture, channel)` 使用独立 `code`，不依赖 User-Agent 猜平台。
+- 历史 application-version 的每个 `(platform, architecture, channel)` 使用独立 `code`；仅使用新更新中心的工具无需旧发布流，不依赖 User-Agent 猜平台。
 
 本仓库不是鼠标精灵或录屏助手的业务源码。两个客户端必须各自在自己的 Codex Task 中接入，运营精灵不能从这里主动扫描或修改它们。
 
@@ -21,9 +21,9 @@
 https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接入
 ```
 
-根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitLab 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 在当前客户端内迁移非敏感 Profile、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。
+根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitLab 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 在当前客户端内迁移非敏感 Profile、确认中文 `display_name` 并生成名称交接、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。阶段 2 在运营精灵中同步登记中文名，阶段 3 检查全部名称覆盖，阶段 4 实际核对线上显示；本地名称登记和生产生效分别记录门禁，不能互相替代。
 
-这句话不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送或购买。上述外部或扩大范围的动作仍按门禁单独执行。
+新接入必须以 `--require-update-center` 验证 Profile，详细请求、强更和安装规则见 [客户端更新中心接入合同](skills/bifang-public-services-onboarding/references/client-update-center.md)。这句话不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送或购买。上述外部或扩大范围的动作仍按门禁单独执行。
 
 ## 权威入口
 
@@ -43,7 +43,13 @@ https://gitlab.kuajingvs.com/qiuyang/bifang-operations-assistant.git 帮我接�
 
 同一个匿名 `install_id` 按北京时间每天首次正常启动最多尝试一次固定事件 `daily_active`。客户端联网前先原子落盘当日门禁；失败当天不重试、不排离线队列。它近似表示活跃安装，不是安装量、账号人数或功能使用次数。客户端不得采集账号、主机名、MAC、硬盘号或其他硬件指纹；来源 IP 只由服务端可信上下文补充。
 
-### Application-version API v1
+### 客户端更新中心
+
+客户端在可信宿主调用 `POST https://update.meetelf.com/api/v1/apps/{app_id}/update-checks`，使用运行时客户端 Token，发送真实运行版本、平台、程序架构、安装形态、持久随机 UUID、通道、触发方式和已实现能力。仅 201 表示成功。下载须验证大小、SHA-256，并在安装前重新检查目标；强更和离线处理以产品明确选择的策略为准。
+
+### 既有 Application-version API v1
+
+以下是仍在使用的旧运营服务信息，不是新客户端的一键接入协议，也不因客户端迁移自动删除。
 
 规范 Base URL：
 

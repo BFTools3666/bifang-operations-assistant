@@ -35,7 +35,7 @@ export async function addReleaseStream(appId, releaseStream, options = {}) {
     2,
   )}\n`;
   const currentConfig = await readFile(configUrl, "utf8");
-  if (currentConfig !== expectedCurrentConfig) {
+  if (currentConfig.replaceAll("\r\n", "\n") !== expectedCurrentConfig) {
     throw new Error(
       "cloudbaserc.example.json has ungenerated changes; run the config check and reconcile it first",
     );

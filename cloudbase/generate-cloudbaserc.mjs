@@ -89,9 +89,9 @@ export function createCloudBaseConfig(registry) {
       releaseStreams: releaseStreams.map((stream) => ({ ...stream })),
     };
   });
-  const applicationVersionApps = applications.map(({ appId }) =>
-    deriveApplicationVersionResources(appId),
-  );
+  const applicationVersionApps = applications
+    .filter(({ releaseStreams }) => releaseStreams.length > 0)
+    .map(({ appId }) => deriveApplicationVersionResources(appId));
   const dashboardApplicationMapping =
     createDashboardApplicationMapping(dashboardApps);
 
@@ -337,13 +337,9 @@ export function validateReleaseStreams(value, label = "release_streams") {
 }
 
 export function canonicalizeReleaseStreams(value, label = "release_streams") {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.length > MAX_RELEASE_STREAMS_PER_APP
-  ) {
+  if (!Array.isArray(value) || value.length > MAX_RELEASE_STREAMS_PER_APP) {
     throw new TypeError(
-      `${label} must contain between 1 and ${MAX_RELEASE_STREAMS_PER_APP} items`,
+      `${label} must contain at most ${MAX_RELEASE_STREAMS_PER_APP} items`,
     );
   }
   const streams = value.map((stream, index) =>
@@ -428,7 +424,7 @@ async function main() {
 
   if (args[0] === "--check") {
     const current = await readFile(outputUrl, "utf8").catch(() => "");
-    if (current !== generated) {
+    if (current.replaceAll("\r\n", "\n") !== generated) {
       throw new Error(
         "cloudbaserc.example.json is stale; run node cloudbase/generate-cloudbaserc.mjs",
       );

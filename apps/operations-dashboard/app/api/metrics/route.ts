@@ -119,6 +119,10 @@ function toSafeDashboardSnapshot(
     generatedAt: payload.generatedAt,
     rangeDays: payload.rangeDays,
     selectedAppId: payload.selectedAppId,
+    appIds: APP_OPTIONS.map((app) => app.id),
+    appLabels: Object.fromEntries(
+      APP_OPTIONS.map((app) => [app.id, payload.appLabels[app.id]]),
+    ),
     totals: {
       todayActive: payload.totals.todayActive,
       yesterdayActive: payload.totals.yesterdayActive,
@@ -130,11 +134,9 @@ function toSafeDashboardSnapshot(
     trend: payload.trend.map((point) => ({
       date: point.date,
       total: point.total,
-      byApp: {
-        'bifang-screen-recorder': point.byApp['bifang-screen-recorder'],
-        'bifang-mouse-clicker': point.byApp['bifang-mouse-clicker'],
-        'bifang-tools': point.byApp['bifang-tools'],
-      },
+      byApp: Object.fromEntries(
+        APP_OPTIONS.map((app) => [app.id, point.byApp[app.id]]),
+      ),
     })),
     versions: payload.versions.map((item) => ({
       label: item.label,
@@ -191,6 +193,8 @@ function isDashboardSnapshot(
     item.environmentId === 'bftoos-sh-d3ga7hahz59229f0a' &&
     item.rangeDays === expectedDays &&
     item.selectedAppId === expectedApp &&
+    isAppIds(item.appIds) &&
+    isAppLabels(item.appLabels) &&
     isTotals(item.totals) &&
     Array.isArray(item.trend) &&
     item.trend.length === expectedDays &&
@@ -206,6 +210,33 @@ function isDashboardSnapshot(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isAppIds(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length === APP_OPTIONS.length &&
+    new Set(value).size === APP_OPTIONS.length &&
+    value.every((appId) => APP_OPTIONS.some((app) => app.id === appId))
+  );
+}
+
+function isAppLabels(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === APP_OPTIONS.length &&
+    APP_OPTIONS.every((app) => {
+      const label = value[app.id];
+      return (
+        Object.hasOwn(value, app.id) &&
+        typeof label === 'string' &&
+        label.trim() === label &&
+        Array.from(label).length >= 1 &&
+        Array.from(label).length <= 100 &&
+        !/[\p{Cc}\p{Cf}<>]/u.test(label)
+      );
+    })
+  );
 }
 
 function isShortText(value: unknown, maxLength: number): value is string {
@@ -255,7 +286,7 @@ function isDistribution(value: unknown): boolean {
   return value.every(
     (item) =>
       isRecord(item) &&
-      isShortText(item.label, 100) &&
+      isShortText(item.label, 265) &&
       isCount(item.value) &&
       isPercent(item.percent) &&
       (item.tone === undefined ||
@@ -285,7 +316,6 @@ function readRegisteredReleaseStreams(
       !expectedAppIds.has(app.app_id) ||
       seenAppIds.has(app.app_id) ||
       !Array.isArray(app.release_streams) ||
-      app.release_streams.length === 0 ||
       app.release_streams.length > MAX_RELEASE_STREAMS_PER_APP
     ) {
       return null;
@@ -342,7 +372,7 @@ function isReleaseStreams(value: unknown, expectedApp: string): boolean {
   const expected = REGISTERED_RELEASE_STREAMS.filter(
     (stream) => expectedApp === 'all' || stream.appId === expectedApp,
   );
-  if (expected.length === 0 || value.length !== expected.length) return false;
+  if (value.length !== expected.length) return false;
 
   const expectedIdentities = new Set(expected.map(releaseStreamIdentity));
   const seenIdentities = new Set<string>();

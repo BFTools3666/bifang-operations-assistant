@@ -12,7 +12,7 @@
 
 共享环境、默认 HTTPS 域名、网关额度、函数/数据库配额和平台故障域仍是共享的，并非无限容量或账单隔离。客户端可使用运营侧精确批准的 application-version 生产网关作为同一 v1 合同入口，telemetry 仍使用 CloudBase 默认 origin；这不创建第二环境或新资源。若要隔离额度或故障域，就会涉及第二环境和潜在费用，本方案不自行创建。
 
-基础设施 3.0 只有 application-version API v1 版本协议，不保留静态更新清单、双轨路由或兼容开关。`daily_active` telemetry 是独立能力，不属于要删除的旧版本协议。
+新客户端使用独立客户端更新中心 POST 协议，以 APP_ID 和实际平台、架构、安装形态、通道隔离；不保留静态更新清单或客户端双轨。下文 application-version 资源是现有历史服务，不因新客户端接入而删除。`daily_active` telemetry 保持独立。
 
 ## 一句话从客户端发起
 
@@ -39,7 +39,7 @@ APP_ID 全局唯一，长度 1–50，只含小写字母、数字和短横线，
 
 任何一个工具都不能复用另一个工具的 APP_ID、集合、路由或本地状态目录。
 
-## Application-version 共享服务
+## 既有 Application-version 共享服务（历史）
 
 固定资源：
 
@@ -84,7 +84,7 @@ application-version 请求没有 platform/arch 字段，所以 code 必须表达
 
 ## 登记一个新工具
 
-1. 在工具自己的 Task 中完成只读扫描和 Profile v2；展示并确认 APP_ID 与全部发布流 code。
+1. 在工具自己的 Task 中完成只读扫描和 Profile v2；展示并确认 APP_ID 和全部新更新中心目标。只接新更新中心且没有真实旧发布流时，运营精灵使用 `npm run cloudbase:app:add -- <app_id>` 登记统计资源；不编造旧 code。
 2. 在运营精灵 Task 中检查 `cloudbase/apps.json` 全局唯一性，再运行受测的登记命令；一次只登记一个应用，不并发写登记表。
 3. 运行 `npm run cloudbase:config:check`、相关契约测试和只读部署计划。
 4. 计划必须完整保留所有已登记 telemetry 与 application-version 应用映射，不能只生成当前工具的临时配置。
@@ -102,6 +102,8 @@ APP_ID、code、函数、路由和集合都视为发布身份，不因显示名�
 - 不使用目录推断、通配符、`--prune` 或批量删除；`--force` 只允许 credential-bound helper 精确创建或更新固定函数 `application-version-api`，不得用于资源删除或其他目标；历史业务数据的删除另需明确范围。
 
 ## 上线前逐工具验收
+
+新客户端优先依据 [客户端更新中心接入合同](../skills/bifang-public-services-onboarding/references/client-update-center.md) 验证 POST、Bearer、目标隔离、强更、下载与复检。下面的 code、旧 v1 与集合项仅适用于历史 application-version 服务，不作为新服务已经接入的证明。
 
 - APP_ID、所有 code、平台、架构、渠道映射准确且唯一；
 - telemetry 只写自己的集合，客户端联网前落盘、同日一次、失败不重试；

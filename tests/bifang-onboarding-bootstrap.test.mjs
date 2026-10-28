@@ -220,7 +220,7 @@ test("verified bootstrap preserves the current dirty Git client and then install
   assert.equal(output.source_verification_mode, "test-only-fixed-ref");
   assert.equal(output.infrastructure_version, "3.0.0");
   assert.equal(output.application_version_contract_version, "1.0.0");
-  assert.equal(output.skill.version, "2.0.0");
+  assert.equal(output.skill.version, "2.1.0");
   assert.equal(output.writes_to_target_project, false);
   assert.equal(output.target_git_unchanged, true);
   assert.ok(
@@ -258,12 +258,13 @@ test("verified bootstrap preserves the current dirty Git client and then install
     join(codexHome, "skills", skillName, "SKILL.md"),
     "utf8",
   );
-  assert.match(installed, /^  version: "2\.0\.0"$/m);
+  assert.match(installed, /^  version: "2\.1\.0"$/m);
 });
 
 test("bootstrap manifest freezes the exact request and authorization boundary", async () => {
   const manifest = JSON.parse(await readFile(sourceManifest, "utf8"));
   assert.equal(manifest.oneLineRequest, `${canonicalRepositoryUrl} 帮我接入`);
+  assert.equal(manifest.updateTransport, "client-update-center-v1");
   assert.equal(
     manifest.applicationVersionBaselineCommit,
     "92b0c599a42c3a094c99787e6928c30c2d2ea3af",

@@ -7,6 +7,7 @@ const {
   isRfc3339,
   isSemVer,
 } = require("./validation");
+const { getAppLabel, projectAppLabels } = require("./app-labels");
 
 function createDashboardSnapshot(options) {
   const now = options.now instanceof Date ? options.now : new Date(options.now);
@@ -95,7 +96,7 @@ function createDashboardSnapshot(options) {
   const versions = makeDistribution(
     latestEvents.map((event) =>
       selectedAppId === "all"
-        ? `${shortAppName(event.app_id)} ${event.app_version}`
+        ? `${getAppLabel(event.app_id)} ${event.app_version}`
         : event.app_version,
     ),
   );
@@ -133,6 +134,7 @@ function createDashboardSnapshot(options) {
     // The browser uses this non-sensitive registry projection to populate the
     // application filter. Keep the complete list even when one app is selected.
     appIds: apps.map((app) => app.appId),
+    appLabels: projectAppLabels(apps),
     totals: {
       todayActive,
       yesterdayActive,
@@ -221,37 +223,46 @@ function createAlerts({
     (stream) => stream.status === "forced",
   ).length;
   alerts.push(
-    empty > 0
+    releaseStreams.length === 0
       ? {
           id: "update-state",
-          tone: "warning",
-          title: `${empty} 个发布流尚无版本`,
-          detail: "数据库读取成功；这些发布流当前确实没有版本记录。",
-          time: "需要复核",
+          tone: "neutral",
+          title: "未登记旧发布流",
+          detail:
+            "活跃版本来自客户端统计；新更新中心的发布状态请在更新后台查看。",
+          time: "更新服务",
         }
-      : stopped > 0
+      : empty > 0
         ? {
             id: "update-state",
             tone: "warning",
-            title: `${stopped} 个发布流已暂停更新`,
-            detail: "请复核对应 code 的最高版本和暂停状态。",
-            time: "更新服务",
+            title: `${empty} 个发布流尚无版本`,
+            detail: "数据库读取成功；这些发布流当前确实没有版本记录。",
+            time: "需要复核",
           }
-        : forced > 0
+        : stopped > 0
           ? {
               id: "update-state",
               tone: "warning",
-              title: `${forced} 个发布流为强制更新`,
-              detail: "请复核对应 code 的最高版本与客户端退出流程。",
+              title: `${stopped} 个发布流已暂停更新`,
+              detail: "请复核对应 code 的最高版本和暂停状态。",
               time: "更新服务",
             }
-          : {
-              id: "update-state",
-              tone: "success",
-              title: `${releaseStreams.length} 个发布流读取正常`,
-              detail: "已从应用隔离的版本集合读取各 code 当前最高版本。",
-              time: "更新服务",
-            },
+          : forced > 0
+            ? {
+                id: "update-state",
+                tone: "warning",
+                title: `${forced} 个发布流为强制更新`,
+                detail: "请复核对应 code 的最高版本与客户端退出流程。",
+                time: "更新服务",
+              }
+            : {
+                id: "update-state",
+                tone: "success",
+                title: `${releaseStreams.length} 个发布流读取正常`,
+                detail: "已从应用隔离的版本集合读取各 code 当前最高版本。",
+                time: "更新服务",
+              },
   );
   return alerts;
 }
@@ -357,12 +368,6 @@ function normalizeReleaseSummaries(apps, values) {
 
 function deviceKey(event) {
   return `${event.app_id}\u0000${event.install_id}`;
-}
-
-function shortAppName(appId) {
-  if (appId === "bifang-screen-recorder") return "录屏";
-  if (appId === "bifang-mouse-clicker") return "鼠标";
-  return appId;
 }
 
 function platformLabel(platform) {

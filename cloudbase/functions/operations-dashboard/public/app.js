@@ -1,13 +1,8 @@
-const APP_LABELS = {
-  "bifang-screen-recorder": "毕方录屏助手",
-  "bifang-mouse-clicker": "毕方鼠标精灵",
-  "bifang-tools": "毕方小工具",
-};
-
 const DASHBOARD_BASE_PATH = "__DASHBOARD_BASE_PATH__";
 
 const state = {
   app: "all",
+  requestedApp: null,
   days: 14,
   snapshot: null,
   distribution: "versions",
@@ -155,33 +150,47 @@ async function loadMetrics() {
   state.loading = true;
   setLoadingState(true);
   try {
-    const params = new URLSearchParams({
-      app_id: state.app,
-      days: String(state.days),
-    });
-    const response = await fetch(
-      `${DASHBOARD_BASE_PATH}/api/metrics?${params}`,
-      {
-        cache: "no-store",
-        credentials: "same-origin",
-      },
-    );
-    if (response.status === 401) {
-      showLogin("会话已过期，请重新输入访问密钥。");
-      return;
+    let snapshot = await fetchMetricsSnapshot(state.app);
+    if (state.requestedApp !== null) {
+      const requestedApp = state.requestedApp;
+      state.requestedApp = null;
+      state.app = snapshot.appIds.includes(requestedApp) ? requestedApp : "all";
+      // Resolve deep links against the enabled app registry, independently of
+      // which applications happen to have a display name in this deployment.
+      if (state.app !== snapshot.selectedAppId) {
+        snapshot = await fetchMetricsSnapshot(state.app);
+      }
+      updateUrl();
     }
-    if (!response.ok) throw new Error("metrics_unavailable");
-    state.snapshot = await response.json();
+    state.snapshot = snapshot;
     hydrateAppFilter(state.snapshot.appIds);
     elements["error-panel"].hidden = true;
     renderSnapshot();
-  } catch {
+  } catch (error) {
     state.snapshot = null;
-    renderUnavailable();
+    if (error instanceof Error && error.message === "authentication_required") {
+      showLogin("会话已过期，请重新输入访问密钥。");
+    } else {
+      renderUnavailable();
+    }
   } finally {
     state.loading = false;
     setLoadingState(false);
   }
+}
+
+async function fetchMetricsSnapshot(appId) {
+  const params = new URLSearchParams({
+    app_id: appId,
+    days: String(state.days),
+  });
+  const response = await fetch(`${DASHBOARD_BASE_PATH}/api/metrics?${params}`, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (response.status === 401) throw new Error("authentication_required");
+  if (!response.ok) throw new Error("metrics_unavailable");
+  return response.json();
 }
 
 function renderSnapshot() {
@@ -369,9 +378,8 @@ function renderAlerts(alerts) {
 
 function hydrateAppFilter(appIds) {
   const select = elements["app-filter"];
-  const known = new Set([...select.options].map((option) => option.value));
-  appIds.forEach((appId) => {
-    if (known.has(appId)) return;
+  select.replaceChildren();
+  ["all", ...appIds].forEach((appId) => {
     const option = document.createElement("option");
     option.value = appId;
     option.textContent = appLabel(appId);
@@ -386,7 +394,7 @@ function readUrlState() {
   const days = Number(params.get("days"));
   if ([7, 14, 30].includes(days)) state.days = days;
   const app = params.get("app");
-  if (app === "all" || Object.hasOwn(APP_LABELS, app)) state.app = app;
+  state.requestedApp = app;
   setRangeButtons();
 }
 
@@ -484,7 +492,8 @@ function signedPercent(current, previous) {
 
 function appLabel(appId) {
   if (appId === "all") return "全部应用";
-  return APP_LABELS[appId] ?? appId;
+  const labels = state.snapshot?.appLabels;
+  return labels && Object.hasOwn(labels, appId) ? labels[appId] : appId;
 }
 
 function platformLabel(platform) {

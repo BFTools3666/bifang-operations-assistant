@@ -296,9 +296,12 @@ function Read-Registry {
             -not $seenApps.Add($app.app_id)) {
             throw "the application registry contains an invalid or duplicate app_id"
         }
+        if ($app.release_streams -isnot [array]) {
+            throw "release_streams must be an array"
+        }
         $streams = @($app.release_streams)
-        if ($streams.Count -lt 1 -or $streams.Count -gt 12) {
-            throw "each application must contain from 1 to 12 release streams"
+        if ($streams.Count -gt 12) {
+            throw "each application may contain at most 12 release streams"
         }
         $normalizedStreams = New-Object 'System.Collections.Generic.List[object]'
         foreach ($stream in $streams) {
@@ -754,6 +757,7 @@ function Invoke-Generate {
     }
     $rawCredentials = New-Object 'System.Collections.Generic.List[object]'
     foreach ($app in $apps) {
+        if ($app.release_streams.Count -eq 0) { continue }
         $appCodes = @($app.release_streams | ForEach-Object { $_.code })
         foreach ($stream in $app.release_streams) {
             [void]$rawCredentials.Add([pscustomobject]@{

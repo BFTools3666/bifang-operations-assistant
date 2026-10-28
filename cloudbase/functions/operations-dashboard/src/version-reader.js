@@ -8,6 +8,7 @@ function createCloudBaseVersionReader(options = {}) {
   const appFactory = options.appFactory || createDefaultCloudBaseApp;
 
   return async function readReleaseStreams({ apps, runtimeContext }) {
+    if (apps.every((app) => app.releaseStreams.length === 0)) return [];
     const database = (await appFactory({ runtimeContext })).database();
     const summaries = [];
 

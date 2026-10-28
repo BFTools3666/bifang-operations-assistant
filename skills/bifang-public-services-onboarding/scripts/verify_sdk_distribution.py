@@ -74,6 +74,8 @@ _REQUIRED_DECLARATION_EXPORTS = frozenset(
         "ApplicationVersionHostHooks",
     )
 )
+_CENTER_RUNTIME_EXPORTS = frozenset(("TelemetryClient", "ClientUpdateService", "parseClientUpdateSnapshot", "isSameInstallTarget"))
+_CENTER_DECLARATION_EXPORTS = frozenset((*_CENTER_RUNTIME_EXPORTS, "ClientUpdateRequest", "ClientUpdateResult", "ClientUpdateSnapshot"))
 _STATIC_MANIFEST_PUBLIC_MARKERS = frozenset(
     (
         "UpdateChecker",
@@ -314,6 +316,7 @@ def verify_sdk_distribution(
         )
 
     kind = distribution.get("kind")
+    center = profile.get("update_transport") == "client-update-center-v1"
     source = distribution.get("source")
     version = distribution.get("version")
     expected_hash = profile.get("sdk_artifact_sha256")
@@ -351,6 +354,7 @@ def verify_sdk_distribution(
             expected_hash,
             root,
             profile.get("owner"),
+            center,
         )
 
     artifact_path, normalized_source = resolve_project_relative_path(
@@ -375,9 +379,9 @@ def verify_sdk_distribution(
 
     _validate_package_identity(package_json, version)
     if kind == "versioned_tarball":
-        _validate_npm_tgz_public_api(artifact_path, package_json)
+        _validate_npm_tgz_public_api(artifact_path, package_json, center=center)
     else:
-        _validate_directory_public_api(artifact_path, package_json)
+        _validate_directory_public_api(artifact_path, package_json, center=center)
     return {
         "artifact_sha256": actual_hash,
         "distribution_kind": kind,
@@ -688,7 +692,7 @@ def _validate_package_identity(package_json: Mapping[str, Any], version: str) ->
 
 
 def _validate_directory_public_api(
-    root: Path, package_json: Mapping[str, Any]
+    root: Path, package_json: Mapping[str, Any], *, center: bool = False
 ) -> None:
     runtime_entry, declaration_entry = _package_public_entries(package_json)
     runtime_text = _read_directory_text_entry(
@@ -697,11 +701,11 @@ def _validate_directory_public_api(
     declaration_text = _read_directory_text_entry(
         root, declaration_entry, "SDK public declaration entry"
     )
-    _validate_public_api(runtime_text, declaration_text)
+    _validate_public_api(runtime_text, declaration_text, center=center)
 
 
 def _validate_npm_tgz_public_api(
-    path: Path, package_json: Mapping[str, Any]
+    path: Path, package_json: Mapping[str, Any], *, center: bool = False
 ) -> None:
     runtime_entry, declaration_entry = _package_public_entries(package_json)
     expected_members = {
@@ -732,6 +736,7 @@ def _validate_npm_tgz_public_api(
     _validate_public_api(
         loaded["SDK public runtime entry"],
         loaded["SDK public declaration entry"],
+        center=center,
     )
 
 
@@ -835,7 +840,7 @@ def _decode_utf8_text(raw: bytes, label: str) -> str:
         raise SDKDistributionVerificationError(f"{label} must be UTF-8") from error
 
 
-def _validate_public_api(runtime_text: str, declaration_text: str) -> None:
+def _validate_public_api(runtime_text: str, declaration_text: str, *, center: bool = False) -> None:
     inspection = _inspect_public_api_ast(runtime_text, declaration_text)
     runtime = inspection["runtime"]
     declarations = inspection["declarations"]
@@ -847,18 +852,18 @@ def _validate_public_api(runtime_text: str, declaration_text: str) -> None:
     runtime_exports = runtime["exported_names"]
     declaration_exports = declarations["exported_names"]
 
-    missing_runtime = sorted(_REQUIRED_RUNTIME_EXPORTS - runtime_exports)
+    missing_runtime = sorted((_CENTER_RUNTIME_EXPORTS if center else _REQUIRED_RUNTIME_EXPORTS) - runtime_exports)
     if missing_runtime:
         raise SDKDistributionVerificationError(
-            "SDK public runtime entry is missing application-version exports: "
+            ("SDK public runtime entry is missing client-update-center exports: " if center else "SDK public runtime entry is missing application-version exports: ")
             + ", ".join(missing_runtime)
         )
     missing_declarations = sorted(
-        _REQUIRED_DECLARATION_EXPORTS - declaration_exports
+        (_CENTER_DECLARATION_EXPORTS if center else _REQUIRED_DECLARATION_EXPORTS) - declaration_exports
     )
     if missing_declarations:
         raise SDKDistributionVerificationError(
-            "SDK public declaration entry is missing application-version declarations: "
+            ("SDK public declaration entry is missing client-update-center declarations: " if center else "SDK public declaration entry is missing application-version declarations: ")
             + ", ".join(missing_declarations)
         )
 
@@ -1019,6 +1024,7 @@ def _verify_private_package(
     expected_hash: str,
     project_root: Path,
     profile_owner: Any,
+    center: bool = False,
 ) -> dict[str, Any]:
     expected_source = f"{PACKAGE_NAME}@{version}"
     if source != expected_source:
@@ -1081,6 +1087,8 @@ def _verify_private_package(
         "artifact_sha256": expected_hash,
         "immutable_reference": immutable_reference,
     }
+    if center:
+        expected_fields["update_transport"] = "client-update-center-v1"
     for field, expected in expected_fields.items():
         if evidence.get(field) != expected:
             raise SDKDistributionVerificationError(

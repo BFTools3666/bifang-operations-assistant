@@ -19,7 +19,7 @@ export async function addApp(appId, options = {}) {
   const registryUrl = options.registryUrl || defaultRegistryUrl;
   const configUrl = options.configUrl || defaultConfigUrl;
   const releaseStreams = canonicalizeReleaseStreams(
-    options.releaseStreams,
+    options.releaseStreams ?? [],
     "releaseStreams",
   );
   const resources = deriveAppResources(appId);
@@ -38,7 +38,7 @@ export async function addApp(appId, options = {}) {
     2,
   )}\n`;
   const currentConfig = await readFile(configUrl, "utf8");
-  if (currentConfig !== expectedCurrentConfig) {
+  if (currentConfig.replaceAll("\r\n", "\n") !== expectedCurrentConfig) {
     throw new Error(
       "cloudbaserc.example.json has ungenerated changes; run the config check and reconcile it first",
     );
@@ -113,17 +113,19 @@ function parseReleaseStreams(args) {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length < 5) {
+  if (args.length !== 1 && (args.length < 5 || (args.length - 1) % 4 !== 0)) {
     throw new TypeError(
-      "usage: npm run cloudbase:app:add -- <app_id> <platform> <architecture> <channel> <code> [<platform> <architecture> <channel> <code> ...]",
+      "usage: npm run cloudbase:app:add -- <app_id> [<platform> <architecture> <channel> <code> ...]",
     );
   }
   const [appId, ...releaseStreamArgs] = args;
   const resources = await addApp(appId, {
-    releaseStreams: parseReleaseStreams(releaseStreamArgs),
+    releaseStreams: releaseStreamArgs.length
+      ? parseReleaseStreams(releaseStreamArgs)
+      : [],
   });
   process.stdout.write(
-    `added ${resources.appId}: ${resources.functionName}, ${resources.trackPath}, ${resources.collectionName}; release codes: ${resources.releaseStreams.map(({ code }) => code).join(", ")}\n`,
+    `added ${resources.appId}: ${resources.functionName}, ${resources.trackPath}, ${resources.collectionName}; legacy release codes: ${resources.releaseStreams.map(({ code }) => code).join(", ") || "none"}\n`,
   );
 }
 

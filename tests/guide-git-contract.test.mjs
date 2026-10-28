@@ -70,6 +70,12 @@ const requiredApplicationVersionFiles = [
   "contracts/application-version-api-v1/fixtures/runtime-decision-cases.json",
 ];
 
+const requiredUpdateCenterFiles = [
+  "docs/client-update-center-migration.md",
+  "skills/bifang-public-services-onboarding/references/client-update-center.md",
+  "tests/client-update-onboarding.test.mjs",
+];
+
 test("the complete onboarding guide has tracked human and AI entrypoints", async () => {
   const screenshotFiles = await listFiles("docs/images/cloudbase");
   const skillFiles = await listFiles(
@@ -78,6 +84,7 @@ test("the complete onboarding guide has tracked human and AI entrypoints", async
   const trackedGuideFiles = [
     ...requiredGuideFiles,
     ...requiredApplicationVersionFiles,
+    ...requiredUpdateCenterFiles,
     ...screenshotFiles,
     ...skillFiles,
   ];

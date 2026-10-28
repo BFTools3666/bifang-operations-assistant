@@ -7,7 +7,9 @@
 ## 目录与权威源
 
 - `apps.json`：schema v3 应用与发布流登记表，是 APP_ID、平台、架构、渠道和 version `code` 的唯一非敏感权威。
-- `add-app.mjs`：一次登记应用及至少一条发布流。
+- `functions/operations-dashboard/src/app-labels.json`：中文显示名的唯一展示元数据权威；不代表应用已经登记或接入。
+- `app-labels.mjs`：只维护本地中文名称并检查已登记应用的名称覆盖，不修改登记表或生成资源配置。
+- `add-app.mjs`：一次登记应用和其已有的旧发布流；仅统计工具可不填发布流。
 - `add-release-stream.mjs`：给已登记应用追加发布流。
 - `generate-cloudbaserc.mjs`：生成并校验根目录 `cloudbaserc.example.json`。
 - `plan-app-deployment.mjs`：只生成单应用 telemetry 的只读部署计划。
@@ -90,7 +92,15 @@ Version 请求本身没有平台字段，因此不同平台或架构不能共用
 
 ## 登记应用与发布流
 
-新增应用时同时给出一条或多条四元组：
+只接新更新中心且没有旧发布流的新工具，登记独立统计资源时无需填写旧 code：
+
+```powershell
+npm run cloudbase:app:add -- <app_id>
+```
+
+登记表使用空 `release_streams`；该工具不加入旧 application-version 映射或版本集合计划。看板可按中文名展示统计上报的客户端版本，更新中心的发布状态仍在更新后台查看。已有旧发布流不自动删除。首次同步看板配置前需先部署支持空发布流的看板代码，部署操作仍须单独预检和授权。
+
+确有旧 application-version 发布流的应用，登记时给出真实四元组：
 
 ```powershell
 npm run cloudbase:app:add -- <app_id> <platform> <architecture> <channel> <code>
@@ -104,10 +114,25 @@ npm run cloudbase:app:stream:add -- <app_id> <platform> <architecture> <channel>
 
 两个命令只修改登记表与生成配置，不创建本地清单，也不访问 CloudBase。它们会拒绝重复 APP_ID、重复 code、重复平台/架构/渠道组合和非法派生名。
 
+中文显示名单独维护，不写入 schema v3 登记表：
+
+```powershell
+npm run cloudbase:app:name -- <app_id> "中文显示名"
+npm run cloudbase:labels:check
+node cloudbase/app-labels.mjs list
+```
+
+`cloudbase:app:name` 固定执行名称工具的 `set`，只原子更新 `functions/operations-dashboard/src/app-labels.json`；不会修改 APP_ID、发布流 code、函数、集合、路由、`apps.json` 或 `cloudbaserc.example.json`，不访问云端。名称应为 1–100 个 Unicode 字符、包含中文、无首尾空白、控制或格式字符及 `<`、`>`。`cloudbase:labels:check` 要求所有已登记应用都有安全中文名，已纳入 `npm run check`。
+
+接入向导交接 Profile v2 后，先运行 Skill 的 Profile 校验，再在本仓库执行 `npm run cloudbase:labels:check -- --profile-file "<Profile 交接文件>"`。此命令只读核对完整名称覆盖、本工具 APP_ID 已登记且显示名与 Profile 精确一致；不把元数据独有的名字视作已接入。通过后才可在 Profile 记录名称已登记；线上生效仍需另行授权部署和实际验证。
+
+允许为已确认的额外 APP_ID 保存名称元数据；未知 APP_ID 的 `set` 结果和 `list` 项标为 `registered=false`，不意味着已经登记、部署或完成客户端接入。新应用仍须另走应用登记和相应阶段门禁。线上已启用的应用还须按实际发布流核对登记，避免下一次部署遗漏。更名本身不改变技术身份；生产看板生效须另行完成看板部署的预检与确认。
+
 修改登记后运行：
 
 ```powershell
 npm run cloudbase:config:check
+npm run cloudbase:labels:check
 npm run check
 ```
 

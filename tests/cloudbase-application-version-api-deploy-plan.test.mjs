@@ -519,6 +519,21 @@ function additiveLiveState() {
   };
 }
 
+test("telemetry-only registration never creates legacy version collection plans", () => {
+  const input = registry();
+  input.apps.push({ app_id: "new-center-tool", release_streams: [] });
+  const plan = createApplicationVersionDeploymentPlan(
+    input,
+    twoAppCredentialsBase64(),
+    { envId: ENV_ID, origin: ORIGIN },
+  );
+  assert.equal(
+    plan.resources.applications.some((app) => app.app_id === "new-center-tool"),
+    false,
+  );
+  assert.equal(plan.resources.applications.length, 2);
+});
+
 test("the service-only plan freezes one v1 route and all per-app collections", () => {
   const plan = createApplicationVersionDeploymentPlan(
     registry(),
