@@ -9,6 +9,7 @@ const { createDashboardSnapshot } = require("../src/aggregate");
 const { emptyReleaseSummary } = require("../src/version-reader");
 
 const source = readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
+const html = readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
 const APP_IDS = [
   "bifang-screen-recorder",
   "bifang-vm-sync-agentless",
@@ -140,11 +141,21 @@ test("browser resolves new-app deep links against enabled IDs and uses projected
     result.elements.get("hero-note").textContent,
     /^毕方多窗口显示助手Plus · 近 7 天/,
   );
-  const row = result.elements.get("release-rows").children[0];
-  assert.equal(row.children[0].textContent, "毕方多窗口显示助手Plus");
-  assert.equal(row.children[1].textContent, APP_IDS[2]);
-  assert.equal(row.children[3].textContent, "—");
-  assert.equal(row.children[4].children[0].textContent, "暂无版本");
+  assert.equal(result.elements.has("release-rows"), false);
+  assert.doesNotMatch(html, /发布流状态|release-rows/);
+  assert.equal(
+    result.elements.get("distribution-list").children[0].children[0].children[0]
+      .textContent,
+    "1.2.3",
+  );
+  assert.ok(
+    result.elements
+      .get("alerts-list")
+      .children.every(
+        (item) =>
+          !item.children[1]?.children[0]?.textContent?.includes("发布流"),
+      ),
+  );
   assert.equal(result.elements.get("today-active").textContent, "1");
 });
 
@@ -169,10 +180,6 @@ test("browser rebuilds renamed options and never promotes metadata-only identiti
   assert.equal(
     result.elements.get("app-filter").children.length,
     APP_IDS.length + 1,
-  );
-  assert.equal(
-    result.elements.get("release-rows").children[1].children[0].textContent,
-    "新的中文名称",
   );
   assert.equal(result.elements.get("today-active").textContent, "4");
   assert.match(result.history[0], /app=all&days=14$/);

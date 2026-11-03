@@ -8,7 +8,7 @@
     <title>毕方运营统计</title>
     <meta
       name="description"
-      content="毕方小工具每日活跃、版本分布和发布流状态只读看板。"
+      content="毕方小工具每日活跃与版本分布只读看板。"
     />
     <link rel="stylesheet" href="/assets/styles.css" />
     <script src="/assets/app.js" defer></script>
@@ -175,37 +175,13 @@
           </article>
         </section>
 
-        <section class="panel release-panel">
-          <div class="panel-heading release-heading">
-            <div>
-              <p class="eyebrow">RELEASE STREAMS</p>
-              <h2>发布流状态</h2>
-            </div>
-            <span id="generated-at" class="muted">生成时间 —</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>应用</th>
-                  <th>发布流</th>
-                  <th>平台 / 架构</th>
-                  <th>最高版本</th>
-                  <th>状态</th>
-                  <th>更新时间</th>
-                </tr>
-              </thead>
-              <tbody id="release-rows"></tbody>
-            </table>
-          </div>
-        </section>
-
         <section class="panel diagnostics-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">DIAGNOSTICS</p>
               <h2>运营诊断</h2>
             </div>
+            <span id="generated-at" class="muted">生成时间 —</span>
             <span class="privacy-chip">不返回原始标识与 IP</span>
           </div>
           <div id="alerts-list" class="alerts-list"></div>

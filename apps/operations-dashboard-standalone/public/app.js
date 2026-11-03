@@ -36,7 +36,6 @@ const elements = Object.fromEntries(
     "trend-chart",
     "distribution-list",
     "generated-at",
-    "release-rows",
     "alerts-list",
     "environment-label",
   ].map((id) => [id, document.getElementById(id)]),
@@ -221,8 +220,7 @@ function renderSnapshot() {
   elements["environment-label"].textContent = `环境 ${snapshot.environmentId}`;
   renderTrend(snapshot.trend);
   renderDistribution();
-  renderReleaseStreams(snapshot.releaseStreams);
-  renderAlerts(snapshot.alerts);
+  renderAlerts(snapshot.alerts.filter((alert) => alert.id !== "update-state"));
 }
 
 function renderUnavailable() {
@@ -243,7 +241,6 @@ function renderUnavailable() {
   elements["environment-label"].textContent = "环境 —";
   empty(elements["trend-chart"], "暂无可展示的生产趋势");
   empty(elements["distribution-list"], "暂无可展示的生产分布");
-  emptyTable("生产发布流暂时不可用");
   empty(elements["alerts-list"], "生产诊断暂时不可用");
 }
 
@@ -307,38 +304,6 @@ function renderDistribution() {
     track.append(indicator);
     row.append(heading, track);
     elements["distribution-list"].append(row);
-  });
-}
-
-function renderReleaseStreams(streams) {
-  elements["release-rows"].replaceChildren();
-  if (!streams.length) {
-    emptyTable("当前筛选没有发布流");
-    return;
-  }
-  streams.forEach((stream) => {
-    const row = document.createElement("tr");
-    const values = [
-      appLabel(stream.appId),
-      stream.code,
-      `${platformLabel(stream.platform)} / ${stream.architecture}`,
-      stream.highestVersion ?? "—",
-    ];
-    values.forEach((value, index) => {
-      const cell = document.createElement("td");
-      cell.textContent = value;
-      if (index === 1) cell.className = "code-cell";
-      row.append(cell);
-    });
-    const statusCell = document.createElement("td");
-    const badge = document.createElement("span");
-    badge.className = `status-badge status-${stream.status}`;
-    badge.textContent = statusLabel(stream.status);
-    statusCell.append(badge);
-    const updatedCell = document.createElement("td");
-    updatedCell.textContent = formatDateTime(stream.updatedAt);
-    row.append(statusCell, updatedCell);
-    elements["release-rows"].append(row);
   });
 }
 
@@ -449,17 +414,6 @@ function empty(container, message) {
   container.append(element);
 }
 
-function emptyTable(message) {
-  elements["release-rows"].replaceChildren();
-  const row = document.createElement("tr");
-  const cell = document.createElement("td");
-  cell.colSpan = 6;
-  cell.className = "table-empty";
-  cell.textContent = message;
-  row.append(cell);
-  elements["release-rows"].append(row);
-}
-
 function formatNumber(value, maximumFractionDigits = 0) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits }).format(
     value,
@@ -490,22 +444,4 @@ function signedPercent(current, previous) {
 function appLabel(appId) {
   if (appId === "all") return "全部应用";
   return state.snapshot?.appLabels[appId] ?? appId;
-}
-
-function platformLabel(platform) {
-  return (
-    { windows: "Windows", macos: "macOS", linux: "Linux" }[platform] ?? platform
-  );
-}
-
-function statusLabel(status) {
-  return (
-    {
-      empty: "暂无版本",
-      normal: "普通更新",
-      prompt: "提示更新",
-      forced: "强制更新",
-      stopped: "暂停更新",
-    }[status] ?? status
-  );
 }

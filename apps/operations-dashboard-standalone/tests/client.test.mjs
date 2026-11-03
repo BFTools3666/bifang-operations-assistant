@@ -7,6 +7,10 @@ const source = await readFile(
   new URL("../public/app.js", import.meta.url),
   "utf8",
 );
+const html = await readFile(
+  new URL("../public/index.html", import.meta.url),
+  "utf8",
+);
 
 function client(search, appIds, labels) {
   const nodes = new Map();
@@ -64,7 +68,22 @@ function client(search, appIds, labels) {
         trend: [],
         versions: [],
         releaseStreams: [],
-        alerts: [],
+        alerts: [
+          {
+            id: "data-freshness",
+            tone: "success",
+            title: "统计正常",
+            detail: "",
+            time: "今天",
+          },
+          {
+            id: "update-state",
+            tone: "warning",
+            title: "旧发布流暂无版本",
+            detail: "",
+            time: "今天",
+          },
+        ],
       });
     },
   });
@@ -100,6 +119,9 @@ test("registered URL selections restore after runtime identity discovery and nam
   assert.equal(select.options.length, 2);
   assert.equal(select.options[1].textContent, labels[appId]);
   assert.match(page.nodes.get("hero-note").textContent, /更新后的正式名称/);
+  assert.doesNotMatch(html, /发布流状态|release-rows/);
+  assert.equal(page.nodes.has("release-rows"), false);
+  assert.equal(page.nodes.get("alerts-list").children.length, 1);
 });
 
 test("unregistered URL candidates never become requests or filter options", async () => {

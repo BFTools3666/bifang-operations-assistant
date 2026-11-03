@@ -63,14 +63,7 @@ import {
   type DashboardSnapshot,
   type DistributionItem,
   type RangeDays,
-  type ReleaseStreamSummary,
 } from '@/lib/dashboard-data';
-
-const platformNames = {
-  windows: 'Windows',
-  macos: 'macOS',
-  linux: 'Linux',
-} as const;
 
 export function DashboardShell() {
   const [app, setApp] = useState<AppFilter>('all');
@@ -479,7 +472,7 @@ export function DashboardShell() {
                 <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,0.72fr)]">
                   <TrendPanel snapshot={snapshot} chart={chart} />
                   <AttentionPanel
-                    alerts={snapshot.alerts}
+                    alerts={snapshot.alerts.filter((alert) => alert.id !== 'update-state')}
                     onSelect={setSelectedAlert}
                   />
                 </div>
@@ -502,80 +495,6 @@ export function DashboardShell() {
                   platforms={snapshot.platforms}
                   architectures={snapshot.architectures}
                 />
-              </section>
-
-              <section
-                id="services"
-                className="panel-card mt-4 scroll-mt-24 overflow-hidden"
-              >
-                <div className="flex flex-col gap-3 border-b border-border/70 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                  <div>
-                    <h2 className="text-base font-semibold tracking-[-0.015em]">
-                      更新发布雷达
-                    </h2>
-                    <p className="mt-1 text-[13px] text-muted-foreground">
-                      从应用隔离的版本集合读取每个 code 的最高版本
-                    </p>
-                  </div>
-                  <Badge
-                    className="w-fit border-[#d8e3df] bg-[#eef4f2] text-[#536762]"
-                    variant="outline"
-                  >
-                    {snapshot.releaseStreams.length} 个发布流
-                  </Badge>
-                </div>
-
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-[#f7f9f8] hover:bg-[#f7f9f8]">
-                      <TableHead className="h-11 pl-5 text-xs text-muted-foreground sm:pl-6">
-                        应用
-                      </TableHead>
-                      <TableHead className="text-xs text-muted-foreground">
-                        发布流 code
-                      </TableHead>
-                      <TableHead className="text-xs text-muted-foreground">
-                        平台 / 架构
-                      </TableHead>
-                      <TableHead className="text-xs text-muted-foreground">
-                        渠道
-                      </TableHead>
-                      <TableHead className="text-xs text-muted-foreground">
-                        最高版本
-                      </TableHead>
-                      <TableHead className="pr-5 text-right text-xs text-muted-foreground sm:pr-6">
-                        状态
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {snapshot.releaseStreams.map((item) => (
-                      <TableRow key={item.code}>
-                        <TableCell className="py-4 pl-5 font-medium sm:pl-6">
-                          {snapshot.appLabels[item.appId]}
-                        </TableCell>
-                        <TableCell className="max-w-[260px] break-all py-4 font-mono text-xs text-muted-foreground">
-                          {item.code}
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground">
-                          {platformNames[item.platform]} / {item.architecture}
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground">
-                          {item.channel}
-                        </TableCell>
-                        <TableCell className="py-4 font-mono text-xs tabular-nums text-muted-foreground">
-                          {item.highestVersion ?? '—'}
-                        </TableCell>
-                        <TableCell className="py-4 pr-5 text-right sm:pr-6">
-                          <span className={releaseStatus(item).className}>
-                            <span className="size-1.5 rounded-full bg-current" />
-                            {releaseStatus(item).label}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               </section>
 
               <footer className="mt-6 flex flex-col gap-2 px-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
@@ -627,9 +546,6 @@ function SiteHeader({ snapshot }: { snapshot: DashboardSnapshot | null }) {
           </a>
           <a className="nav-pill" href="#versions">
             版本
-          </a>
-          <a className="nav-pill" href="#services">
-            服务状态
           </a>
         </nav>
         <div className="ml-auto flex items-center gap-2">
@@ -1059,25 +975,6 @@ function percentChange(
     label: `${value > 0 ? '+' : ''}${value.toFixed(1)}%`,
     trend: value > 0 ? 'up' : 'down',
   };
-}
-
-function releaseStatus(item: ReleaseStreamSummary): {
-  className: string;
-  label: string;
-} {
-  if (item.status === 'empty') {
-    return { className: 'release-empty', label: '暂无版本' };
-  }
-  if (item.status === 'stopped') {
-    return { className: 'release-stopped', label: '暂停更新' };
-  }
-  if (item.status === 'forced') {
-    return { className: 'release-forced', label: '强制更新' };
-  }
-  if (item.status === 'prompt') {
-    return { className: 'release-prompt', label: '提示更新' };
-  }
-  return { className: 'release-normal', label: '普通更新' };
 }
 
 function number(value: number): string {
