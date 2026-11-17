@@ -10,27 +10,235 @@
   "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "2.1.4",
+    "version": "2.1.5",
     "path": "skills/bifang-public-services-onboarding",
     "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
     "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"
   },
   "oneLineRequest": "https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入",
+  "firstGate": {
+    "id": "integration-scope-confirmation",
+    "enforcedBy": "skill-conversation-before-bootstrap",
+    "required": true,
+    "question": "请确认本次接入范围：仅更新、仅统计，还是更新和统计都接入？",
+    "options": ["仅更新", "仅统计", "更新和统计都接入"],
+    "requiresExplicitAnswer": true,
+    "onUnanswered": "stop-before-source-verification-install-scan-and-mutation"
+  },
+  "secondGate": {
+    "id": "authorization-center-configuration",
+    "enforcedBy": "skill-device-authorization-and-selected-config-read",
+    "required": true,
+    "dependsOn": "integration-scope-confirmation",
+    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第二门禁授权中心授权与配置获取",
+    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
+    "requiredEvidence": [
+      "valid-device-authorization",
+      "selected-configuration-read",
+      "downstream-config-validated",
+      "project-facts-and-defaults-resolved"
+    ],
+    "requiresBrowserApprovalWhenNeeded": true,
+    "requiresCustomerParameterForm": false,
+    "defaults": {
+      "project_id": "bifang_tools",
+      "localRegisteredClientId": "woskill",
+      "requestTimeoutSeconds": 10,
+      "scopesBySelection": {
+        "仅更新": "updater:config:read",
+        "仅统计": "cloudbase:config:read",
+        "更新和统计都接入": "cloudbase:config:read updater:config:read"
+      }
+    },
+    "onConfigurationFailure": "hold-second-gate-for-entire-selected-scope; preserve-valid-evidence-and-repair-failed-config",
+    "onUnselectedService": "not-applicable; do-not-expand-scope",
+    "scopePolicy": {
+      "authority": "token-response-scope",
+      "onMissingSelectedScope": "stop-affected-branch; reauthorize-if-needed",
+      "onExtraScope": "do-not-expand-integration-scope",
+      "refreshScope": "omit; preserve-actual-granted-set"
+    }
+  },
+  "thirdGate": {
+    "id": "client-integration-plan-readiness",
+    "enforcedBy": "skill-evidence-based-plan-review-and-explicit-customer-confirmation",
+    "required": true,
+    "dependsOn": "authorization-center-configuration",
+    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第三门禁客户端接入方案与请求明细确认",
+    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
+    "requiresCustomerParameterForm": false,
+    "requiresBlanketConfirmation": false,
+    "requiredEvidence": [
+      "rust-integration-points-mapped",
+      "runtime-behavior-and-defaults-resolved",
+      "scoped-change-list-prepared",
+      "local-and-online-validation-plan-prepared",
+      "external-dependencies-recorded",
+      "inline-selected-service-request-details",
+      "explicit-customer-confirmation-by-branch"
+    ],
+    "onUnknownBlockingFact": "hold-current-gate-for-entire-selected-scope; clarify-only-unresolved-facts",
+    "onKnownOnlineDependency": "record-separately; allow-local-work-only-after-prerequisite-gates-pass-and-authorization-exists",
+    "onPartialReadiness": "hold-entire-selected-scope-at-current-gate-until-all-selected-services-pass",
+    "onUnselectedService": "not-applicable; preserve-existing-behavior",
+    "completionMeaning": "plan-ready-and-customer-confirmed; not-implementation-or-live-validation-complete",
+    "requiresExplicitCustomerConfirmation": true,
+    "confirmationPresentation": "inline-complete-selected-service-request-details; linked-record-only-supplementary; credentials-hidden",
+    "onUnconfirmed": "stop-before-dependent-implementation; scope-selection-and-browser-approval-do-not-count"
+  },
+  "fourthGate": {
+    "id": "client-local-implementation-acceptance",
+    "enforcedBy": "skill-scoped-implementation-and-host-verification",
+    "required": true,
+    "dependsOn": "client-integration-plan-readiness",
+    "entryCondition": "all-selected-services-second-and-third-gates-passed-with-explicit-customer-confirmation; local-implementation-authorized",
+    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第四门禁客户端本地实施与验收",
+    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
+    "requiresCustomerParameterForm": false,
+    "requiresBlanketConfirmation": false,
+    "requiredEvidence": [
+      "applicable-ui-preview-and-customer-confirmation-or-not-applicable-evidence",
+      "target-architecture-and-coding-conventions-applied",
+      "actual-scoped-changes",
+      "host-request-and-state-evidence",
+      "executed-local-checks-and-results",
+      "implemented-capabilities-and-platform-limits",
+      "unverified-items-and-online-dependencies"
+    ],
+    "localTestPolicy": "fake-credentials; injected-transport; fixed-clock; temporary-state; no-live-business-requests",
+    "onLocalFailure": "repair-and-reverify-within-authorized-scope; do-not-reduce-selected-services-or-promised-capabilities",
+    "onPartialAcceptance": "record-branch-results-independently; combined-pass-requires-both-branches-and-isolation-evidence",
+    "onUnselectedService": "not-applicable; preserve-existing-behavior",
+    "completionMeaning": "local-implementation-accepted; not-live-service-gui-installation-or-release-complete",
+    "requiresSeparateExplicitAuthorization": [
+      "run-live-update-check-or-download",
+      "run-live-telemetry-or-dashboard-verification",
+      "modify-operations-registration-or-update-backend",
+      "build-or-install-client",
+      "sign-client-artifacts",
+      "run-native-gui-or-install-e2e",
+      "deploy-cloudbase",
+      "publish-or-push",
+      "delete-or-retire-cloud-resources"
+    ],
+    "uiReview": {
+      "requiredBeforeCodingWhen": "updates-selected-or-visible-telemetry-ui-changes",
+      "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#先展示并确认-ui再编码",
+      "requiredEvidence": [
+        "current-project-style-evidence",
+        "visible-selected-service-ui-previews",
+        "actual-trigger-and-display-locations",
+        "explicit-customer-ui-confirmation"
+      ],
+      "onUnconfirmed": "stop-all-selected-business-implementation; design-preview-only",
+      "onTelemetryOnlyWithoutVisibleChanges": "not-applicable; proceed-with-existing-local-implementation-authorization",
+      "onConfirmed": "implement-and-test-within-existing-authorization; no-repeat-start-coding-question",
+      "onThirdGateConfirmation": "does-not-replace-ui-confirmation"
+    },
+    "architectureBeforeCoding": {
+      "required": true,
+      "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#编码前学习当前项目架构与编码规范",
+      "requiresCustomerConfirmation": false,
+      "requiredEvidence": [
+        "applicable-project-instructions-and-conventions",
+        "actual-module-boundaries-and-call-chain",
+        "existing-patterns-and-reuse-map",
+        "local-verification-commands-and-baseline"
+      ],
+      "implementationPolicy": "preserve-target-architecture-and-stack; follow-existing-module-and-coding-conventions; no-unrelated-refactor",
+      "onUnresolvedConflict": "investigate-evidence; stop-only-dependent-changes-and-clarify-concrete-conflict"
+    }
+  },
   "initialAuthorization": {
+    "condition": "firstGate confirmed for discovery; secondGate requires valid authorization and selected configuration; thirdGate requires inline request details and explicit customer confirmation of a ready plan before authorized implementation; fourthGate completes scoped local implementation and acceptance only",
     "allows": [
       "fetch-authoritative-repository",
       "install-or-update-onboarding-skill",
       "read-only-stage-0-project-scan",
+      "read-selected-configuration-via-device-authorization",
+      "prepare-selected-service-integration-plan",
+      "implement-selected-rust-service-integration",
       "write-or-migrate-non-sensitive-profile",
       "replace-legacy-update-protocol-in-target-client",
       "remove-legacy-update-protocol-from-target-client",
-      "run-local-static-and-unit-verification"
+      "run-local-static-and-unit-verification",
+      "run-local-host-integration-verification"
     ],
     "requiresSeparateExplicitAuthorization": [
       "build-or-install-client",
       "deploy-cloudbase",
       "publish-or-push",
-      "delete-or-retire-cloud-resources"
+      "delete-or-retire-cloud-resources",
+      "run-live-update-check-or-download",
+      "run-live-telemetry-or-dashboard-verification",
+      "modify-operations-registration-or-update-backend",
+      "sign-client-artifacts",
+      "run-native-gui-or-install-e2e"
     ]
+  },
+  "gateProgression": {
+    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#门禁顺序与放行总表",
+    "order": [
+      "integration-scope-confirmation",
+      "authorization-center-configuration",
+      "client-integration-plan-readiness",
+      "client-local-implementation-acceptance"
+    ],
+    "requiresAllSelectedServicesToPass": true,
+    "allowsPartialBranchAdvance": false,
+    "onMissingOrUnconfirmedEvidence": "hold-current-gate; no-next-gate-actions",
+    "onResume": "verify-evidence; resume-earliest-unpassed-gate",
+    "onScopeChange": "return-to-first-gate; revalidate-downstream-applicability",
+    "fourthGateOrder": [
+      "ui-review",
+      "architecture-review",
+      "implementation",
+      "local-acceptance"
+    ],
+    "uiNotApplicableOnlyWhen": "telemetry-only-without-visible-ui-changes; record-reason",
+    "enforcement": "skill-workflow-and-contract-declaration; not-runtime-enforcement"
+  },
+  "postLocalAcceptance": {
+    "dependsOn": "client-local-implementation-acceptance",
+    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#本地通过后更新中心配置与-exe-真实测试",
+    "order": [
+      "prompt-customer-manual-update-configuration",
+      "wait-for-customer-completion",
+      "simple-client-update-api-preflight",
+      "preflight-pass-and-exe-test-authorization",
+      "build-and-run-real-exe",
+      "real-acceptance-evidence"
+    ],
+    "requiresCustomerConfigurationHandoff": true,
+    "updateCenterAppliesWhen": "updates-selected",
+    "telemetryOnly": "skip-update-center; verify-telemetry-service-readiness",
+    "combinedScope": "update-preflight-and-existing-selected-service-prerequisites-before-exe-test",
+    "onUnknownAdminUrl": "mark-pending; do-not-derive-admin-url-from-api",
+    "onNotReady": "hold-dependent-real-test; no-mock-completion",
+    "testAuthorization": "reuse-explicit-same-target-authorization; otherwise-confirm-concrete-build-run-live-request-plan",
+    "requiredEvidence": [
+      "actual-artifact-path-version-architecture-and-sha256",
+      "actual-process-and-window",
+      "selected-service-live-request-and-behavior-results",
+      "per-scenario-pass-fail-or-unverified",
+      "installation-evidence-only-if-actually-authorized-and-executed"
+    ],
+    "configurationOwner": "customer-manual; no-skill-admin-operation-or-audit",
+    "preflight": {
+      "appliesWhen": "updates-selected",
+      "trigger": "customer-reports-completion-after-preflight-purpose-and-targets-disclosed",
+      "protocol": "POST-client-update-check; expect-201-and-valid-contract-matching-intended-scenario",
+      "defaultRequestLimit": "one-request-per-confirmed-test-target; no-automatic-enumeration-or-unbounded-retries",
+      "onFailure": "hold-step-5; customer-corrects-and-reports-again-before-recheck",
+      "onPass": "eligible-for-step-6-only-with-exe-test-authorization",
+      "excludes": [
+        "admin-api-or-ui-audit",
+        "backend-configuration-mutation",
+        "artifact-download-or-installation",
+        "exe-build-or-run",
+        "daily-active-write"
+      ],
+      "evidenceMeaning": "limited-live-update-api-preflight; not-exe-gui-installation-or-telemetry-acceptance"
+    }
   }
 }

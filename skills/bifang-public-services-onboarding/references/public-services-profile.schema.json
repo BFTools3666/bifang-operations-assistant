@@ -341,10 +341,21 @@
       "required": ["os", "architecture", "installation_type", "channel"],
       "properties": {
         "os": { "enum": ["windows", "macos", "ubuntu", "debian"] },
-        "architecture": { "enum": ["x86_64", "arm64"] },
+        "architecture": { "enum": ["x86", "x86_64", "arm64"] },
         "installation_type": { "enum": ["installed", "portable"] },
         "channel": { "enum": ["stable", "beta"] }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "os": { "enum": ["macos", "ubuntu", "debian"] } },
+            "required": ["os"]
+          },
+          "then": {
+            "properties": { "architecture": { "enum": ["x86_64", "arm64"] } }
+          }
+        }
+      ]
     },
     "releaseStream": {
       "type": "object",

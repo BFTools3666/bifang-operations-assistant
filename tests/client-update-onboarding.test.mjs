@@ -86,6 +86,55 @@ test("new onboarding rejects old transport, unsupported targets and sensitive da
     assert.notEqual(result.status, 0, JSON.stringify(change));
   }
 });
+
+test("Windows x86 profiles map to telemetry ia32 and derive the real update target", async (t) => {
+  const profile = {
+    ...fixture,
+    platforms: ["windows"],
+    architectures: ["ia32"],
+    update_targets: [{ ...fixture.update_targets[0], architecture: "x86" }],
+  };
+  const { result, path } = await check(t, profile);
+  assert.equal(result.status, 0, result.stderr);
+  const derived = spawnSync(python, ["-B", derive, "--profile", path], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(derived.status, 0, derived.stderr);
+  assert.equal(
+    JSON.parse(derived.stdout).update_targets[0].architecture,
+    "x86",
+  );
+  const undeclared = await check(t, { ...profile, architectures: ["x64"] });
+  assert.notEqual(undeclared.result.status, 0);
+  assert.match(undeclared.result.stderr, /architecture is not declared/);
+  // Complete-profile coverage must map x86 back to ia32 as well. Other missing
+  // completion facts are intentionally absent in this draft fixture.
+  const completedDraft = await check(t, {
+    ...profile,
+    deployment_gates: { profile_complete: true },
+  });
+  assert.notEqual(completedDraft.result.status, 0);
+  assert.doesNotMatch(
+    completedDraft.result.stderr,
+    /no confirmed target for architecture/,
+  );
+});
+
+test("x86 update targets are rejected for every non-Windows supported OS", async (t) => {
+  for (const os of ["macos", "ubuntu", "debian"]) {
+    const { result } = await check(t, {
+      ...fixture,
+      platforms: [os === "macos" ? "macos" : "linux"],
+      architectures: ["ia32"],
+      update_targets: [
+        { ...fixture.update_targets[0], os, architecture: "x86" },
+      ],
+    });
+    assert.notEqual(result.status, 0, os);
+    assert.match(result.stderr, /x86 is supported only on windows/);
+  }
+});
 test("loopback profile derives the actual local endpoint but cannot certify production", async (t) => {
   for (const url of ["http://127.0.0.1:8080", "http://127.0.0.1:8080/"]) {
     const { result, path } = await check(t, {

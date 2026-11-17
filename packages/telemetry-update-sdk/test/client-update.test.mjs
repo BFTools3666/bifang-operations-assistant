@@ -1,10 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
+import * as sdk from "../dist/index.js";
 import {
   ClientUpdateService,
   isSameInstallTarget,
   parseClientUpdateSnapshot,
 } from "../dist/index.js";
+
+test("built SDK exposes only the current update protocol and removes retired output", async () => {
+  assert.equal(typeof sdk.TelemetryClient, "function");
+  assert.equal(typeof sdk.ClientUpdateService, "function");
+  assert.equal("ApplicationVersionChecker" in sdk, false);
+  assert.equal("DEFAULT_APPLICATION_VERSION_TIMEOUT_MS" in sdk, false);
+  const output = await readdir(new URL("../dist/", import.meta.url));
+  assert.equal(
+    output.some((name) => name.startsWith("update-checker.")),
+    false,
+  );
+});
 
 const request = {
   current_version: "1.0.0",

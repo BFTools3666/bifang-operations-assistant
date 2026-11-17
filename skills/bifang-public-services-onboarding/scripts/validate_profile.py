@@ -243,8 +243,8 @@ def _validate_update_center_semantics(profile: dict[str, Any], errors: list[str]
         except ValueError as error:
             errors.append(f"$.display_name: {error}")
     app_id = profile.get("app_id")
-    if isinstance(app_id, str) and not re.fullmatch(r"[a-z][a-z0-9-]{2,49}", app_id):
-        errors.append("$.app_id: update center requires a lowercase letter followed by 2-49 lowercase letters, digits or hyphens")
+    if isinstance(app_id, str) and not re.fullmatch(r"[a-z][a-z0-9-]{1,48}[a-z0-9]", app_id):
+        errors.append("$.app_id: joint onboarding requires 3-50 lowercase letters, digits or hyphens, starting with a letter and ending with a letter or digit")
     parsed = {}
     for field in ("cloudbase_origin", "telemetry_endpoint"):
         value = profile.get(field)
@@ -277,7 +277,11 @@ def _validate_update_center_semantics(profile: dict[str, Any], errors: list[str]
                 errors.append(f"$.update_targets[{index}]: duplicate target")
             seen.add(key)
             host_platform = "linux" if target.get("os") in ("ubuntu", "debian") else target.get("os")
-            host_arch = "x64" if target.get("architecture") == "x86_64" else target.get("architecture")
+            # Mirror updateTarget.allOf: the small schema walker handles only
+            # structural rules; cross-field target constraints are checked here.
+            if target.get("architecture") == "x86" and target.get("os") != "windows":
+                errors.append(f"$.update_targets[{index}].architecture: x86 is supported only on windows")
+            host_arch = {"x86_64": "x64", "x86": "ia32"}.get(target.get("architecture"), target.get("architecture"))
             if isinstance(profile.get("platforms"), list) and host_platform not in profile["platforms"]:
                 errors.append(f"$.update_targets[{index}].os: platform is not declared")
             if isinstance(profile.get("architectures"), list) and host_arch not in profile["architectures"]:
@@ -307,7 +311,7 @@ def _validate_update_center_semantics(profile: dict[str, Any], errors: list[str]
         if isinstance(targets, list):
             actual_targets = [t for t in targets if isinstance(t, dict) and isinstance(t.get("os"), str) and isinstance(t.get("architecture"), str)]
             mapped_platforms = {"linux" if t.get("os") in ("ubuntu", "debian") else t.get("os") for t in actual_targets}
-            mapped_architectures = {"x64" if t.get("architecture") == "x86_64" else t.get("architecture") for t in actual_targets}
+            mapped_architectures = {{"x86_64": "x64", "x86": "ia32"}.get(t.get("architecture"), t.get("architecture")) for t in actual_targets}
             for platform in profile.get("platforms", []) if isinstance(profile.get("platforms"), list) else []:
                 if platform not in mapped_platforms:
                     errors.append(f"$.update_targets: no confirmed target for platform {platform!r}")

@@ -1,10 +1,12 @@
 # 应用版本 API v1 契约、迁移状态与可行性报告
 
+> 历史服务范围：本文记录 application-version API v1 当时的实现与验收口径，不是新客户端更新合同。当前 Skill 使用客户端更新中心 POST；字段级规范见 [Updater 合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)，CloudBase 日活及授权中心配置合同见 [统一接入规范](../skills/bifang-public-services-onboarding/references/integration-contract.md)。旧 GET 的 code、x-app-key、x-app-secret 不得带入新更新检查或日活请求。
+
 ## 结论
 
 **可行；运营精灵服务端已按参考公司的契约完成本地实现和 localhost HTTP E2E。**当前没有参考公司的原始 EXE，因此不能把“第三方程序只改域名即可接入”声称为已验证事实。本项目改用鼠标精灵与录屏助手作为两个真实客户端：它们从未公开的静态更新实现直接迁移到新 API，再以新构建制品完成真实 E2E。
 
-本文件冻结的是**已经在仓库中实现的目标契约**，但不是已部署或真实客户端已验收的事实。实现位于 `cloudbase/functions/application-version-api/`，部署模板与只读计划也已生成。基础设施 3.0、SDK、接入 Skill、文档和两个未公开客户端全部直接演进到这一套契约；旧静态更新协议、清单、fallback 和双轨设计全部删除。`daily_active` 遥测是独立协议，继续保留。
+本文件冻结的是**历史 application-version 服务已在仓库中实现的契约**，本报告本身不证明当前部署或客户端验收状态。实现位于 `cloudbase/functions/application-version-api/`；保留既有运营服务不意味着新 Skill 或 Rust 客户端继续接入该 GET 协议。新接入使用客户端更新中心，迁移要求旧静态更新协议、清单、fallback 和双轨设计全部删除；`daily_active` 遥测作为独立协议继续保留。
 
 机器可执行定义见 [`../contracts/application-version-api-v1`](../contracts/application-version-api-v1)。参考源是《应用版本API》v1 的本地审阅快照，文件 SHA-256 为 `6721cd6fe03db65847b7d64d8bd65c102c67b0a3563ef8803475a3ce5ebda8c7`。参考文档中出现过凭据示例，本仓库不复制、不接受也不验证该值。
 

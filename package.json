@@ -28,9 +28,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "typecheck:examples": "npm run build --workspace @bifang/telemetry-update-sdk && tsc -p examples/tsconfig.json --noEmit",
-    "test": "npm run test:workspaces && node --test tests/*.test.mjs && npm run test:python-client",
+    "test": "npm run test:workspaces && node --test tests/*.test.mjs",
     "test:workspaces": "npm run test --workspaces --if-present",
-    "test:python-client": "python -m unittest discover -s tools/python-sdk-test-client/tests -p \"test_*.py\" -v",
     "format": "prettier --write \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,cjs,json,md}\" --ignore-unknown",
     "check": "npm run cloudbase:config:check && npm run cloudbase:labels:check && npm run format:check && npm run typecheck && npm test && npm run build && npm run typecheck:examples"

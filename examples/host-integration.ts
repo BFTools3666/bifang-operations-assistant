@@ -1,5 +1,8 @@
 /**
- * Framework-neutral integration fragment. The host supplies AppConfig storage,
+ * TypeScript protocol reference for existing Node/Electron hosts, not a Rust
+ * runtime dependency. Rust hosts obtain service addresses and credentials from
+ * the agreed configuration API; that API contract is not implemented here.
+ * The host supplies AppConfig storage,
  * UI callbacks, external-URL opening, and process exit behavior.
  * Startup order:
  *   const services = await initializePublicServices(options);

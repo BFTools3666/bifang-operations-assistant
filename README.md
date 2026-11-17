@@ -1,5 +1,19 @@
 # 毕方运营精灵基础设施 3.0
 
+本仓库正在整理为以 **Rust 客户端接入 Skill** 为主的维护入口。CloudBase 和 Updater 配置通过授权中心设备授权后读取，合同已按 2026-11-17 提供的文档明确；APP_ID、版本和实际目标自动从项目取得。[统一接入规范](skills/bifang-public-services-onboarding/references/integration-contract.md) 定义 OAuth、精确响应、默认值、日活与验收；[Updater 完整合同](skills/bifang-public-services-onboarding/references/client-update-center.md) 定义下游 OpenAPI 1.4.1。客户不手填整张配置表，CloudBase 管理密钥不分发到业务客户端。本规范不表示 Rust 获取代码或真实授权验证已完成。
+
+Skill 定义如何接入；仅要求整理规范时不写业务接入代码。现有 TypeScript SDK 与宿主示例尚未完整对齐 1.4.1，不能作为新 Rust 接入的字段权威；具体差异记录在 Updater 合同中。
+
+当前代码按用途阅读：
+
+| 用途                | 入口                                                                                    | 维护边界                                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 新客户端接入        | `skills/bifang-public-services-onboarding/`                                             | Rust 可信层承担配置获取、遥测和更新；详见 [框架适配](skills/bifang-public-services-onboarding/references/framework-adapters.md) |
+| 现行协议参考与测试  | `packages/telemetry-update-sdk/`、`examples/host-integration.ts`                        | TypeScript 参考实现只保留 daily_active 与更新中心 POST；不是 Rust 运行依赖                                                      |
+| 现有 CloudBase 运维 | `cloudbase/`、`apps/operations-dashboard/`                                              | 保留统计、登记、看板及其部署工具                                                                                                |
+| 历史服务维护        | `contracts/application-version-api-v1/`、`cloudbase/functions/application-version-api/` | 保留既有服务合同与服务端源码，不进入新客户端接入链路                                                                            |
+| 迁移状态与历史证据  | [迁移进度](docs/client-update-center-migration.md)、`docs/*-2026*.md/json`              | 回执记录当时事实，不是新接入默认配置                                                                                            |
+
 > 新客户端接入使用 `https://update.meetelf.com` 的 POST 协议，与旧 application-version API 不兼容。SDK 仅提供检测与目标对照；下载、校验、安装和强更生命周期仍由宿主实现。服务部署与真实客户端验证状态见 [迁移进度与接入边界](docs/client-update-center-migration.md)。
 
 这是毕方小工具共用的运营基础设施：保留低频 `daily_active` 启动遥测，新客户端更新使用客户端更新中心。现有 application-version 版本与广告服务继续按历史运营事实管理；迁移单个客户端不代表线上旧资源可删除。旧静态更新清单协议已经退出 3.0 设计。
@@ -21,11 +35,27 @@
 https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 ```
 
-根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitHub 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 在当前客户端内迁移非敏感 Profile、确认中文 `display_name` 并生成名称交接、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。阶段 2 在运营精灵中同步登记中文名，阶段 3 检查全部名称覆盖，阶段 4 实际核对线上显示；本地名称登记和生产生效分别记录门禁，不能互相替代。
+**第一个硬门禁是确认接入范围：仅更新、仅统计，还是更新和统计都接入。** 向导必须先问并等待明确回答；只提一项时询问是否也接另一项，同时提两项也先确认。不默认全接，不在等待时安装、扫描、收集接口参数或修改项目；已有本次门禁答案不重复问。下列流程按确认范围执行，未选择服务保持原状。选择记录在交接报告；机器入口的 `firstGate` 声明由 Skill 对话在调用 bootstrap 前落实，bootstrap 本身不代替用户回答。
 
-新接入必须以 `--require-update-center` 验证 Profile，详细请求、强更和安装规则见 [客户端更新中心接入合同](skills/bifang-public-services-onboarding/references/client-update-center.md)。这句话不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送或购买。上述外部或扩大范围的动作仍按门禁单独执行。
+根 [`bifang-onboarding.json`](bifang-onboarding.json) 冻结规范 URL、版本和授权边界，[`tools/bootstrap_bifang_onboarding.py`](tools/bootstrap_bifang_onboarding.py) 只接受全仓干净且 HEAD 精确等于 GitHub 默认分支实时 advertised HEAD 的权威 checkout，并验证基础设施来源提交。它从原客户端 cwd 绑定当前 Git 根，先只读扫描，以分支、HEAD、index、Git 状态和内容摘要证明客户端未变，再隔离外部校验钩子安装/更新接入 Skill。客户端可以是 `CODEX_HOME/worktrees/` 下的 Codex worktree，但不得与实际 Skill 安装目录重叠。随后 Skill 先整理事实并通过所选服务的第二、第三门禁，再进入第四门禁，在当前客户端内迁移非敏感 Profile、确认中文 `display_name` 并生成名称交接、保留 telemetry、替换并删除旧静态更新实现、运行本地验证。阶段 2 在运营精灵中同步登记中文名，阶段 3 检查全部名称覆盖，阶段 4 实际核对线上显示；本地名称登记和生产生效分别记录门禁，不能互相替代。
+
+选择更新时使用 `--require-update-center` 验证适用的 Profile，详细请求、强更和安装规则见 [客户端更新中心接入合同](skills/bifang-public-services-onboarding/references/client-update-center.md)。仅统计不填更新字段、不删除旧更新；仅更新不要求新增统计。现有 Profile 的联合完成校验不能作为扩大范围的理由，单服务限制与记录方式见 Skill。这句话不授权 CloudBase 写入或删除、客户端打包/安装、真实 GUI E2E、发布、推送或购买。
+
+## 本地通过后的下一步
+
+第 5 步只提示客户到更新中心自行手动配置，并交付已有项目参数；不代操作或审核管理后台。提示中说明客户告知完成后会做限定的简单更新接口预检：真实地址与 ClientToken、HTTP 201、响应合同、目标版本/平台/通道及预期更新行为；不下载、安装或运行 EXE。预检失败由客户调整后再告知重检，通过后才进入第 6 步，按具体授权构建/运行 EXE 并进行真实验收。仅统计跳过更新中心及更新预检；都接入先过更新预检，统计真实上报留 EXE 测试。详见 [配置与 EXE 验收](skills/bifang-public-services-onboarding/references/integration-contract.md#本地通过后更新中心配置与-exe-真实测试)。
 
 ## 权威入口
+
+门禁必须按本次已选范围严格串行：1 范围确认 → 2 授权/配置验证 → 3 完整请求明细确认 → 4A UI 确认 → 4B 架构/规范核验 → 4C 编码 → 4D 本地验收。前一步未通过，不进入下一步；两项都接入须当前门禁两项全部通过，不能让成功分支先跨门禁。仅统计无可见 UI 变更只豁免 4A 的人工确认并记录依据，其他检查点不省略。每次转入下一步先核验证据；缺项/未回复/过期不算通过，复用有效证据不重复问。门禁状态写脱敏交接记录，不添加 Profile 字段；旧运维阶段或脚本成功不能代替此链。详见 [门禁信息与放行总表](skills/bifang-public-services-onboarding/references/integration-contract.md#门禁顺序与放行总表)。
+
+实施前通过 **第二门禁：授权中心授权与配置获取**。按 [三种范围的取配置流程](skills/bifang-public-services-onboarding/references/integration-contract.md#第二门禁授权中心授权与配置获取) 完成/复用设备授权，只读取所选配置。project_id 默认 bifang_tools，项目参数自动识别、有依据的默认值直接采用，在第二门禁客户只参与必要的浏览器登录批准，不手填技术表；第三门禁仍须确认自动填好的请求明细。真实生产授权地址/登记与 Endpoint 下游语义仍需自动核验，无法确定才报告准确缺项。`secondGate` 由 Skill 授权及读取流程执行，不是 bootstrap 自动验证；不因取得密钥自动获得部署或真实业务 E2E 权限。
+
+配置读取必须实际获授对应资源权限：仅更新使用 `updater:config:read`，仅统计使用 `cloudbase:config:read`，都接入申请两项并以单个 ASCII 空格连接。以 token 响应的实际 scope 为准；缺权停止该分支，额外权限不扩大接入范围。旧 `ip:read` 不能读配置；刷新默认省略 scope 并延续实际获授集合，`403 insufficient_scope` 需要重新设备授权，不能靠刷新补权限。
+
+配置验证后通过 **第三门禁：客户端接入方案与请求明细确认**。按 [分支清单](skills/bifang-public-services-onboarding/references/integration-contract.md#第三门禁客户端接入方案与请求明细确认) 自动落实 Rust 接入点、字段来源、默认行为、迁移清单和验收计划；仅更新不改统计，仅统计不改更新，联合接入另核验共享事实与相互隔离。自动填好所选服务的接入确认单，在回复正文完整展示实际请求 URL、方法、请求头、路径/query/body 字段、必填性、非敏感实际值或动态生成规则、来源/默认值、待补项及实施验收计划；两项均选则分别完整展示。不能只给记录链接，未实施不能称已接入。凭据只展示状态和用途，不回显原值或摘要。技术就绪后必须等待客户明确确认明细；第一门禁选择或浏览器批准不代替此次确认。询问“确认并进入第四门禁／仅确认方案暂不实施／需要调整”，客户可直接授权第四门禁，不必输入阶段编号。已有只读限制不能被简单“确认”解除；未知关键项继续阻断。记录分支确认与实施授权，实质变更重新确认受影响项。方案就绪后只在原授权内实施，不能冒充代码、测试或线上验证完成；已知线上依赖单列，关键映射未知停止对应分支。
+
+随后在已有客户端实施授权内执行 **第四门禁：客户端本地实施与验收**。第四门禁先做 UI 方案与位置确认，再编码：选择更新时读取当前项目页面、组件和样式，展示普通更新提示、强制更新界面及手动检查入口的可见预览，列清启动/定时/手动/安装前触发点、实际显示位置、按钮/关闭行为和新业务限制范围。必须等待客户明确确认 UI；第三门禁确认不替代本次确认，等待时不写业务代码，都接入也不先实施统计。适用 UI 确认后，编码前必须先阅读目标项目及修改目录的 AGENTS.md、架构/编码约定、真实模块调用链和同类实现，明确复用组件、HTTP/配置/状态/错误/日志/异步机制及验证命令；简短报告有代码依据的落实摘要后直接编码，不新增确认门禁。保持现有架构和前端栈，Rust 实现可信服务职责，遵守目录、依赖方向、命名及测试规则，不套服务端模板或重构无关代码。UI 确认与架构核验完成后按已有授权编码和本地验收，不再问是否开始。仅统计默认无打扰，没有可见 UI 变更则记 UI 确认不适用；若改应用内隐私界面则先预览确认。复用现有风格，强更仅按有效 block_new_operations 限制新业务，保留已有任务和更新/重试/退出。详细步骤按 [三种范围的实施及验收清单](skills/bifang-public-services-onboarding/references/integration-contract.md#第四门禁客户端本地实施与验收) 自动修改、修复和本地测试。仅更新保持统计，仅统计保持更新，联合接入还须验证隔离与部分失败；不重复确认自动可完成项。测试使用假凭据和隔离状态，交付实际请求、行为与检查结果，只标本地通过。制品构建/安装、真实业务/GUI E2E、运营登记/部署/后台写入、发布/推送及线上删除继续按独立授权执行；门禁声明不代表 bootstrap 已实现或验收这些工作。
 
 本 Git 仓库是协议、Skill、脚本和可维护源码的唯一权威；分享文档不得反向覆盖。开发者和 AI 先读 [`AGENTS.md`](AGENTS.md)，再按顺序阅读：
 

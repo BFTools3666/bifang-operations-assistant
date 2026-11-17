@@ -22,11 +22,13 @@
 https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 ```
 
-它授权该客户端完成权威来源验证、Skill 安装、Profile v2、旧版本协议替换/删除和本地测试；不授权修改另一个客户端，也不授权云端部署/删除、打包安装、发布或推送。运营精灵仓库不能反向扫描和主动修改未知工具。
+它先触发范围第一门禁：询问并等待确认仅更新、仅统计或两者；未确认不执行来源验证、安装或扫描。随后仅授权所选服务的本地接入和测试；仅统计不替换/删除更新，仅更新不新增统计。不授权修改另一个客户端，也不授权云端部署/删除、打包安装、发布或推送。运营精灵仓库不能反向扫描和主动修改未知工具。
 
 ## APP_ID 与 telemetry
 
 APP_ID 全局唯一，长度 1–50，只含小写字母、数字和短横线，首尾必须是字母或数字。建议 `bifang-<product-key>`，但正式值需要负责人确认。
+
+以上是 CloudBase 资源登记约束。Updater 要求 `^[a-z][a-z0-9-]{2,63}$`；新应用两边共用同一 ID 时采用交集 `^[a-z][a-z0-9-]{1,48}[a-z0-9]$`（3～50）。已有标识不自动改名。架构也不能直接复用字符串：telemetry/Profile 的 x64、ia32 分别对应 Updater 的 x86_64、x86，后者仅用于 Windows；完整映射见 [新更新合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)。
 
 对 `app_id` 派生：
 

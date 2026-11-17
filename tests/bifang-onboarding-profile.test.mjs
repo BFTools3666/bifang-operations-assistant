@@ -343,23 +343,15 @@ async function withTempProfile(profile, run) {
 }
 
 const sdkRuntimeEntry = `export {
-  ApplicationVersionChecker,
-  buildApplicationVersionCheckUrl,
-  decideApplicationVersion,
-  isCanonicalApplicationVersionBaseUrl,
-  parseApplicationVersionData,
-  runApplicationVersionHostHooks
-} from "./application-version.js";\n`;
-const sdkDeclarationEntry = `export declare class ApplicationVersionChecker {}
-export declare function buildApplicationVersionCheckUrl(): string | null;
-export declare function decideApplicationVersion(): ApplicationVersionDecision;
-export declare function isCanonicalApplicationVersionBaseUrl(): boolean;
-export declare function parseApplicationVersionData(): ApplicationVersionData | null;
-export declare function runApplicationVersionHostHooks(): Promise<void>;
-export interface ApplicationVersionCheckerConfig { baseUrl: string; }
-export interface ApplicationVersionData { update: boolean; }
-export type ApplicationVersionDecision = { kind: "none" };
-export interface ApplicationVersionHostHooks {}\n`;
+  TelemetryClient, ClientUpdateService, parseClientUpdateSnapshot, isSameInstallTarget
+} from "./client-update.js";\n`;
+const sdkDeclarationEntry = `export declare class TelemetryClient {}
+export declare class ClientUpdateService {}
+export declare function parseClientUpdateSnapshot(): ClientUpdateSnapshot | null;
+export declare function isSameInstallTarget(): boolean;
+export interface ClientUpdateRequest { current_version: string; }
+export type ClientUpdateResult = { kind: "error" };
+export interface ClientUpdateSnapshot { id: string; }\n`;
 
 async function createSdkTarball(projectRoot, version = "3.0.0") {
   const relative = `vendor/bifang-telemetry-update-sdk-${version}.tgz`;

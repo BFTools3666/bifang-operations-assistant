@@ -310,7 +310,6 @@ test("active runtime and current operator surfaces cannot reintroduce the retire
     "cloudbase/plan-app-deployment.mjs",
     "examples",
     "packages/telemetry-update-sdk/src",
-    "tools/python-sdk-test-client",
   ];
   const tracked = await execFileAsync(
     "git",

@@ -2,7 +2,7 @@
 
 ## 1. 现行协议
 
-基础设施根版本为 `3.0.0`，接入 Skill 为 `2.1.4`。新客户端接入包含：
+基础设施根版本为 `3.0.0`，接入 Skill 为 `2.1.5`。第一个硬门禁必须确认仅更新、仅统计或两者，明确回答前不进入接入流程。以下两项按用户选择独立接入，不默认捆绑：
 
 1. 固定 `daily_active` 的低频启动遥测；
 2. 客户端更新中心 `https://update.meetelf.com` 的 POST 更新协议。
@@ -25,7 +25,7 @@
 - 当前工具 `app_id` 与 SemVer `app_version`
 - AppConfig 中持久化的匿名 UUID v4 `install_id`
 - `platform`、`arch`
-- 当前 SDK/适配器版本 `sdk_version`
+- 固定 `sdk_version = 3.0.0`，服务端等值校验，不使用 Rust crate/适配器版本
 - UTC RFC3339 `occurred_at`
 
 不采集账号、用户名、主机名、MAC、硬盘号、CPU 序列号、渠道、功能点击、任务内容或任意 `properties`。客户端不得发送 IP、`active_date` 或 `received_at`；来源 IP 和两个时间字段只由服务端可信上下文补充。
@@ -66,7 +66,9 @@ Content-Type: application/json
 
 ### 2.3 应用版本的来源与验证
 
-`app_version` 已是既有协议的必填字段，不另设版本上报接口。公共 SDK 将宿主 `appVersion` 写入此字段；原生适配器发送相同的十字段对象。版本来自当前实际运行制品的唯一发布配置或宿主版本 API，不能使用 SDK 版本、Profile 快照或写死的占位值。`sdk_version` 继续独立表示 SDK/适配器版本；应用恰好也为 `3.0.0` 合法。
+`app_version` 已是既有协议的必填字段，不另设版本上报接口。公共 SDK 将宿主 `appVersion` 写入此字段；原生适配器发送相同的十字段对象。版本来自当前实际运行制品的唯一发布配置或宿主版本 API，不能使用 SDK 版本、Profile 快照或写死的占位值。`sdk_version` 固定为 `3.0.0`，服务端进行等值校验，不能填 Rust crate/适配器的实际版本；应用恰好也为 `3.0.0` 合法。
+
+十字段类型、UUID v4、SemVer 长度、日期格式、4096 字节上限与错误响应见 [CloudBase 日活完整合同](../skills/bifang-public-services-onboarding/references/integration-contract.md#cloudbase-日活完整合同)。当前日活没有客户端 Bearer 或 x-app-key/x-app-secret；下面历史服务的认证头不得用于日活。服务端 active_date 取接收时间对应的北京时间日期，不由 occurred_at 决定。
 
 本地验收捕获宿主实际序列化请求，断言版本值与来源一致；更换测试版本来源后，在新的测试日期上报应随之变化。缺字段、空值或非法 SemVer 被拒绝，不自动补 `0.0.0`。即使当天升级了客户端，也不清除已领取的每日门禁；下一次正常的新日上报再反映新版本。不得为了即时显示版本新增事件、同日重报或绕过存储门禁。
 

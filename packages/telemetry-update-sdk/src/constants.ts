@@ -7,4 +7,3 @@ export const SUPPORTED_PLATFORMS = ["windows", "macos", "linux"] as const;
 export const SUPPORTED_ARCHITECTURES = ["x64", "arm64", "ia32"] as const;
 
 export const DEFAULT_TELEMETRY_TIMEOUT_MS = 2_000;
-export const DEFAULT_APPLICATION_VERSION_TIMEOUT_MS = 3_000;

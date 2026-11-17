@@ -17,12 +17,10 @@ const python = process.env.PYTHON || "python";
 const packageName = "@bifang/telemetry-update-sdk";
 const compatibleVersion = "3.0.0";
 const runtimeExports = [
-  "ApplicationVersionChecker",
-  "buildApplicationVersionCheckUrl",
-  "decideApplicationVersion",
-  "isCanonicalApplicationVersionBaseUrl",
-  "parseApplicationVersionData",
-  "runApplicationVersionHostHooks",
+  "TelemetryClient",
+  "ClientUpdateService",
+  "parseClientUpdateSnapshot",
+  "isSameInstallTarget",
 ];
 
 async function temporaryDirectory(t) {
@@ -47,15 +45,14 @@ function runPython(args) {
 }
 
 function runtimeSource(exports = runtimeExports, suffix = "") {
-  return `export { ${exports.join(", ")} } from "./application-version.js";\n${suffix}`;
+  return `export { ${exports.join(", ")} } from "./client-update.js";\n${suffix}`;
 }
 
 const declarationExports = [
   ...runtimeExports,
-  "ApplicationVersionCheckerConfig",
-  "ApplicationVersionData",
-  "ApplicationVersionDecision",
-  "ApplicationVersionHostHooks",
+  "ClientUpdateRequest",
+  "ClientUpdateResult",
+  "ClientUpdateSnapshot",
 ];
 
 function fakeExportText(names) {
@@ -74,16 +71,13 @@ function lexicalExportDecoy(kind, names) {
 
 function declarationSource({ omit = "", suffix = "" } = {}) {
   const declarations = [
-    "export declare class ApplicationVersionChecker {}",
-    "export declare function buildApplicationVersionCheckUrl(): string | null;",
-    "export declare function decideApplicationVersion(): ApplicationVersionDecision;",
-    "export declare function isCanonicalApplicationVersionBaseUrl(): boolean;",
-    "export declare function parseApplicationVersionData(): ApplicationVersionData | null;",
-    "export declare function runApplicationVersionHostHooks(): Promise<void>;",
-    "export interface ApplicationVersionCheckerConfig { baseUrl: string; }",
-    "export interface ApplicationVersionData { update: boolean; }",
-    'export type ApplicationVersionDecision = { kind: "none" };',
-    "export interface ApplicationVersionHostHooks {}",
+    "export declare class TelemetryClient {}",
+    "export declare class ClientUpdateService {}",
+    "export declare function parseClientUpdateSnapshot(): ClientUpdateSnapshot | null;",
+    "export declare function isSameInstallTarget(): boolean;",
+    "export interface ClientUpdateRequest { current_version: string; }",
+    'export type ClientUpdateResult = { kind: "error" };',
+    "export interface ClientUpdateSnapshot { id: string; }",
   ].filter((line) => omit === "" || !line.includes(omit));
   return `${declarations.join("\n")}\n${suffix}`;
 }
@@ -193,7 +187,7 @@ async function createTarball(sourceDirectory, outputPath) {
     .digest("hex");
 }
 
-test("repository-copy and workspace distributions require the SDK 3 application-version surface", async (t) => {
+test("repository-copy and workspace distributions require the SDK 3 client-update-center surface", async (t) => {
   const root = await temporaryDirectory(t);
 
   for (const kind of ["repository_copy", "workspace"]) {
@@ -216,7 +210,10 @@ test("repository-copy and workspace distributions require the SDK 3 application-
 
 test("new update-center onboarding rejects an old-only SDK and accepts the new public surface", async (t) => {
   const root = await temporaryDirectory(t);
-  const old = await createSdkDirectory(root, "vendor/old");
+  const old = await createSdkDirectory(root, "vendor/old", {
+    runtime: runtimeSource(["ApplicationVersionChecker"]),
+    declarations: fakeExportText(["ApplicationVersionChecker"]),
+  });
   let profile = await writeProfile(root, {
     kind: "workspace",
     source: "vendor/old",
@@ -281,22 +278,38 @@ test("directory distributions reject missing checker exports, missing declaratio
       label: "missing-runtime",
       options: {
         runtime: runtimeSource(
-          runtimeExports.filter(
-            (name) => name !== "parseApplicationVersionData",
-          ),
+          runtimeExports.filter((name) => name !== "parseClientUpdateSnapshot"),
         ),
       },
-      error: /missing application-version exports: parseApplicationVersionData/,
+      error: /missing client-update-center exports: parseClientUpdateSnapshot/,
     },
     {
       label: "missing-declaration",
       options: {
         declarations: declarationSource({
-          omit: "ApplicationVersionCheckerConfig",
+          omit: "ClientUpdateRequest",
         }),
       },
-      error:
-        /missing application-version declarations: ApplicationVersionCheckerConfig/,
+      error: /missing client-update-center declarations: ClientUpdateRequest/,
+    },
+    {
+      label: "mixed-application-version-api",
+      options: {
+        runtime: runtimeSource(
+          runtimeExports,
+          "export class ApplicationVersionChecker {}\n",
+        ),
+      },
+      error: /obsolete application-version API: ApplicationVersionChecker/,
+    },
+    {
+      label: "legacy-application-version-declaration",
+      options: {
+        declarations: declarationSource({
+          suffix: "export type ApplicationVersionFetch = () => void;\n",
+        }),
+      },
+      error: /obsolete application-version API: ApplicationVersionFetch/,
     },
     {
       label: "legacy-api",
@@ -348,7 +361,7 @@ test("comments, strings, templates and regex literals cannot fake public exports
     });
     const runtimeResult = verify(runtimeProfile, root);
     assert.equal(runtimeResult.status, 1, runtimeResult.stdout);
-    assert.match(runtimeResult.stderr, /missing application-version exports/);
+    assert.match(runtimeResult.stderr, /missing client-update-center exports/);
 
     const declarationRelative = `vendor/declaration-${kind}`;
     const declarationSdk = await createSdkDirectory(root, declarationRelative, {
@@ -363,7 +376,7 @@ test("comments, strings, templates and regex literals cannot fake public exports
     assert.equal(declarationResult.status, 1, declarationResult.stdout);
     assert.match(
       declarationResult.stderr,
-      /missing application-version declarations/,
+      /missing client-update-center declarations/,
     );
   }
 });
@@ -409,7 +422,7 @@ test("unresolved export-star surfaces fail closed", async (t) => {
   assert.match(result.stderr, /export-star or namespace export/);
 });
 
-test("versioned tarballs receive the same application-version public-contract checks", async (t) => {
+test("versioned tarballs receive the same client-update-center public-contract checks", async (t) => {
   const root = await temporaryDirectory(t);
 
   for (const [label, suffix, expectedStatus] of [

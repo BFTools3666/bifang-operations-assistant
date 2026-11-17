@@ -220,7 +220,7 @@ test("verified bootstrap preserves the current dirty Git client and then install
   assert.equal(output.source_verification_mode, "test-only-fixed-ref");
   assert.equal(output.infrastructure_version, "3.0.0");
   assert.equal(output.application_version_contract_version, "1.0.0");
-  assert.equal(output.skill.version, "2.1.4");
+  assert.equal(output.skill.version, "2.1.5");
   assert.equal(output.writes_to_target_project, false);
   assert.equal(output.target_git_unchanged, true);
   assert.ok(
@@ -258,13 +258,373 @@ test("verified bootstrap preserves the current dirty Git client and then install
     join(codexHome, "skills", skillName, "SKILL.md"),
     "utf8",
   );
-  assert.match(installed, /^  version: "2\.1\.4"$/m);
+  assert.match(installed, /^  version: "2\.1\.5"$/m);
 });
 
 test("bootstrap manifest freezes the exact request and authorization boundary", async () => {
   const manifest = JSON.parse(await readFile(sourceManifest, "utf8"));
   assert.equal(manifest.oneLineRequest, `${canonicalRepositoryUrl} 帮我接入`);
   assert.equal(manifest.updateTransport, "client-update-center-v1");
+  assert.equal(manifest.firstGate.id, "integration-scope-confirmation");
+  assert.equal(manifest.firstGate.required, true);
+  assert.equal(manifest.firstGate.requiresExplicitAnswer, true);
+  assert.equal(
+    manifest.firstGate.enforcedBy,
+    "skill-conversation-before-bootstrap",
+  );
+  assert.deepEqual(manifest.firstGate.options, [
+    "仅更新",
+    "仅统计",
+    "更新和统计都接入",
+  ]);
+  assert.equal(
+    manifest.firstGate.onUnanswered,
+    "stop-before-source-verification-install-scan-and-mutation",
+  );
+  assert.equal(
+    manifest.initialAuthorization.condition,
+    "firstGate confirmed for discovery; secondGate requires valid authorization and selected configuration; thirdGate requires inline request details and explicit customer confirmation of a ready plan before authorized implementation; fourthGate completes scoped local implementation and acceptance only",
+  );
+  const gateKeys = ["firstGate", "secondGate", "thirdGate", "fourthGate"];
+  const gateChain = gateKeys.map((key) => manifest[key]);
+  assert.deepEqual(
+    manifest.gateProgression.order,
+    gateChain.map((gate) => gate.id),
+  );
+  for (let i = 1; i < gateChain.length; i++) {
+    assert.equal(gateChain[i].dependsOn, gateChain[i - 1].id);
+    assert.equal(gateChain[i].required, true);
+  }
+  assert.equal(
+    manifest.gateProgression.requiresAllSelectedServicesToPass,
+    true,
+  );
+  assert.equal(manifest.gateProgression.allowsPartialBranchAdvance, false);
+  assert.equal(
+    manifest.gateProgression.onMissingOrUnconfirmedEvidence,
+    "hold-current-gate; no-next-gate-actions",
+  );
+  assert.deepEqual(manifest.gateProgression.fourthGateOrder, [
+    "ui-review",
+    "architecture-review",
+    "implementation",
+    "local-acceptance",
+  ]);
+  assert.equal(
+    manifest.gateProgression.uiNotApplicableOnlyWhen,
+    "telemetry-only-without-visible-ui-changes; record-reason",
+  );
+  assert.equal(
+    manifest.gateProgression.onResume,
+    "verify-evidence; resume-earliest-unpassed-gate",
+  );
+  assert.equal(
+    manifest.gateProgression.onScopeChange,
+    "return-to-first-gate; revalidate-downstream-applicability",
+  );
+  assert.equal(manifest.secondGate.id, "authorization-center-configuration");
+  assert.equal(manifest.secondGate.dependsOn, manifest.firstGate.id);
+  assert.equal(manifest.secondGate.required, true);
+  assert.equal(manifest.secondGate.requiresBrowserApprovalWhenNeeded, true);
+  assert.equal(manifest.secondGate.requiresCustomerParameterForm, false);
+  assert.equal(
+    manifest.secondGate.enforcedBy,
+    "skill-device-authorization-and-selected-config-read",
+  );
+  assert.deepEqual(manifest.secondGate.scopes, manifest.firstGate.options);
+  assert.deepEqual(manifest.secondGate.requiredEvidence, [
+    "valid-device-authorization",
+    "selected-configuration-read",
+    "downstream-config-validated",
+    "project-facts-and-defaults-resolved",
+  ]);
+  assert.deepEqual(manifest.secondGate.defaults, {
+    project_id: "bifang_tools",
+    scopesBySelection: {
+      仅更新: "updater:config:read",
+      仅统计: "cloudbase:config:read",
+      更新和统计都接入: "cloudbase:config:read updater:config:read",
+    },
+    localRegisteredClientId: "woskill",
+    requestTimeoutSeconds: 10,
+  });
+  assert.deepEqual(manifest.secondGate.scopePolicy, {
+    authority: "token-response-scope",
+    onMissingSelectedScope: "stop-affected-branch; reauthorize-if-needed",
+    onExtraScope: "do-not-expand-integration-scope",
+    refreshScope: "omit; preserve-actual-granted-set",
+  });
+  assert.equal(
+    manifest.secondGate.onConfigurationFailure,
+    "hold-second-gate-for-entire-selected-scope; preserve-valid-evidence-and-repair-failed-config",
+  );
+  assert.equal(
+    manifest.secondGate.onUnselectedService,
+    "not-applicable; do-not-expand-scope",
+  );
+  const [secondGateDocument, secondGateAnchor] =
+    manifest.secondGate.reference.split("#");
+  const secondGateText = await readFile(
+    join(repositoryRoot, secondGateDocument),
+    "utf8",
+  );
+  assert.equal(secondGateAnchor, "第二门禁授权中心授权与配置获取");
+  assert.ok(secondGateText.includes("## 第二门禁：授权中心授权与配置获取"));
+  assert.equal(manifest.thirdGate.id, "client-integration-plan-readiness");
+  assert.equal(manifest.thirdGate.dependsOn, manifest.secondGate.id);
+  assert.equal(manifest.thirdGate.required, true);
+  assert.equal(manifest.thirdGate.requiresCustomerParameterForm, false);
+  assert.equal(manifest.thirdGate.requiresBlanketConfirmation, false);
+  assert.equal(manifest.thirdGate.requiresExplicitCustomerConfirmation, true);
+  assert.equal(
+    manifest.thirdGate.confirmationPresentation,
+    "inline-complete-selected-service-request-details; linked-record-only-supplementary; credentials-hidden",
+  );
+  assert.equal(
+    manifest.thirdGate.onUnconfirmed,
+    "stop-before-dependent-implementation; scope-selection-and-browser-approval-do-not-count",
+  );
+  assert.equal(
+    manifest.thirdGate.enforcedBy,
+    "skill-evidence-based-plan-review-and-explicit-customer-confirmation",
+  );
+  assert.deepEqual(manifest.thirdGate.scopes, manifest.firstGate.options);
+  assert.deepEqual(manifest.thirdGate.requiredEvidence, [
+    "rust-integration-points-mapped",
+    "runtime-behavior-and-defaults-resolved",
+    "scoped-change-list-prepared",
+    "local-and-online-validation-plan-prepared",
+    "external-dependencies-recorded",
+    "inline-selected-service-request-details",
+    "explicit-customer-confirmation-by-branch",
+  ]);
+  assert.equal(
+    manifest.thirdGate.onUnknownBlockingFact,
+    "hold-current-gate-for-entire-selected-scope; clarify-only-unresolved-facts",
+  );
+  assert.equal(
+    manifest.thirdGate.onKnownOnlineDependency,
+    "record-separately; allow-local-work-only-after-prerequisite-gates-pass-and-authorization-exists",
+  );
+  assert.equal(
+    manifest.thirdGate.onPartialReadiness,
+    "hold-entire-selected-scope-at-current-gate-until-all-selected-services-pass",
+  );
+  assert.equal(
+    manifest.thirdGate.onUnselectedService,
+    "not-applicable; preserve-existing-behavior",
+  );
+  assert.equal(
+    manifest.thirdGate.completionMeaning,
+    "plan-ready-and-customer-confirmed; not-implementation-or-live-validation-complete",
+  );
+  const [thirdGateDocument, thirdGateAnchor] =
+    manifest.thirdGate.reference.split("#");
+  const thirdGateText = await readFile(
+    join(repositoryRoot, thirdGateDocument),
+    "utf8",
+  );
+  assert.equal(thirdGateAnchor, "第三门禁客户端接入方案与请求明细确认");
+  assert.ok(
+    thirdGateText.includes("## 第三门禁：客户端接入方案与请求明细确认"),
+  );
+  assert.equal(
+    manifest.fourthGate.id,
+    "client-local-implementation-acceptance",
+  );
+  assert.equal(manifest.fourthGate.dependsOn, manifest.thirdGate.id);
+  assert.equal(manifest.fourthGate.required, true);
+  assert.equal(
+    manifest.fourthGate.enforcedBy,
+    "skill-scoped-implementation-and-host-verification",
+  );
+  assert.equal(
+    manifest.fourthGate.entryCondition,
+    "all-selected-services-second-and-third-gates-passed-with-explicit-customer-confirmation; local-implementation-authorized",
+  );
+  assert.deepEqual(manifest.fourthGate.scopes, manifest.firstGate.options);
+  assert.equal(manifest.fourthGate.requiresCustomerParameterForm, false);
+  assert.equal(manifest.fourthGate.requiresBlanketConfirmation, false);
+  assert.equal(
+    manifest.fourthGate.uiReview.requiredBeforeCodingWhen,
+    "updates-selected-or-visible-telemetry-ui-changes",
+  );
+  assert.equal(
+    manifest.fourthGate.uiReview.onUnconfirmed,
+    "stop-all-selected-business-implementation; design-preview-only",
+  );
+  assert.equal(
+    manifest.fourthGate.uiReview.onThirdGateConfirmation,
+    "does-not-replace-ui-confirmation",
+  );
+  assert.equal(
+    manifest.fourthGate.uiReview.onTelemetryOnlyWithoutVisibleChanges,
+    "not-applicable; proceed-with-existing-local-implementation-authorization",
+  );
+  assert.equal(
+    manifest.fourthGate.uiReview.onConfirmed,
+    "implement-and-test-within-existing-authorization; no-repeat-start-coding-question",
+  );
+  assert.deepEqual(manifest.fourthGate.uiReview.requiredEvidence, [
+    "current-project-style-evidence",
+    "visible-selected-service-ui-previews",
+    "actual-trigger-and-display-locations",
+    "explicit-customer-ui-confirmation",
+  ]);
+  const [uiDocument, uiAnchor] =
+    manifest.fourthGate.uiReview.reference.split("#");
+  assert.equal(uiDocument, thirdGateDocument);
+  assert.equal(uiAnchor, "先展示并确认-ui再编码");
+  assert.equal(manifest.fourthGate.architectureBeforeCoding.required, true);
+  assert.equal(
+    manifest.fourthGate.architectureBeforeCoding.requiresCustomerConfirmation,
+    false,
+  );
+  assert.deepEqual(
+    manifest.fourthGate.architectureBeforeCoding.requiredEvidence,
+    [
+      "applicable-project-instructions-and-conventions",
+      "actual-module-boundaries-and-call-chain",
+      "existing-patterns-and-reuse-map",
+      "local-verification-commands-and-baseline",
+    ],
+  );
+  assert.equal(
+    manifest.fourthGate.architectureBeforeCoding.implementationPolicy,
+    "preserve-target-architecture-and-stack; follow-existing-module-and-coding-conventions; no-unrelated-refactor",
+  );
+  assert.equal(
+    manifest.fourthGate.architectureBeforeCoding.onUnresolvedConflict,
+    "investigate-evidence; stop-only-dependent-changes-and-clarify-concrete-conflict",
+  );
+  const [architectureDocument, architectureAnchor] =
+    manifest.fourthGate.architectureBeforeCoding.reference.split("#");
+  assert.equal(architectureDocument, thirdGateDocument);
+  assert.equal(architectureAnchor, "编码前学习当前项目架构与编码规范");
+  assert.deepEqual(manifest.fourthGate.requiredEvidence, [
+    "applicable-ui-preview-and-customer-confirmation-or-not-applicable-evidence",
+    "target-architecture-and-coding-conventions-applied",
+    "actual-scoped-changes",
+    "host-request-and-state-evidence",
+    "executed-local-checks-and-results",
+    "implemented-capabilities-and-platform-limits",
+    "unverified-items-and-online-dependencies",
+  ]);
+  assert.equal(
+    manifest.fourthGate.localTestPolicy,
+    "fake-credentials; injected-transport; fixed-clock; temporary-state; no-live-business-requests",
+  );
+  assert.equal(
+    manifest.fourthGate.onLocalFailure,
+    "repair-and-reverify-within-authorized-scope; do-not-reduce-selected-services-or-promised-capabilities",
+  );
+  assert.equal(
+    manifest.fourthGate.onPartialAcceptance,
+    "record-branch-results-independently; combined-pass-requires-both-branches-and-isolation-evidence",
+  );
+  assert.equal(
+    manifest.fourthGate.onUnselectedService,
+    "not-applicable; preserve-existing-behavior",
+  );
+  assert.equal(
+    manifest.fourthGate.completionMeaning,
+    "local-implementation-accepted; not-live-service-gui-installation-or-release-complete",
+  );
+  assert.equal(manifest.postLocalAcceptance.dependsOn, manifest.fourthGate.id);
+  assert.equal(
+    manifest.postLocalAcceptance.configurationOwner,
+    "customer-manual; no-skill-admin-operation-or-audit",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.preflight.appliesWhen,
+    "updates-selected",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.preflight.trigger,
+    "customer-reports-completion-after-preflight-purpose-and-targets-disclosed",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.preflight.onFailure,
+    "hold-step-5; customer-corrects-and-reports-again-before-recheck",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.preflight.onPass,
+    "eligible-for-step-6-only-with-exe-test-authorization",
+  );
+  assert.deepEqual(manifest.postLocalAcceptance.preflight.excludes, [
+    "admin-api-or-ui-audit",
+    "backend-configuration-mutation",
+    "artifact-download-or-installation",
+    "exe-build-or-run",
+    "daily-active-write",
+  ]);
+  assert.deepEqual(manifest.postLocalAcceptance.order, [
+    "prompt-customer-manual-update-configuration",
+    "wait-for-customer-completion",
+    "simple-client-update-api-preflight",
+    "preflight-pass-and-exe-test-authorization",
+    "build-and-run-real-exe",
+    "real-acceptance-evidence",
+  ]);
+  assert.equal(
+    manifest.postLocalAcceptance.requiresCustomerConfigurationHandoff,
+    true,
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.updateCenterAppliesWhen,
+    "updates-selected",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.telemetryOnly,
+    "skip-update-center; verify-telemetry-service-readiness",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.combinedScope,
+    "update-preflight-and-existing-selected-service-prerequisites-before-exe-test",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.onNotReady,
+    "hold-dependent-real-test; no-mock-completion",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.onUnknownAdminUrl,
+    "mark-pending; do-not-derive-admin-url-from-api",
+  );
+  assert.equal(
+    manifest.postLocalAcceptance.testAuthorization,
+    "reuse-explicit-same-target-authorization; otherwise-confirm-concrete-build-run-live-request-plan",
+  );
+  const separatelyAuthorizedActions = [
+    "run-live-update-check-or-download",
+    "run-live-telemetry-or-dashboard-verification",
+    "modify-operations-registration-or-update-backend",
+    "build-or-install-client",
+    "sign-client-artifacts",
+    "run-native-gui-or-install-e2e",
+    "deploy-cloudbase",
+    "publish-or-push",
+    "delete-or-retire-cloud-resources",
+  ];
+  assert.deepEqual(
+    manifest.fourthGate.requiresSeparateExplicitAuthorization,
+    separatelyAuthorizedActions,
+  );
+  for (const action of separatelyAuthorizedActions) {
+    assert.ok(
+      manifest.initialAuthorization.requiresSeparateExplicitAuthorization.includes(
+        action,
+      ),
+    );
+    assert.ok(!manifest.initialAuthorization.allows.includes(action));
+  }
+  const [fourthGateDocument, fourthGateAnchor] =
+    manifest.fourthGate.reference.split("#");
+  const fourthGateText = await readFile(
+    join(repositoryRoot, fourthGateDocument),
+    "utf8",
+  );
+  assert.equal(fourthGateAnchor, "第四门禁客户端本地实施与验收");
+  assert.ok(fourthGateText.includes("## 第四门禁：客户端本地实施与验收"));
   assert.equal(
     manifest.applicationVersionBaselineCommit,
     "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
@@ -273,10 +633,14 @@ test("bootstrap manifest freezes the exact request and authorization boundary", 
     "fetch-authoritative-repository",
     "install-or-update-onboarding-skill",
     "read-only-stage-0-project-scan",
+    "read-selected-configuration-via-device-authorization",
+    "prepare-selected-service-integration-plan",
+    "implement-selected-rust-service-integration",
     "write-or-migrate-non-sensitive-profile",
     "replace-legacy-update-protocol-in-target-client",
     "remove-legacy-update-protocol-from-target-client",
     "run-local-static-and-unit-verification",
+    "run-local-host-integration-verification",
   ]);
   assert.ok(
     manifest.initialAuthorization.requiresSeparateExplicitAuthorization.includes(

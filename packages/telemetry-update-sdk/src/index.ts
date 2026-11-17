@@ -1,6 +1,5 @@
 export {
   DEFAULT_TELEMETRY_TIMEOUT_MS,
-  DEFAULT_APPLICATION_VERSION_TIMEOUT_MS,
   SDK_VERSION,
   SUPPORTED_ARCHITECTURES,
   SUPPORTED_PLATFORMS,
@@ -20,16 +19,6 @@ export {
   TelemetryTransportError,
 } from "./transport.js";
 export {
-  ApplicationVersionChecker,
-  buildApplicationVersionCheckUrl,
-  decideApplicationVersion,
-  isApplicationCode,
-  isApplicationVersion,
-  isCanonicalApplicationVersionBaseUrl,
-  parseApplicationVersionData,
-  runApplicationVersionHostHooks,
-} from "./update-checker.js";
-export {
   isAppId,
   isArchitecture,
   isIsoDate,
@@ -40,24 +29,12 @@ export {
 } from "./validation.js";
 export type {
   Architecture,
-  ApplicationVersionCheckerConfig,
-  ApplicationVersionData,
-  ApplicationVersionDecision,
-  ApplicationVersionFetch,
-  ApplicationVersionFetchResponse,
-  ApplicationVersionHostHooks,
-  AvailableApplicationVersionDecision,
   DebugLogger,
   IdentityReadOrCreateResult,
   IdentityStorage,
   InstallIdentityState,
-  NoApplicationVersionDecision,
-  NoApplicationVersionReason,
-  OptionalApplicationVersionDecision,
   PersistedInstallIdentity,
   Platform,
-  RequiredApplicationVersionDecision,
-  StoppedApplicationVersionDecision,
   TaskScheduler,
   TelemetryClientConfig,
   TelemetryDeliveryFailure,
