@@ -253,6 +253,56 @@ test("aggregation projects names only for enabled apps and names observed versio
   assert.equal(selected.totals.todayActive, 1);
 });
 
+test("personal dashboard displays configured names on existing events and rejects mismatched catalogs", async () => {
+  const apps = parseDashboardApps({
+    schema_version: 2,
+    apps: [
+      ["bifang-screen-recorder", []],
+      ["mint-notes", []],
+    ],
+  });
+  const labels = {
+    "bifang-screen-recorder": "已有录屏工具",
+    "mint-notes": "薄荷便签",
+  };
+  const options = {
+    apps,
+    path: "/admin/v1/metrics",
+    tokenHash: TOKEN_HASH,
+    reader: async () => [event({ app_id: "mint-notes" })],
+    versionReader: async () => [],
+    now: () => NOW,
+  };
+  const request = {
+    httpMethod: "GET",
+    path: options.path,
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  };
+  const handler = createHandler({
+    ...options,
+    appLabelsJson: JSON.stringify(labels),
+  });
+  const all = await handler(request);
+  assert.equal(all.statusCode, 200);
+  const snapshot = JSON.parse(all.body);
+  assert.deepEqual(snapshot.appLabels, labels);
+  assert.equal(snapshot.versions[0].label, "薄荷便签 0.7.0");
+  assert.equal(snapshot.trend.at(-1).byApp["mint-notes"], 1);
+  const selected = await handler({
+    ...request,
+    url: options.path + "?days=7&app_id=mint-notes",
+  });
+  assert.deepEqual(JSON.parse(selected.body).appLabels, labels);
+  for (const value of [
+    "{",
+    '{"mint-notes":"薄荷便签"}',
+    JSON.stringify({ ...labels, other: "额外应用" }),
+  ]) {
+    const invalid = createHandler({ ...options, appLabelsJson: value });
+    assert.equal((await invalid(request)).statusCode, 503);
+  }
+});
+
 test("handler fails closed without a valid bearer token", async () => {
   const handler = createHandler({
     apps: APPS,
@@ -1112,21 +1162,21 @@ test("only the trusted runtime context supplies short-lived session identity", a
   assert.deepEqual(contexts, [context, nextContext]);
 });
 
-test("real js-sdk 3.8.2 signs database GET with refreshed runtime session context offline", () => {
+test("real node-sdk signs database requests with refreshed runtime session context offline", () => {
   const script = `
     const assert = require('node:assert/strict');
     const { createDefaultCloudBaseApp } = require('./src/reader');
     let expectedToken;
     const verified = [];
-    globalThis.fetch = async (url, init) => {
-      assert.ok(String(url).includes('database/instances'));
-      const headers = new Headers(init.headers);
-      const authorization = headers.get('authorization') || '';
+    const transport = require(require('node:path').join(require('node:path').dirname(require.resolve('@cloudbase/node-sdk')), 'utils/request.js'));
+    transport.extraRequest = async (opts) => {
+      assert.ok(opts.url.includes('/admin'));
+      const authorization = opts.headers.Authorization || '';
       assert.ok(authorization.length > 0);
-      assert.ok(authorization.includes(expectedToken));
-      assert.equal(authorization.includes('fake-runtime-secret-key'), false);
-      verified.push(init.method);
-      return new Response(JSON.stringify({ data: { list: [] } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      assert.equal(opts.body.sessionToken, expectedToken);
+      assert.equal(JSON.stringify(opts).includes('fake-runtime-secret-key'), false);
+      verified.push(opts.method);
+      return { statusCode: 200, body: { data: { list: [] } } };
     };
     (async () => {
       for (const token of ['fake-session-one', 'fake-session-two']) {
@@ -1137,7 +1187,7 @@ test("real js-sdk 3.8.2 signs database GET with refreshed runtime session contex
         const result = await app.database().collection('telemetry_test').where({ event: 'daily_active' }).limit(1).get();
         assert.deepEqual(result.data, []);
       }
-      process.stdout.write(JSON.stringify({ signedRequests: verified.length, allGet: verified.every(method => method === 'GET') }));
+      process.stdout.write(JSON.stringify({ signedRequests: verified.length, allPost: verified.every(method => method.toLowerCase() === 'post') }));
       process.exit(0);
     })().catch(() => { process.stderr.write('offline_sdk_signing_failed'); process.exit(1); });
   `;
@@ -1155,7 +1205,7 @@ test("real js-sdk 3.8.2 signs database GET with refreshed runtime session contex
       TENCENTCLOUD_RUNENV: "",
     },
   });
-  assert.deepEqual(JSON.parse(output), { signedRequests: 2, allGet: true });
+  assert.deepEqual(JSON.parse(output), { signedRequests: 2, allPost: true });
 });
 
 test("safe diagnostics preserve only allowlisted error codes and fixed messages", () => {

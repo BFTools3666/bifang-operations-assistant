@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "purpose": "personal-client-integration-confirmation",
+  "services": { "update": true, "telemetry": true },
+  "app": { "app_id": "", "display_name": "" },
+  "targets": [
+    {
+      "platform": "",
+      "arch": "",
+      "channel": "stable",
+      "app_version": "",
+      "update_code": "",
+      "runtime_credential_id": ""
+    }
+  ],
+  "update": {
+    "protocol": "application-version-api-v1",
+    "base_url": "",
+    "credentials_file": "",
+    "credentials": []
+  },
+  "telemetry": { "protocol": "daily-active-v2", "url": "" }
+}

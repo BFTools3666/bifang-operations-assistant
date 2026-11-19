@@ -28,12 +28,13 @@ const APPS = APP_IDS.map((appId) => ({
   ],
 }));
 
-function snapshot(selectedAppId, days) {
+function snapshot(selectedAppId, days, appLabels) {
   const apps = APPS.filter(
     (app) => selectedAppId === "all" || app.appId === selectedAppId,
   );
   return createDashboardSnapshot({
     apps: APPS,
+    appLabels,
     days,
     now: new Date("2026-09-07T04:00:00.000Z"),
     selectedAppId,
@@ -81,7 +82,7 @@ class Element {
   }
 }
 
-async function browser(search) {
+async function browser(search, appLabels) {
   const elements = new Map();
   const requests = [];
   const history = [];
@@ -108,7 +109,8 @@ async function browser(search) {
       requests.push(appId);
       return {
         ok: true,
-        json: async () => snapshot(appId, Number(params.get("days"))),
+        json: async () =>
+          snapshot(appId, Number(params.get("days")), appLabels),
       };
     },
   });
@@ -183,4 +185,16 @@ test("browser rebuilds renamed options and never promotes metadata-only identiti
   );
   assert.equal(result.elements.get("today-active").textContent, "4");
   assert.match(result.history[0], /app=all&days=14$/);
+});
+
+test("shared app names from the metrics response are visible in the selector and selected view", async () => {
+  const id = APP_IDS.at(-1);
+  const appLabels = { ...snapshot("all", 7).appLabels, [id]: "薄荷便签" };
+  const page = await browser(`?app=${id}&days=7`, appLabels);
+  const option = page.elements
+    .get("app-filter")
+    .children.find((item) => item.value === id);
+  assert.equal(option.textContent, "薄荷便签");
+  assert.match(page.elements.get("hero-note").textContent, /^薄荷便签 · /);
+  assert.equal(page.elements.get("today-active").textContent, "1");
 });

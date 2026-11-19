@@ -96,7 +96,7 @@ function createDashboardSnapshot(options) {
   const versions = makeDistribution(
     latestEvents.map((event) =>
       selectedAppId === "all"
-        ? `${getAppLabel(event.app_id)} ${event.app_version}`
+        ? `${getAppLabel(event.app_id, options.appLabels)} ${event.app_version}`
         : event.app_version,
     ),
   );
@@ -134,7 +134,7 @@ function createDashboardSnapshot(options) {
     // The browser uses this non-sensitive registry projection to populate the
     // application filter. Keep the complete list even when one app is selected.
     appIds: apps.map((app) => app.appId),
-    appLabels: projectAppLabels(apps),
+    appLabels: projectAppLabels(apps, options.appLabels),
     totals: {
       todayActive,
       yesterdayActive,

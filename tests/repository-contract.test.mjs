@@ -489,8 +489,8 @@ test("the generated template preserves telemetry and application-version boundar
   assert.equal(versionRoute.target, "function:application-version-api");
   assert.equal(versionRoute.enablePathTransmission, true);
   assert.equal(
-    telemetryFunctionPackage.dependencies["@cloudbase/js-sdk"],
-    "3.8.2",
+    telemetryFunctionPackage.dependencies["@cloudbase/node-sdk"],
+    "3.18.3",
   );
   assert.equal(
     applicationVersionFunctionPackage.dependencies["@cloudbase/node-sdk"],

@@ -9,11 +9,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node --check index.js && node --check src/burst-guard.js && node --check src/handler.js && node --check src/validation.js && node --check src/writer.js",
+    "build": "node --check index.js && node --check src/burst-guard.js && node --check src/handler.js && node --check src/validation.js && node --check src/writer.js && node --check src/cleanup.js",
     "check": "npm run build",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@cloudbase/js-sdk": "3.8.2"
+    "@cloudbase/node-sdk": "3.18.3"
   }
 }

@@ -66,25 +66,38 @@ export async function readTencentCredentials(path) {
   return parseTencentCredentialFile(source);
 }
 
-export function createTencentCloudClient({
+export function createTencentCloudClient(options) {
+  return createSignedTencentCloudClient({
+    ...options,
+    authorize(service, action, payload) {
+      if (!Object.hasOwn(ACTIONS, service) || !ACTIONS[service].has(action)) {
+        throw new TypeError("Tencent Cloud API action is not allowed");
+      }
+      if (action === "UpdateFunctionCode") assertCodeUpdate(payload);
+    },
+  });
+}
+
+// Deployment adapters must authorize each action and payload explicitly.
+export function createSignedTencentCloudClient({
   credentials,
   region,
+  authorize,
   fetchImplementation = fetch,
   nowImplementation = Date.now,
 }) {
+  if (typeof authorize !== "function")
+    throw new TypeError("API policy is required");
   assertCredentials(credentials);
   if (typeof region !== "string" || !/^[a-z]{2}-[a-z]+$/u.test(region)) {
     throw new TypeError("Tencent Cloud region is invalid");
   }
   const { secretId, secretKey, token = "" } = credentials;
   return async function request(service, action, payload) {
-    if (!Object.hasOwn(ACTIONS, service) || !ACTIONS[service].has(action)) {
-      throw new TypeError("Tencent Cloud API action is not allowed");
-    }
     if (!isPlainObject(payload)) {
       throw new TypeError("Tencent Cloud API payload is invalid");
     }
-    if (action === "UpdateFunctionCode") assertCodeUpdate(payload);
+    authorize(service, action, payload);
     let body;
     try {
       body = JSON.stringify(payload);
@@ -145,7 +158,20 @@ export function createTencentCloudClient({
         )
           ? code
           : "REDACTED_API_ERROR";
-      throw new Error(`Tencent Cloud API error: ${safeCode}`);
+      const error = new Error(`Tencent Cloud API error: ${safeCode}`);
+      // Keep support correlation without retaining server messages or payloads.
+      // Request IDs are untrusted response data, so accept only UUIDs and reject
+      // even well-formed values if they contain a credential.
+      const requestId = data.RequestId;
+      if (
+        typeof requestId === "string" &&
+        /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu.test(requestId) &&
+        ![secretId, secretKey, token].some(
+          (value) => value && requestId.includes(value),
+        )
+      )
+        error.apiRequestId = requestId;
+      throw error;
     }
     if (!httpOk || !isPlainObject(data)) {
       throw new Error("Tencent Cloud API returned an invalid response");

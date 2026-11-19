@@ -12,6 +12,16 @@
     "cloudbase/functions/*"
   ],
   "scripts": {
+    "skill:install": "node skills/bifang-public-services-onboarding/scripts/local-source.mjs install",
+    "cloudbase:personal:client:init": "node cloudbase/personal/client-confirmation.mjs init",
+    "cloudbase:personal:client:preview": "node cloudbase/personal/client-confirmation.mjs preview",
+    "cloudbase:personal:init": "node cloudbase/personal/cli.mjs init",
+    "cloudbase:personal:access": "node cloudbase/personal/cli.mjs access",
+    "cloudbase:personal:prepare": "node cloudbase/personal/cli.mjs prepare",
+    "cloudbase:personal:verify": "node cloudbase/personal/cli.mjs verify",
+    "cloudbase:personal:validate": "node cloudbase/personal/cli.mjs validate",
+    "cloudbase:personal:plan": "node cloudbase/personal/cli.mjs plan",
+    "cloudbase:personal:apply": "node cloudbase/personal/cli.mjs apply",
     "cloudbase:app:add": "node cloudbase/add-app.mjs",
     "cloudbase:app:stream:add": "node cloudbase/add-release-stream.mjs",
     "cloudbase:app:deploy:plan": "node cloudbase/plan-app-deployment.mjs",

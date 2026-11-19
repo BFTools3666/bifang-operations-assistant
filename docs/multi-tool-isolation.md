@@ -1,5 +1,9 @@
 # 多工具资源隔离指南（基础设施 3.0）
 
+个人 PostgreSQL 环境通过 pgdoc 保持下述应用/发布流隔离命名；不建立第二个数据库环境。插件及基础权限核验见 [PostgreSQL 适配](../skills/bifang-public-services-onboarding/references/postgresql.md)。
+
+> 本文记录既有基础设施与公司模式历史，不是个人版执行入口；正文所称“新接入”和门禁均按历史语境理解。个人流程已定义环境、资源、参数/请求、UI 与本地实施、客户手动发布配置及预检五道门禁，以 [个人版接入指南](毕方小工具公共服务分步接入指南.md) 和 [个人版第五门禁](../skills/bifang-public-services-onboarding/references/personal-update-preflight.md) 为准，预检通过后才进入 EXE 测试；不得把历史公司 POST/201 或 block_new_operations 套入个人 GET/200。历史协议链接固定到旧版标签。
+
 ## 结论
 
 一个现有免费 CloudBase 环境可以承载多个毕方工具，但隔离必须发生在应用、发布流、凭据和数据层：
@@ -28,7 +32,7 @@ https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入
 
 APP_ID 全局唯一，长度 1–50，只含小写字母、数字和短横线，首尾必须是字母或数字。建议 `bifang-<product-key>`，但正式值需要负责人确认。
 
-以上是 CloudBase 资源登记约束。Updater 要求 `^[a-z][a-z0-9-]{2,63}$`；新应用两边共用同一 ID 时采用交集 `^[a-z][a-z0-9-]{1,48}[a-z0-9]$`（3～50）。已有标识不自动改名。架构也不能直接复用字符串：telemetry/Profile 的 x64、ia32 分别对应 Updater 的 x86_64、x86，后者仅用于 Windows；完整映射见 [新更新合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)。
+以上是 CloudBase 资源登记约束。Updater 要求 `^[a-z][a-z0-9-]{2,63}$`；新应用两边共用同一 ID 时采用交集 `^[a-z][a-z0-9-]{1,48}[a-z0-9]$`（3～50）。已有标识不自动改名。架构也不能直接复用字符串：telemetry/Profile 的 x64、ia32 分别对应 Updater 的 x86_64、x86，后者仅用于 Windows；完整映射见 [新更新合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md)。
 
 对 `app_id` 派生：
 
@@ -105,7 +109,7 @@ APP_ID、code、函数、路由和集合都视为发布身份，不因显示名�
 
 ## 上线前逐工具验收
 
-新客户端优先依据 [客户端更新中心接入合同](../skills/bifang-public-services-onboarding/references/client-update-center.md) 验证 POST、Bearer、目标隔离、强更、下载与复检。下面的 code、旧 v1 与集合项仅适用于历史 application-version 服务，不作为新服务已经接入的证明。
+新客户端优先依据 [客户端更新中心接入合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md) 验证 POST、Bearer、目标隔离、强更、下载与复检。下面的 code、旧 v1 与集合项仅适用于历史 application-version 服务，不作为新服务已经接入的证明。
 
 - APP_ID、所有 code、平台、架构、渠道映射准确且唯一；
 - telemetry 只写自己的集合，客户端联网前落盘、同日一次、失败不重试；

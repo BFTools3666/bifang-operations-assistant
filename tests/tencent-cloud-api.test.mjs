@@ -199,6 +199,54 @@ test("network, timeout, parse and API errors never reflect credentials or raw me
   }
 });
 
+test("API errors retain validated request IDs without exposing messages or credential-shaped IDs", async () => {
+  const requestId = "3bab891c-99c4-4794-a558-c0d261cfe5b3";
+  for (const id of [requestId, credentials.secretId, "unsafe\nrequest", null]) {
+    const client = createTencentCloudClient({
+      credentials,
+      region: "ap-shanghai",
+      fetchImplementation: async () =>
+        Response.json({
+          Response: {
+            Error: {
+              Code: "UnsupportedOperation",
+              Message: credentials.secretKey,
+            },
+            RequestId: id,
+          },
+        }),
+    });
+    await assert.rejects(
+      client("tcb", "DescribeEnvs", { EnvId: envId }),
+      (e) => {
+        assert.equal(
+          e.message,
+          "Tencent Cloud API error: UnsupportedOperation",
+        );
+        assert.equal(e.apiRequestId, id === requestId ? requestId : undefined);
+        assert.ok(!JSON.stringify(e).includes(credentials.secretKey));
+        return true;
+      },
+    );
+  }
+  const client = createTencentCloudClient({
+    credentials: { ...credentials, secretKey: requestId },
+    region: "ap-shanghai",
+    fetchImplementation: async () =>
+      Response.json({
+        Response: {
+          Error: { Code: "UnsupportedOperation", Message: requestId },
+          RequestId: requestId,
+        },
+      }),
+  });
+  await assert.rejects(client("tcb", "DescribeEnvs", { EnvId: envId }), (e) => {
+    assert.equal(e.apiRequestId, undefined);
+    assert.ok(!JSON.stringify(e).includes(requestId));
+    return true;
+  });
+});
+
 test("API responses exceeding the declared or streamed size limit are rejected", async () => {
   for (const response of [
     new Response("{}", { headers: { "content-length": "5000001" } }),

@@ -11,6 +11,7 @@ const {
 const { createCloudBaseEventReader } = require("./reader");
 const { createCloudBaseVersionReader } = require("./version-reader");
 const { createDashboardWebHandler } = require("./web");
+const { parseConfiguredAppLabels } = require("./app-labels");
 
 const APP_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$/;
 const COLLECTION_PATTERN = /^[a-z][a-z0-9_]{0,59}$/;
@@ -42,6 +43,12 @@ function createHandler(options = {}) {
   const apps = parseDashboardApps(
     options.apps === undefined ? process.env.DASHBOARD_APPS_JSON : options.apps,
   );
+  const labelConfig =
+    options.appLabelsJson ?? process.env.DASHBOARD_APP_LABELS_JSON;
+  const appLabels =
+    labelConfig === undefined
+      ? undefined
+      : parseConfiguredAppLabels(labelConfig, apps);
   const readEvents = options.reader || createCloudBaseEventReader();
   const readReleaseStreams =
     options.versionReader || createCloudBaseVersionReader();
@@ -56,7 +63,7 @@ function createHandler(options = {}) {
   );
 
   async function handleMetrics(request, context) {
-    if (!apps.length || !environmentId) {
+    if (!apps.length || !environmentId || appLabels === null) {
       return jsonResponse(503, { error: "metrics_unavailable" });
     }
     const query = parseQuery(request.url, request.querySources);
@@ -93,6 +100,7 @@ function createHandler(options = {}) {
       ]);
       const snapshot = createDashboardSnapshot({
         apps,
+        appLabels,
         days: query.days,
         environmentId,
         events,

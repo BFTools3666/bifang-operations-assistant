@@ -622,7 +622,7 @@ describe("CloudBase writer adapter", () => {
     ]);
   });
 
-  test("real js-sdk resolves the Event-runtime environment synchronously without database I/O", () => {
+  test("real node-sdk resolves the Event-runtime environment synchronously without database I/O", () => {
     const writerPath = require.resolve("../src/writer");
     const script = `
       process.env.TCB_ENV = "test-runtime-env-123456";
@@ -685,7 +685,7 @@ describe("CloudBase writer adapter", () => {
       event: "daily_active",
     });
 
-    assert.equal(appFactoryCalls, 1);
+    assert.equal(appFactoryCalls, 2);
     assert.equal(selectedCollection, "telemetry_bifang_tools");
     assert.equal(added[0]._id, dailyId);
     assert.equal(added[0].event_id, EVENT_ID);

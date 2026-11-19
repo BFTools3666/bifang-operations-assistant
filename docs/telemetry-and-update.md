@@ -1,5 +1,9 @@
 # 每日启动遥测与客户端更新
 
+当前个人分支数据库默认 PostgreSQL + pgdoc，HTTP 合同保持不变；三类服务统一使用 Node SDK v3。数据库资源及 TTL 核验边界见 [PostgreSQL 适配](../skills/bifang-public-services-onboarding/references/postgresql.md)。
+
+> 本文记录既有基础设施与公司模式历史，不是个人版执行入口；正文所称“新接入”和门禁均按历史语境理解。个人流程已定义环境、资源、参数/请求、UI 与本地实施、客户手动发布配置及预检五道门禁，以 [个人版接入指南](毕方小工具公共服务分步接入指南.md) 和 [个人版第五门禁](../skills/bifang-public-services-onboarding/references/personal-update-preflight.md) 为准，预检通过后才进入 EXE 测试；不得把历史公司 POST/201 或 block_new_operations 套入个人 GET/200。历史协议链接固定到旧版标签。
+
 ## 1. 现行协议
 
 基础设施根版本为 `3.0.0`，接入 Skill 为 `2.1.5`。第一个硬门禁必须确认仅更新、仅统计或两者，明确回答前不进入接入流程。以下两项按用户选择独立接入，不默认捆绑：
@@ -9,7 +13,7 @@
 
 负责人明确要求本机联调时，可使用 `http://127.0.0.1:8080/`；该本地地址及测试结果不作为生产服务或客户端线上 E2E 的验证依据。
 
-旧 application-version 版本、广告和管理服务仍可能在线运行，下文第 3 节仅记录其历史合同；不得当作新客户端接入说明或自动删除。新协议见 [客户端更新中心接入合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)。
+旧 application-version 版本、广告和管理服务仍可能在线运行，下文第 3 节仅记录其历史合同；不得当作新客户端接入说明或自动删除。新协议见 [客户端更新中心接入合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md)。
 
 旧静态更新清单已经退出现行协议。由于毕方客户端旧版本未公开发布，不提供双轨、兼容模式、回退开关或旧清单解析。历史部署回执只证明当时发生过什么，不是可继续实现的规范。
 
@@ -68,7 +72,7 @@ Content-Type: application/json
 
 `app_version` 已是既有协议的必填字段，不另设版本上报接口。公共 SDK 将宿主 `appVersion` 写入此字段；原生适配器发送相同的十字段对象。版本来自当前实际运行制品的唯一发布配置或宿主版本 API，不能使用 SDK 版本、Profile 快照或写死的占位值。`sdk_version` 固定为 `3.0.0`，服务端进行等值校验，不能填 Rust crate/适配器的实际版本；应用恰好也为 `3.0.0` 合法。
 
-十字段类型、UUID v4、SemVer 长度、日期格式、4096 字节上限与错误响应见 [CloudBase 日活完整合同](../skills/bifang-public-services-onboarding/references/integration-contract.md#cloudbase-日活完整合同)。当前日活没有客户端 Bearer 或 x-app-key/x-app-secret；下面历史服务的认证头不得用于日活。服务端 active_date 取接收时间对应的北京时间日期，不由 occurred_at 决定。
+十字段类型、UUID v4、SemVer 长度、日期格式、4096 字节上限与错误响应见 [CloudBase 日活完整合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/integration-contract.md#cloudbase-日活完整合同)。当前日活没有客户端 Bearer 或 x-app-key/x-app-secret；下面历史服务的认证头不得用于日活。服务端 active_date 取接收时间对应的北京时间日期，不由 occurred_at 决定。
 
 本地验收捕获宿主实际序列化请求，断言版本值与来源一致；更换测试版本来源后，在新的测试日期上报应随之变化。缺字段、空值或非法 SemVer 被拒绝，不自动补 `0.0.0`。即使当天升级了客户端，也不清除已领取的每日门禁；下一次正常的新日上报再反映新版本。不得为了即时显示版本新增事件、同日重报或绕过存储门禁。
 
@@ -143,7 +147,7 @@ bifang-screen-recorder-macos-arm64
 
 ## 5. 宿主接入
 
-新客户端以 [客户端更新中心接入合同](../skills/bifang-public-services-onboarding/references/client-update-center.md) 为准：POST、运行时客户端 Token、目标字段、强更策略、下载校验和安装前复检均按新协议实现。旧 GET、code 和两个认证头仅适用于仍在运行的历史服务。
+新客户端以 [客户端更新中心接入合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md) 为准：POST、运行时客户端 Token、目标字段、强更策略、下载校验和安装前复检均按新协议实现。旧 GET、code 和两个认证头仅适用于仍在运行的历史服务。
 
 标题与正文按不可信纯文本渲染；下载/说明 URL 必须再次验证为安全 HTTPS。强更阻止新业务，不中断已运行任务，并保留更新、重试和完整退出；离线行为按产品明确选择的策略处理。
 

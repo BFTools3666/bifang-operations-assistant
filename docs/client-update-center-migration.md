@@ -1,8 +1,10 @@
 # 客户端更新中心迁移进度
 
+> 本文记录既有基础设施与公司模式历史，不是个人版执行入口；正文所称“新接入”和门禁均按历史语境理解。个人流程已定义环境、资源、参数/请求、UI 与本地实施、客户手动发布配置及预检五道门禁，以 [个人版接入指南](毕方小工具公共服务分步接入指南.md) 和 [个人版第五门禁](../skills/bifang-public-services-onboarding/references/personal-update-preflight.md) 为准，预检通过后才进入 EXE 测试；不得把历史公司 POST/201 或 block_new_operations 套入个人 GET/200。历史协议链接固定到旧版标签。
+
 ## 授权中心合同与第二门禁（2026-11-17）
 
-已按用户提供的 com-yunmai-yunwei-skill-server/docs/api/ip-lookup/client-config-integration.md 核对设备授权、两个配置 GET、精确大小写字段、串行刷新、撤销及失败规则。合同与来源摘要保存在 [统一规范](../skills/bifang-public-services-onboarding/references/integration-contract.md)，不再把整套配置协议标为待补。
+已按用户提供的 com-yunmai-yunwei-skill-server/docs/api/ip-lookup/client-config-integration.md 核对设备授权、两个配置 GET、精确大小写字段、串行刷新、撤销及失败规则。合同与来源摘要保存在 [统一规范](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/integration-contract.md)，不再把整套配置协议标为待补。
 
 第二门禁改为取得/复用授权并读取所选配置；客户只在必要时浏览器批准，不再逐项填写或审批参数。project_id 默认 bifang_tools、scope 按范围取 updater:config:read、cloudbase:config:read 或两者以单个空格连接，其他项目事实自动识别、有依据的默认值直接采用。真实生产授权入口/登记及 Endpoint 下游含义仍需部署核验，不能由本机地址或占位值代替。
 
@@ -30,7 +32,7 @@ Skill、AGENTS、指南、框架/部署参考和机器入口已同步，原阶�
 
 ## 历史准备与参考实现状态
 
-2026-11-16 尚未提供配置合同时，规范曾将 URL、鉴权、schema、JSON 路径、刷新规则整体列为待补；该状态已被上面的授权中心合同取代。Updater 参数依据仍为远端 main 提交 27df2008c0f720eb7093443bfc1e09d0cb6f3981 的 OpenAPI 1.4.1，详见 [Updater 合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)，不是生产部署版本已验证的证明。
+2026-11-16 尚未提供配置合同时，规范曾将 URL、鉴权、schema、JSON 路径、刷新规则整体列为待补；该状态已被上面的授权中心合同取代。Updater 参数依据仍为远端 main 提交 27df2008c0f720eb7093443bfc1e09d0cb6f3981 的 OpenAPI 1.4.1，详见 [Updater 合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md)，不是生产部署版本已验证的证明。
 
 先前已纠正 Windows x86、平台字段映射、sdk_version 固定值、幂等键和响应字段等资料，并修正 Profile x86/ia32 校验；业务 TypeScript SDK 尚未全面对齐 1.4.1，差异表继续保留。历史清理移除旧 GET 客户端及 Python 桥接，构建清理本包 dist 避免旧产物混入；保留 CloudBase 历史服务、运营登记及部署证据。源码清理不代表线上退役或其他客户端已迁移。
 

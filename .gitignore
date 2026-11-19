@@ -14,3 +14,4 @@ cloudbase/*-build-vars.env
 .tcb/
 __pycache__/
 *.py[cod]
+skills/bifang-public-services-onboarding/.source-location.json

@@ -1,7 +1,7 @@
 interface:
-  display_name: "毕方公共服务接入向导"
-  short_description: "先确认仅更新、仅统计或两者，再按所选范围接入毕方公共服务"
-  default_prompt: "Use $bifang-public-services-onboarding with strictly sequential gates: all selected services must pass the current gate before any advances; UI approval and architecture verification must precede coding. First confirm updates, daily-active telemetry, or both, then obtain selected configuration through authorization-center device authorization. Prepare and show complete actual request URLs, methods, headers, required and optional fields, non-sensitive values or runtime rules, defaults and blockers for each selected service inline; hide credentials and wait for explicit customer confirmation of this concrete plan. Distinguish confirming the plan only from authorizing local implementation, then preview the current project-styled update prompts, mandatory-update UI and trigger/display locations and wait for explicit UI approval before coding; telemetry-only with no visible changes needs no UI approval. Read the target project architecture, applicable instructions and coding conventions, map reuse and module boundaries, then implement and validate locally within existing authorization without another generic approval and report local evidence separately from live-service or installation results. Infer project facts and use documented defaults without asking customers to fill a parameter form; scope selection and browser approval do not replace confirmation of the request details; after local acceptance, prompt the customer to configure updates manually, run a limited real client update-check preflight after the customer reports completion, and only after it passes perform explicitly authorized real EXE tests; do not operate or audit the admin backend; keep existing stage authorization boundaries."
+  display_name: "毕方 CloudBase 接入与版本管理"
+  short_description: "为桌面应用接入更新与日活统计，查看和调整已接入应用的版本更新"
+  default_prompt: "使用 $bifang-public-services-onboarding，先列出「1. 接入统计和更新」「2. 更新版本」并等我选择。"
 
 policy:
   allow_implicit_invocation: true

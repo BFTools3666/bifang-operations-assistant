@@ -575,7 +575,18 @@ function createDefaultCloudBaseApp(options = {}) {
     (typeof configuredEnv === "string" && configuredEnv.trim()) || currentEnv;
   if (!env) throw new Error("cloudbase_environment_unavailable");
   const context = extractRuntimeSdkContext(options.runtimeContext);
-  return cloudbase.init({ env, ...(context ? { context } : {}) });
+  // Node SDK v3 uses explicit sessionToken or platform environment credentials.
+  const secret = context?.extendedContext.tmpSecret;
+  return cloudbase.init({
+    env,
+    ...(secret
+      ? {
+          secretId: secret.secretId,
+          secretKey: secret.secretKey,
+          sessionToken: secret.token,
+        }
+      : {}),
+  });
 }
 
 function extractRuntimeSdkContext(runtimeContext) {

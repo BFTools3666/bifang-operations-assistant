@@ -79,7 +79,7 @@ function createCloudBaseEventReader(options = {}) {
 
 function createDefaultCloudBaseApp(options = {}) {
   const cloudbaseModule =
-    options.cloudbaseModule || require("@cloudbase/js-sdk");
+    options.cloudbaseModule || require("@cloudbase/node-sdk");
   const cloudbase = cloudbaseModule.default || cloudbaseModule;
   const configuredEnv =
     options.envOverride === undefined
@@ -91,7 +91,19 @@ function createDefaultCloudBaseApp(options = {}) {
     (typeof configuredEnv === "string" && configuredEnv.trim()) || currentEnv;
   if (!env) throw new Error("cloudbase_environment_unavailable");
   const context = extractRuntimeSdkContext(options.runtimeContext);
-  return cloudbase.init({ env, ...(context ? { context } : {}) });
+  // Node SDK v3 consumes sessionToken in init; JS SDK's tmpSecret-only config
+  // does not supply signing credentials here. Only accept runtime STS context.
+  const secret = context?.extendedContext.tmpSecret;
+  return cloudbase.init({
+    env,
+    ...(secret
+      ? {
+          secretId: secret.secretId,
+          secretKey: secret.secretKey,
+          sessionToken: secret.token,
+        }
+      : {}),
+  });
 }
 
 function extractRuntimeSdkContext(runtimeContext) {

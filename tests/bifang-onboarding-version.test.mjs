@@ -1,68 +1,55 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = async (path) =>
   JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
 
-const runGit = (args) =>
-  spawnSync("git", args, {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  });
-
-test("onboarding, infrastructure, and application-version SDK releases stay aligned", async () => {
-  const rootPackage = await readJson("../package.json");
+test("personal skill version is independent of the retained infrastructure release", async () => {
+  const manifest = await readJson("../bifang-onboarding.json");
+  const root = await readJson("../package.json");
   const lock = await readJson("../package-lock.json");
-  const sdkPackage = await readJson(
-    "../packages/telemetry-update-sdk/package.json",
-  );
+  const sdk = await readJson("../packages/telemetry-update-sdk/package.json");
   const skill = await readFile(
-    new URL(
-      "../skills/bifang-public-services-onboarding/SKILL.md",
-      import.meta.url,
-    ),
+    new URL("../" + manifest.skill.path + "/SKILL.md", import.meta.url),
     "utf8",
   );
-
-  assert.equal(rootPackage.version, "3.0.0");
-  assert.equal(lock.version, rootPackage.version);
-  assert.equal(lock.packages[""].version, rootPackage.version);
-  assert.equal(sdkPackage.version, "3.0.0");
-  assert.match(skill, /version:\s*["']2\.1\.5["']/);
-  assert.match(skill, /infrastructure-version:\s*["']3\.0\.0["']/);
-  assert.match(
+  assert.equal(lock.version, root.version);
+  assert.equal(lock.packages[""].version, root.version);
+  assert.equal(sdk.version, root.version);
+  assert.equal(manifest.mode, "personal-free-cloudbase");
+  assert.equal(manifest.skill.name, "bifang-public-services-onboarding");
+  assert.ok(skill.includes('version: "' + manifest.skill.version + '"'));
+  assert.ok(skill.includes('source-branch: "' + manifest.sourceBranch + '"'));
+  assert.equal(manifest.automaticBootstrap.enabled, false);
+  assert.equal(manifest.nextGate.status, "basic-artifact-testing-defined");
+  assert.equal(manifest.secondGate.dependsOn, manifest.firstGate.id);
+  assert.equal(manifest.thirdGate.dependsOn, manifest.secondGate.id);
+  assert.equal(manifest.fourthGate.dependsOn, manifest.thirdGate.id);
+  assert.equal(manifest.fifthGate.dependsOn, manifest.fourthGate.id);
+  assert.equal(manifest.nextGate.dependsOn, manifest.fifthGate.id);
+  let predecessor = manifest.thirdGate.id;
+  for (const checkpoint of manifest.fourthGate.checkpoints) {
+    assert.equal(checkpoint.dependsOn, predecessor);
+    predecessor = checkpoint.id;
+  }
+  predecessor = manifest.fourthGate.id;
+  for (const checkpoint of manifest.fifthGate.checkpoints) {
+    assert.equal(checkpoint.dependsOn, predecessor);
+    predecessor = checkpoint.id;
+  }
+  assert.equal(manifest.thirdGate.requiresExplicitConfirmation, true);
+  assert.equal(manifest.thirdGate.jointScopeMustPassTogether, true);
+  assert.equal(manifest.thirdGate.previewSendsRequests, false);
+  assert.equal(manifest.firstGate.requiresCredentials, true);
+  assert.equal(manifest.firstGate.requiresCamUser, true);
+  assert.equal(manifest.firstGate.requiresAccessVerification, true);
+  assert.equal(manifest.firstGate.requiresSecretChatInput, false);
+  assert.equal(manifest.secondGate.requiresCreationModeChoice, true);
+  assert.equal(manifest.secondGate.requiresResourceVerification, true);
+  assert.equal(manifest.firstGate.requiresExplicitAnswer, true);
+  assert.doesNotMatch(
     skill,
-    /application-version-contract-version:\s*["']1\.0\.0["']/,
+    /updater:config:read|cloudbase:config:read|update\.meetelf\.com|woskill/,
   );
-  assert.match(
-    skill,
-    /application-version-baseline-commit:\s*["']92b0c599a42c3a094c99787e6928c30c2d2ea3af["']/,
-  );
-  const sourceCommit = skill.match(
-    /infrastructure-source-commit:\s*["']([0-9a-f]{40})["']/,
-  );
-  assert.ok(sourceCommit, "infrastructure source commit must be recorded");
-  assert.notEqual(sourceCommit[1], "92b0c599a42c3a094c99787e6928c30c2d2ea3af");
-
-  const commitExists = runGit([
-    "cat-file",
-    "-e",
-    `${sourceCommit[1]}^{commit}`,
-  ]);
-  assert.equal(commitExists.status, 0, commitExists.stderr);
-  const sourcePackage = runGit(["show", `${sourceCommit[1]}:package.json`]);
-  assert.equal(sourcePackage.status, 0, sourcePackage.stderr);
-  assert.equal(JSON.parse(sourcePackage.stdout).version, "3.0.0");
-  const isAncestor = runGit([
-    "merge-base",
-    "--is-ancestor",
-    sourceCommit[1],
-    "HEAD",
-  ]);
-  assert.equal(isAncestor.status, 0, isAncestor.stderr);
 });

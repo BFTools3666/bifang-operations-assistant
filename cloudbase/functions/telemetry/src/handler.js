@@ -105,16 +105,16 @@ function createHandler(options = {}) {
         ),
         active_date: activeDate,
         received_at: receivedAtIso,
-        // CloudBase stores Date values as BSON dates. The per-app collection
-        // owns a TTL index on this field so source IP and install identifiers
-        // are deleted together after the approved retention window.
+        // Date marks eligibility for the configured retention mechanism.
+        // Personal deployments use bounded scheduled cleanup after expiry;
+        // writing this field alone does not delete any records.
         expires_at: new Date(
           receivedAt.getTime() + TELEMETRY_RETENTION_MILLISECONDS,
         ),
         source_ip: extractTrustedSourceIp(event, context),
       };
 
-      await writeEvent(storedEvent);
+      await writeEvent(storedEvent, { runtimeContext: context });
       return jsonResponse(202, { ok: true });
     } catch (error) {
       // Never log the event, request, database details, credentials, or stack.

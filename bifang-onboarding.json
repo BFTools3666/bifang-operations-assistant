@@ -1,244 +1,398 @@
 {
-  "$schema": "https://bifang.local/schemas/onboarding-bootstrap-v1.json",
-  "schemaVersion": 1,
-  "canonicalRepositoryUrl": "https://github.com/BFTools3666/bifang-operations-assistant.git",
-  "repositoryIdentity": "bifang-operations-assistant",
-  "minimumInfrastructureCommit": "37f6dd120f082b8514a461bcfa30cee35b6259a6",
-  "infrastructureVersion": "3.0.0",
-  "updateTransport": "client-update-center-v1",
-  "applicationVersionContractVersion": "1.0.0",
-  "applicationVersionBaselineCommit": "92b0c599a42c3a094c99787e6928c30c2d2ea3af",
+  "schemaVersion": 2,
+  "mode": "personal-free-cloudbase",
+  "status": "onboarding-and-release-management",
+  "sourceBranch": "codex/personal-cloudbase",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "2.1.5",
-    "path": "skills/bifang-public-services-onboarding",
-    "installer": "skills/bifang-public-services-onboarding/scripts/install_skill.py",
-    "scanner": "skills/bifang-public-services-onboarding/scripts/scan_project.py"
+    "version": "3.0.0-personal.21",
+    "path": "skills/bifang-public-services-onboarding"
   },
-  "oneLineRequest": "https://github.com/BFTools3666/bifang-operations-assistant.git 帮我接入",
+  "intentRouting": {
+    "bareInvocation": {
+      "action": "show-menu-and-wait",
+      "options": [
+        {
+          "choice": "1",
+          "label": "接入统计和更新",
+          "route": "firstIntegration"
+        },
+        {
+          "choice": "2",
+          "label": "更新版本",
+          "route": "manageExistingRelease"
+        }
+      ]
+    },
+    "firstIntegration": "firstGate-through-nextGate",
+    "manageExistingRelease": "releaseManagement",
+    "ambiguous": "show-menu-if-intent-remains-unclear",
+    "skillMaintenance": "local-skill-work"
+  },
+  "releaseManagement": {
+    "reference": "skills/bifang-public-services-onboarding/references/personal-release-management.md",
+    "tool": "cloudbase/personal/release-management.mjs",
+    "steps": [
+      "inspect-current-stream-and-client-result",
+      "select-action-or-return-details",
+      "prepare-settings-file",
+      "review-diff-and-confirm-specific-plan",
+      "apply-readback-and-runtime-check"
+    ],
+    "actions": ["details", "force", "recommend", "cancel", "reset", "new"],
+    "review": "assistant-prefills-and-validates; collect-only-unresolved-fields; bind-natural-language-confirmation-to-reviewed-plan",
+    "readOnlyActions": ["details", "inspect", "verify"],
+    "cancel": "PUT-current-id-stopUpdate-true",
+    "writeRequires": "confirmation-of-exact-reviewed-plan"
+  },
   "firstGate": {
-    "id": "integration-scope-confirmation",
-    "enforcedBy": "skill-conversation-before-bootstrap",
+    "id": "personal-free-environment-confirmation",
     "required": true,
-    "question": "请确认本次接入范围：仅更新、仅统计，还是更新和统计都接入？",
-    "options": ["仅更新", "仅统计", "更新和统计都接入"],
+    "enforcedBy": "skill-conversation-private-file-and-read-only-access-check",
+    "question": "你是否已经在自己的腾讯云账号下创建好了 CloudBase 免费体验版环境？",
+    "options": ["已创建", "尚未创建", "不确定"],
     "requiresExplicitAnswer": true,
-    "onUnanswered": "stop-before-source-verification-install-scan-and-mutation"
-  },
-  "secondGate": {
-    "id": "authorization-center-configuration",
-    "enforcedBy": "skill-device-authorization-and-selected-config-read",
-    "required": true,
-    "dependsOn": "integration-scope-confirmation",
-    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第二门禁授权中心授权与配置获取",
-    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
-    "requiredEvidence": [
-      "valid-device-authorization",
-      "selected-configuration-read",
-      "downstream-config-validated",
-      "project-facts-and-defaults-resolved"
+    "onCreated": "environment-substep-only; prepare-cam-policy-and-private-credentials",
+    "onNotCreated": "show-complete-official-setup-steps-and-wait",
+    "onUncertain": "guide-environment-and-plan-inspection; wait-for-explicit-answer",
+    "onUnanswered": "hold-before-customer-project-scan-resource-creation-and-implementation",
+    "requiresCredentials": true,
+    "requiresCamUser": true,
+    "reference": "skills/bifang-public-services-onboarding/references/personal-cloudbase.md",
+    "onPass": "environment-confirmed; inspect-and-create-policy-association-evidenced; private-credentials-received; access-verified; enter-resource-choice",
+    "credentialTool": "cloudbase/personal/cli.mjs access",
+    "credentialInput": "resource-input.json",
+    "requiresAccessVerification": true,
+    "requiresSecretChatInput": false,
+    "checkpoints": [
+      "environment-confirmation",
+      "cam-policy-and-api-key",
+      "private-file-handoff",
+      "read-only-access-verification"
     ],
-    "requiresBrowserApprovalWhenNeeded": true,
-    "requiresCustomerParameterForm": false,
-    "defaults": {
-      "project_id": "bifang_tools",
-      "localRegisteredClientId": "woskill",
-      "requestTimeoutSeconds": 10,
-      "scopesBySelection": {
-        "仅更新": "updater:config:read",
-        "仅统计": "cloudbase:config:read",
-        "更新和统计都接入": "cloudbase:config:read updater:config:read"
+    "requiredCamPolicies": [
+      {
+        "name": "BifangPersonalCloudBaseInspect",
+        "path": "skills/bifang-public-services-onboarding/assets/cam-inspect-policy.json"
+      },
+      {
+        "name": "BifangPersonalCloudBaseCreate",
+        "path": "skills/bifang-public-services-onboarding/assets/cam-create-policy.json"
       }
-    },
-    "onConfigurationFailure": "hold-second-gate-for-entire-selected-scope; preserve-valid-evidence-and-repair-failed-config",
-    "onUnselectedService": "not-applicable; do-not-expand-scope",
-    "scopePolicy": {
-      "authority": "token-response-scope",
-      "onMissingSelectedScope": "stop-affected-branch; reauthorize-if-needed",
-      "onExtraScope": "do-not-expand-integration-scope",
-      "refreshScope": "omit; preserve-actual-granted-set"
-    }
-  },
-  "thirdGate": {
-    "id": "client-integration-plan-readiness",
-    "enforcedBy": "skill-evidence-based-plan-review-and-explicit-customer-confirmation",
-    "required": true,
-    "dependsOn": "authorization-center-configuration",
-    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第三门禁客户端接入方案与请求明细确认",
-    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
-    "requiresCustomerParameterForm": false,
-    "requiresBlanketConfirmation": false,
-    "requiredEvidence": [
-      "rust-integration-points-mapped",
-      "runtime-behavior-and-defaults-resolved",
-      "scoped-change-list-prepared",
-      "local-and-online-validation-plan-prepared",
-      "external-dependencies-recorded",
-      "inline-selected-service-request-details",
-      "explicit-customer-confirmation-by-branch"
     ],
-    "onUnknownBlockingFact": "hold-current-gate-for-entire-selected-scope; clarify-only-unresolved-facts",
-    "onKnownOnlineDependency": "record-separately; allow-local-work-only-after-prerequisite-gates-pass-and-authorization-exists",
-    "onPartialReadiness": "hold-entire-selected-scope-at-current-gate-until-all-selected-services-pass",
-    "onUnselectedService": "not-applicable; preserve-existing-behavior",
-    "completionMeaning": "plan-ready-and-customer-confirmed; not-implementation-or-live-validation-complete",
-    "requiresExplicitCustomerConfirmation": true,
-    "confirmationPresentation": "inline-complete-selected-service-request-details; linked-record-only-supplementary; credentials-hidden",
-    "onUnconfirmed": "stop-before-dependent-implementation; scope-selection-and-browser-approval-do-not-count"
+    "policyEvidence": "customer-confirmed-association-or-verified-equivalent; access-only-proves-environment-read-permissions; no-trial-writes"
   },
-  "fourthGate": {
-    "id": "client-local-implementation-acceptance",
-    "enforcedBy": "skill-scoped-implementation-and-host-verification",
-    "required": true,
-    "dependsOn": "client-integration-plan-readiness",
-    "entryCondition": "all-selected-services-second-and-third-gates-passed-with-explicit-customer-confirmation; local-implementation-authorized",
-    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#第四门禁客户端本地实施与验收",
-    "scopes": ["仅更新", "仅统计", "更新和统计都接入"],
-    "requiresCustomerParameterForm": false,
-    "requiresBlanketConfirmation": false,
-    "requiredEvidence": [
-      "applicable-ui-preview-and-customer-confirmation-or-not-applicable-evidence",
-      "target-architecture-and-coding-conventions-applied",
-      "actual-scoped-changes",
-      "host-request-and-state-evidence",
-      "executed-local-checks-and-results",
-      "implemented-capabilities-and-platform-limits",
-      "unverified-items-and-online-dependencies"
+  "nextGate": {
+    "id": "personal-exe-testing",
+    "status": "basic-artifact-testing-defined",
+    "dependsOn": "personal-confirmed-release-and-preflight",
+    "entryRequires": [
+      "gate-five-passed-or-telemetry-only-not-applicable",
+      "valid-local-implementation-evidence",
+      "concrete-artifact-and-action-scope",
+      "specific-build-run-network-scope-confirmed-in-gate-five-plan-or-later-user-instruction"
     ],
-    "localTestPolicy": "fake-credentials; injected-transport; fixed-clock; temporary-state; no-live-business-requests",
-    "onLocalFailure": "repair-and-reverify-within-authorized-scope; do-not-reduce-selected-services-or-promised-capabilities",
-    "onPartialAcceptance": "record-branch-results-independently; combined-pass-requires-both-branches-and-isolation-evidence",
-    "onUnselectedService": "not-applicable; preserve-existing-behavior",
-    "completionMeaning": "local-implementation-accepted; not-live-service-gui-installation-or-release-complete",
-    "requiresSeparateExplicitAuthorization": [
-      "run-live-update-check-or-download",
-      "run-live-telemetry-or-dashboard-verification",
-      "modify-operations-registration-or-update-backend",
-      "build-or-install-client",
-      "sign-client-artifacts",
-      "run-native-gui-or-install-e2e",
-      "deploy-cloudbase",
-      "publish-or-push",
-      "delete-or-retire-cloud-resources"
+    "onEntry": "reuse-confirmed-current-target-scope; build-missing-artifact-and-run-basic-tests-directly; no-repeat-start-question",
+    "requiredHandoff": [
+      "actual-test-results-evidence-and-unverified-scope",
+      "artifact-absolute-link-version-architecture-size-sha256-and-private-receipt",
+      "actual-dashboard-url-when-telemetry-selected",
+      "expected-name-and-actual-api-and-page-name-when-telemetry-selected",
+      "current-customer-dashboard-access-token-in-final-reply-when-telemetry-selected"
     ],
-    "uiReview": {
-      "requiredBeforeCodingWhen": "updates-selected-or-visible-telemetry-ui-changes",
-      "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#先展示并确认-ui再编码",
-      "requiredEvidence": [
-        "current-project-style-evidence",
-        "visible-selected-service-ui-previews",
-        "actual-trigger-and-display-locations",
-        "explicit-customer-ui-confirmation"
-      ],
-      "onUnconfirmed": "stop-all-selected-business-implementation; design-preview-only",
-      "onTelemetryOnlyWithoutVisibleChanges": "not-applicable; proceed-with-existing-local-implementation-authorization",
-      "onConfirmed": "implement-and-test-within-existing-authorization; no-repeat-start-coding-question",
-      "onThirdGateConfirmation": "does-not-replace-ui-confirmation"
-    },
-    "architectureBeforeCoding": {
-      "required": true,
-      "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#编码前学习当前项目架构与编码规范",
-      "requiresCustomerConfirmation": false,
-      "requiredEvidence": [
-        "applicable-project-instructions-and-conventions",
-        "actual-module-boundaries-and-call-chain",
-        "existing-patterns-and-reuse-map",
-        "local-verification-commands-and-baseline"
-      ],
-      "implementationPolicy": "preserve-target-architecture-and-stack; follow-existing-module-and-coding-conventions; no-unrelated-refactor",
-      "onUnresolvedConflict": "investigate-evidence; stop-only-dependent-changes-and-clarify-concrete-conflict"
-    }
+    "dashboardCredentialPolicy": "read-only-bound-private-service-credentials.dashboard.DASHBOARD_ACCESS_TOKEN; final-customer-reply-only; no-other-secrets; no-secret-in-repository-logs-or-url; missing-is-explicit-not-fabricated",
+    "dashboardDisplayName": "when-telemetry-selected-compare-intake-display_name-with-live-appLabels-by-app_id-and-visible-app-filter; report-each-result",
+    "detailsPending": ["download-install-upgrade-and-rollback-when-authorized"],
+    "reference": "skills/bifang-public-services-onboarding/references/personal-artifact-testing.md"
   },
-  "initialAuthorization": {
-    "condition": "firstGate confirmed for discovery; secondGate requires valid authorization and selected configuration; thirdGate requires inline request details and explicit customer confirmation of a ready plan before authorized implementation; fourthGate completes scoped local implementation and acceptance only",
+  "automaticBootstrap": {
+    "enabled": false,
+    "reason": "remote-url-bootstrap-not-supported; use-local-installation"
+  },
+  "localInstallation": {
+    "command": "npm run skill:install",
+    "script": "skills/bifang-public-services-onboarding/scripts/local-source.mjs",
+    "resolveCommand": "resolve",
+    "bindingFile": ".source-location.json",
+    "sourceTypes": ["git-personal-branch", "personal-branch-archive"],
+    "sourcePolicy": "verify-bound-source-and-read-current-local-skill; bounded-discovery-if-missing; ask-only-if-unresolved",
+    "destination": "CODEX_HOME/skills-or-user-home/.codex/skills",
+    "backupOutsideSkills": true,
+    "networkRequests": false,
+    "grantsGatePass": false
+  },
+  "authorization": {
+    "scope": "manifest-alone-grants-no-implementation-or-cloud-write-authorization; reuse-explicit-session-scope",
     "allows": [
-      "fetch-authoritative-repository",
-      "install-or-update-onboarding-skill",
-      "read-only-stage-0-project-scan",
-      "read-selected-configuration-via-device-authorization",
-      "prepare-selected-service-integration-plan",
-      "implement-selected-rust-service-integration",
-      "write-or-migrate-non-sensitive-profile",
-      "replace-legacy-update-protocol-in-target-client",
-      "remove-legacy-update-protocol-from-target-client",
-      "run-local-static-and-unit-verification",
-      "run-local-host-integration-verification"
+      "explain-manual-free-environment-setup",
+      "record-customer-confirmation",
+      "prepare-private-local-input-file",
+      "read-customer-designated-input-after-ready",
+      "authorized-read-only-resource-preflight",
+      "offline-client-request-preview-through-private-files",
+      "project-style-inspection-and-isolated-mock-ui-preview-after-gate-three",
+      "gate-one-private-cam-credential-handoff",
+      "read-only-environment-access-check-after-disclosed-scope",
+      "offline-customer-specific-manual-resource-materials",
+      "confirmed-exact-version-management-write-and-scoped-readback",
+      "scoped-update-api-preflight-after-disclosed-plan-and-verified-save-with-valid-authorization"
     ],
-    "requiresSeparateExplicitAuthorization": [
-      "build-or-install-client",
-      "deploy-cloudbase",
+    "notGranted": [
+      "create-cloud-resources",
+      "change-cam-permissions",
+      "deploy",
+      "implement-business-integration",
       "publish-or-push",
-      "delete-or-retire-cloud-resources",
-      "run-live-update-check-or-download",
-      "run-live-telemetry-or-dashboard-verification",
-      "modify-operations-registration-or-update-backend",
-      "sign-client-artifacts",
-      "run-native-gui-or-install-e2e"
+      "delete"
     ]
   },
-  "gateProgression": {
-    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#门禁顺序与放行总表",
-    "order": [
-      "integration-scope-confirmation",
-      "authorization-center-configuration",
-      "client-integration-plan-readiness",
-      "client-local-implementation-acceptance"
-    ],
-    "requiresAllSelectedServicesToPass": true,
-    "allowsPartialBranchAdvance": false,
-    "onMissingOrUnconfirmedEvidence": "hold-current-gate; no-next-gate-actions",
-    "onResume": "verify-evidence; resume-earliest-unpassed-gate",
-    "onScopeChange": "return-to-first-gate; revalidate-downstream-applicability",
-    "fourthGateOrder": [
-      "ui-review",
-      "architecture-review",
-      "implementation",
-      "local-acceptance"
-    ],
-    "uiNotApplicableOnlyWhen": "telemetry-only-without-visible-ui-changes; record-reason",
-    "enforcement": "skill-workflow-and-contract-declaration; not-runtime-enforcement"
+  "thirdGate": {
+    "id": "personal-client-request-confirmation",
+    "dependsOn": "personal-service-resources",
+    "required": true,
+    "enforcedBy": "skill-conversation-and-offline-request-preview",
+    "reference": "skills/bifang-public-services-onboarding/references/personal-client-confirmation.md",
+    "inputTemplate": "skills/bifang-public-services-onboarding/assets/integration-input.template.json",
+    "tool": "cloudbase/personal/client-confirmation.mjs",
+    "commands": ["init", "preview"],
+    "onMissing": "private-file-supplement; no-secret-chat-input",
+    "onReady": "show-complete-redacted-request-details; provide-private-examples-path; await-explicit-confirmation",
+    "onChanged": "regenerate-and-reconfirm-affected-details",
+    "requiresExplicitConfirmation": true,
+    "jointScopeMustPassTogether": true,
+    "previewSendsRequests": false,
+    "onPass": "parameters-and-requests-confirmed; enter-ui-preview-before-implementation"
   },
-  "postLocalAcceptance": {
-    "dependsOn": "client-local-implementation-acceptance",
-    "reference": "skills/bifang-public-services-onboarding/references/integration-contract.md#本地通过后更新中心配置与-exe-真实测试",
-    "order": [
-      "prompt-customer-manual-update-configuration",
-      "wait-for-customer-completion",
-      "simple-client-update-api-preflight",
-      "preflight-pass-and-exe-test-authorization",
-      "build-and-run-real-exe",
-      "real-acceptance-evidence"
+  "fourthGate": {
+    "id": "personal-client-ui-and-implementation",
+    "dependsOn": "personal-client-request-confirmation",
+    "required": true,
+    "enforcedBy": "skill-conversation-and-evidence; no-automatic-runner",
+    "reference": "skills/bifang-public-services-onboarding/references/personal-client-implementation.md",
+    "checkpoints": [
+      {
+        "id": "ui-confirmation",
+        "dependsOn": "personal-client-request-confirmation",
+        "requires": [
+          "current-project-style-evidence",
+          "visible-mock-previews",
+          "trigger-and-display-locations",
+          "explicit-customer-ui-confirmation"
+        ],
+        "requiredUpdateViews": [
+          "normal-update",
+          "forced-update",
+          "manual-check-entry-and-results"
+        ],
+        "humanConfirmationExemption": "telemetry-only-with-no-visible-ui-change-and-recorded-evidence",
+        "whileWaiting": "no-business-code-for-either-selected-service"
+      },
+      {
+        "id": "architecture-review",
+        "dependsOn": "ui-confirmation",
+        "requires": [
+          "applicable-AGENTS-and-coding-rules",
+          "actual-module-flow-and-reuse-evidence",
+          "change-scope-and-validation-commands"
+        ],
+        "requiresSeparateHumanApproval": false
+      },
+      {
+        "id": "implementation",
+        "dependsOn": "architecture-review",
+        "requires": [
+          "client-implementation-authorization",
+          "no-active-read-only-restriction",
+          "confirmed-requests-and-ui"
+        ],
+        "onReady": "implement-within-existing-authorization; no-repeat-start-question"
+      },
+      {
+        "id": "local-validation",
+        "dependsOn": "implementation",
+        "requires": [
+          "selected-service-checks",
+          "joint-checks-when-both-selected",
+          "local-failure-fixes-and-evidence"
+        ],
+        "uses": [
+          "fake-credentials",
+          "mock-transport",
+          "fixed-clock",
+          "temporary-state"
+        ]
+      }
     ],
-    "requiresCustomerConfigurationHandoff": true,
-    "updateCenterAppliesWhen": "updates-selected",
-    "telemetryOnly": "skip-update-center; verify-telemetry-service-readiness",
-    "combinedScope": "update-preflight-and-existing-selected-service-prerequisites-before-exe-test",
-    "onUnknownAdminUrl": "mark-pending; do-not-derive-admin-url-from-api",
-    "onNotReady": "hold-dependent-real-test; no-mock-completion",
-    "testAuthorization": "reuse-explicit-same-target-authorization; otherwise-confirm-concrete-build-run-live-request-plan",
-    "requiredEvidence": [
-      "actual-artifact-path-version-architecture-and-sha256",
-      "actual-process-and-window",
-      "selected-service-live-request-and-behavior-results",
-      "per-scenario-pass-fail-or-unverified",
-      "installation-evidence-only-if-actually-authorized-and-executed"
+    "jointScopeMustPassTogether": true,
+    "onMaterialChange": "reconfirm-affected-ui; return-to-gate-three-if-request-or-behavior-changes",
+    "notIncluded": [
+      "live-service-tests",
+      "cloud-writes",
+      "release-build-sign-install",
+      "real-exe-tests",
+      "publish-push-delete"
     ],
-    "configurationOwner": "customer-manual; no-skill-admin-operation-or-audit",
-    "preflight": {
-      "appliesWhen": "updates-selected",
-      "trigger": "customer-reports-completion-after-preflight-purpose-and-targets-disclosed",
-      "protocol": "POST-client-update-check; expect-201-and-valid-contract-matching-intended-scenario",
-      "defaultRequestLimit": "one-request-per-confirmed-test-target; no-automatic-enumeration-or-unbounded-retries",
-      "onFailure": "hold-step-5; customer-corrects-and-reports-again-before-recheck",
-      "onPass": "eligible-for-step-6-only-with-exe-test-authorization",
-      "excludes": [
-        "admin-api-or-ui-audit",
-        "backend-configuration-mutation",
-        "artifact-download-or-installation",
-        "exe-build-or-run",
-        "daily-active-write"
+    "onPass": "local-implementation-validated; enter-release-information-and-save-plan; no-live-or-installation-success-claim"
+  },
+  "fifthGate": {
+    "id": "personal-confirmed-release-and-preflight",
+    "dependsOn": "personal-client-ui-and-implementation",
+    "requiredWhen": "update-selected",
+    "enforcedBy": "skill-plan-confirmation-and-save-readback-preflight-evidence; no-automatic-runner",
+    "reference": "skills/bifang-public-services-onboarding/references/personal-update-preflight.md",
+    "checkpoints": [
+      {
+        "id": "release-information-and-save-plan",
+        "dependsOn": "personal-client-ui-and-implementation",
+        "requires": [
+          "existing-target-parameters",
+          "existing-private-handoff-file-absolute-path-and-clickable-link-when-file-input-needed",
+          "exact-editable-field-paths-values-requiredness-and-prefilled-fields",
+          "local-release-validation",
+          "reviewable-exact-save-plan-and-private-input-binding",
+          "explicit-specific-save-plan-confirmation",
+          "disclosed-readback-and-preflight-scope",
+          "disclosed-following-artifact-build-run-and-selected-service-test-scope"
+        ],
+        "onFileFilled": "local-validation-only; not-release-completion-or-live-preflight-authorization",
+        "assistantWritesManagementApi": "only-after-specific-plan-confirmation"
+      },
+      {
+        "id": "authorized-save-and-readback",
+        "dependsOn": "release-information-and-save-plan",
+        "requires": [
+          "confirmed-plan-inputs-and-credentials-unchanged",
+          "management-write-role-for-exact-save",
+          "management-read-role-for-scoped-readback",
+          "saved-or-identical-existing-record-verified"
+        ],
+        "onConflict": "stop; new-plan-for-any-overwrite",
+        "onUnknownWriteOutcome": "bounded-authorized-readback; no-blind-write-retry"
+      },
+      {
+        "id": "update-api-preflight",
+        "dependsOn": "authorized-save-and-readback",
+        "requires": [
+          "valid-request-and-runtime-credential-evidence",
+          "authorized-disclosed-scope",
+          "actual-get-http-200",
+          "seven-field-contract",
+          "target-mapping-and-download-link-match",
+          "expected-update-behavior-for-selected-scenario"
+        ],
+        "onFailure": "hold; diagnose; confirm-new-plan-for-any-additional-write"
+      }
+    ],
+    "onTelemetryOnly": "record-not-applicable; enter-exe-test-preparation-after-gate-four",
+    "onBothSelected": "all-selected-update-targets-must-pass; live-telemetry-deferred-to-exe-stage",
+    "notIncluded": [
+      "download-url-head-or-get",
+      "package-download",
+      "build-install-run-exe",
+      "live-telemetry-write",
+      "cloud-deployment",
+      "unconfirmed-management-api-writes",
+      "direct-database-writes",
+      "permission-changes"
+    ],
+    "onMaterialChange": "invalidate-affected-preflight; recheck-prior-gates-if-request-or-implementation-changed",
+    "onPass": "update-api-preflight-passed; directly-build-and-test-current-target-within-confirmed-scope; preserve-explicit-artifact-exclusions",
+    "defaultSaveMode": "assistant-after-specific-plan-confirmation",
+    "platformStaging": "explicit-customer-selection-only; preserve-pending-targets-and-no-global-pass",
+    "statuses": [
+      "awaiting-release-facts",
+      "awaiting-save-plan-confirmation",
+      "ready-to-save",
+      "save-failed-or-uncertain",
+      "saved-and-readback-verified",
+      "awaiting-preflight",
+      "preflight-failed",
+      "preflight-passed",
+      "telemetry-only-not-applicable"
+    ]
+  },
+  "secondGate": {
+    "id": "personal-service-resources",
+    "dependsOn": "personal-free-environment-confirmation",
+    "required": true,
+    "enforcedBy": "skill-conversation-and-scoped-resource-reconciliation",
+    "question": "请选择自己手动创建、助手按清单自动创建并检查，或已有资源仅检查。",
+    "options": ["手动创建", "自动创建并检查", "已有资源仅检查"],
+    "onAllCreated": "skip-writes; verify-existing-resources-before-pass",
+    "onMissing": "reuse-gate-one-private-file; show-concrete-resources; await-creation-mode; prepare-manual-materials-or-authorized-apply; verify",
+    "onUnknown": "authorized-read-only-inventory; no-assumed-missing-or-overwrite",
+    "onPass": "enter-personal-client-request-confirmation",
+    "reference": "skills/bifang-public-services-onboarding/references/personal-resources.md",
+    "inputTemplate": "skills/bifang-public-services-onboarding/assets/resource-input.template.json",
+    "credentialPolicy": "outside-git; restricted-permissions; local-process-only; no-raw-secret-tool-output",
+    "onFileReady": "read-and-validate; no-implicit-cloud-write-authorization",
+    "resourceTool": {
+      "path": "cloudbase/personal/cli.mjs",
+      "commands": [
+        "init",
+        "access",
+        "validate",
+        "prepare",
+        "plan",
+        "apply",
+        "verify"
       ],
-      "evidenceMeaning": "limited-live-update-api-preflight; not-exe-gui-installation-or-telemetry-acceptance"
+      "applyRequires": [
+        "specific-cloud-write-authorization",
+        "expected-plan-sha256",
+        "fresh-free-preflight"
+      ],
+      "verification": "control-plane-readback; no-live-http-gui-exe-test",
+      "existingResourcePolicy": "preserve-matching; explicitly-reviewed-shared-configuration-extension; no-delete-or-code-replacement",
+      "sharedExtension": {
+        "reference": "skills/bifang-public-services-onboarding/references/shared-function-extension.md",
+        "resourceMode": "update-and-dashboard-extend",
+        "baseline": "private-shared-baseline.json",
+        "displayNames": "merge-target-display_names-in-DASHBOARD_APP_LABELS_JSON-on-labels-v1; legacy-package-needs-verified-label-catalog-or-reviewed-repair",
+        "requiredCreatePolicyAction": "scf:UpdateFunctionConfiguration",
+        "preserves": [
+          "existing-app-mappings",
+          "existing-credential-bindings-scopes-and-rotation-hashes",
+          "dashboard-tokens",
+          "code-and-other-configuration"
+        ],
+        "requires": "exact-plan-approval-and-gate-one-create-policy-or-equivalent"
+      }
+    },
+    "requiresCreationModeChoice": true,
+    "requiresResourceVerification": true,
+    "manualFlow": [
+      "prepare-private-bundles-and-settings",
+      "customer-manual-creation",
+      "customer-completion-notice",
+      "read-only-verify"
+    ],
+    "automaticFlow": [
+      "concrete-plan-and-fresh-free-preflight",
+      "reuse-specific-plan-authorization",
+      "apply-with-expected-plan",
+      "per-resource-and-final-readback"
+    ],
+    "permissionPreparation": "reuse-inspect-and-create-permissions-from-gate-one; permission-drift-returns-to-gate-one"
+  },
+  "database": {
+    "defaultType": "postgresql",
+    "documentAdapter": "pgdoc",
+    "reference": "skills/bifang-public-services-onboarding/references/postgresql.md",
+    "identification": "DescribeEnvs.PostgreSQL-and-fixed-ExecutePGSql-catalog-read",
+    "enablementGate": 2,
+    "enablementAction": "tcb:EnablePGDocumentExt",
+    "legacyDocumentMigration": "not-authorized-or-automated",
+    "runtimeSdk": "@cloudbase/node-sdk@3.18.3",
+    "retention": {
+      "mode": "ordinary-index-and-scheduled-cleanup",
+      "index": "expires_at_cleanup",
+      "expiresAfterDays": 30,
+      "intervalMinutes": 15,
+      "maxRecordsPerRun": 100,
+      "reference": "skills/bifang-public-services-onboarding/references/retention-cleanup.md",
+      "activationRequires": "new-plan-approval-including-future-expired-telemetry-deletion",
+      "liveCleanupVerification": "separate-scoped-test-authorization"
     }
   }
 }

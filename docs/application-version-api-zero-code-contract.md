@@ -1,6 +1,10 @@
 # 应用版本 API v1 契约、迁移状态与可行性报告
 
-> 历史服务范围：本文记录 application-version API v1 当时的实现与验收口径，不是新客户端更新合同。当前 Skill 使用客户端更新中心 POST；字段级规范见 [Updater 合同](../skills/bifang-public-services-onboarding/references/client-update-center.md)，CloudBase 日活及授权中心配置合同见 [统一接入规范](../skills/bifang-public-services-onboarding/references/integration-contract.md)。旧 GET 的 code、x-app-key、x-app-secret 不得带入新更新检查或日活请求。
+个人模式通过 PostgreSQL 的 pgdoc 复用本文集合与事务协议；使用官方 Node SDK v3，客户端请求不变。插件及部署核验见 [PostgreSQL 适配](../skills/bifang-public-services-onboarding/references/postgresql.md)。
+
+> 本文记录既有基础设施与公司模式历史，不是个人版执行入口；正文所称“新接入”和门禁均按历史语境理解。个人流程已定义环境、资源、参数/请求、UI 与本地实施、客户手动发布配置及预检五道门禁，以 [个人版接入指南](毕方小工具公共服务分步接入指南.md) 和 [个人版第五门禁](../skills/bifang-public-services-onboarding/references/personal-update-preflight.md) 为准，预检通过后才进入 EXE 测试；不得把历史公司 POST/201 或 block_new_operations 套入个人 GET/200。历史协议链接固定到旧版标签。
+
+> 历史服务范围：本文记录 application-version API v1 当时的实现与验收口径，不是个人版客户端更新合同。公司版标签内的 Skill 使用客户端更新中心 POST；字段级规范见 [历史 Updater 合同](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/client-update-center.md)，CloudBase 日活及授权中心配置合同见 [历史统一接入规范](https://github.com/BFTools3666/bifang-operations-assistant/blob/skill-v2.1.5-company-managed/skills/bifang-public-services-onboarding/references/integration-contract.md)。旧 GET 的 code、x-app-key、x-app-secret 不得带入新更新检查或日活请求。
 
 ## 结论
 

@@ -16,9 +16,7 @@ function createCloudBaseWriter(options = {}) {
       : options.collectionName,
   );
   const appFactory = options.appFactory || createDefaultCloudBaseApp;
-  let collection;
-
-  return async function writeEvent(document) {
+  return async function writeEvent(document, { runtimeContext } = {}) {
     if (
       !document ||
       typeof document !== "object" ||
@@ -31,10 +29,9 @@ function createCloudBaseWriter(options = {}) {
       throw new Error("telemetry_collection_not_configured");
     }
 
-    if (!collection) {
-      const app = await appFactory();
-      collection = app.database().collection(collectionName);
-    }
+    // Do not retain one invocation's temporary signing credentials.
+    const app = await appFactory({ runtimeContext });
+    const collection = app.database().collection(collectionName);
 
     try {
       await collection.add({ ...document });
@@ -61,32 +58,92 @@ function normalizeCollectionName(value) {
 }
 
 function createDefaultCloudBaseApp(options = {}) {
-  // CommonJS is intentional: normal CloudBase Event functions use a CommonJS
-  // entrypoint. @cloudbase/js-sdk selects its built-in Node adapter through the
-  // package's conditional export. Current-environment auth is supplied by the
-  // function runtime; no public-client secret or API key is accepted here.
   const cloudbaseModule =
-    options.cloudbaseModule || require("@cloudbase/js-sdk");
+    options.cloudbaseModule || require("@cloudbase/node-sdk");
   const cloudbase = cloudbaseModule.default || cloudbaseModule;
   const configuredEnv =
     options.envOverride === undefined
       ? process.env.CLOUDBASE_ENV_ID
       : options.envOverride;
-
-  // In an Event function the Node adapter resolves SYMBOL_CURRENT_ENV from the
-  // runtime's TCB_ENV/SCF_NAMESPACE values. Local processes without those
-  // runtime variables cannot exercise this path faithfully.
-  const hasConfiguredEnv =
-    typeof configuredEnv === "string" && configuredEnv.trim().length > 0;
   const currentEnv =
     cloudbase.SYMBOL_CURRENT_ENV || cloudbaseModule.SYMBOL_CURRENT_ENV;
-  if (!hasConfiguredEnv && !currentEnv) {
-    throw new Error("cloudbase_environment_unavailable");
+  const env =
+    (typeof configuredEnv === "string" && configuredEnv.trim()) || currentEnv;
+  if (!env) throw new Error("cloudbase_environment_unavailable");
+  const context = extractRuntimeSdkContext(options.runtimeContext);
+  // Node SDK v3 consumes sessionToken in init; JS SDK's tmpSecret-only config
+  // does not supply signing credentials here. Only accept runtime STS context.
+  const secret = context?.extendedContext.tmpSecret;
+  return cloudbase.init({
+    env,
+    ...(options.requestTimeoutMs === undefined
+      ? {}
+      : { timeout: options.requestTimeoutMs }),
+    ...(secret
+      ? {
+          secretId: secret.secretId,
+          secretKey: secret.secretKey,
+          sessionToken: secret.token,
+        }
+      : {}),
+  });
+}
+
+function extractRuntimeSdkContext(runtimeContext) {
+  if (!runtimeContext || typeof runtimeContext !== "object") return null;
+  const direct = runtimeContext.extendedContext?.tmpSecret;
+  if (isSessionSecret(direct)) {
+    return {
+      extendedContext: {
+        tmpSecret: {
+          secretId: direct.secretId,
+          secretKey: direct.secretKey,
+          token: direct.token,
+        },
+      },
+    };
   }
-  const initOptions = {
-    env: hasConfiguredEnv ? configuredEnv.trim() : currentEnv,
+  let environment = runtimeContext.environment;
+  if (typeof environment === "string" && environment.length <= 65_536) {
+    try {
+      environment = JSON.parse(environment);
+    } catch {
+      environment = null;
+    }
+  }
+  if (
+    !environment &&
+    typeof runtimeContext.environ === "string" &&
+    runtimeContext.environ.length <= 65_536
+  ) {
+    environment = Object.fromEntries(
+      runtimeContext.environ
+        .split(";")
+        .filter((item) => item.includes("="))
+        .map((item) => {
+          const offset = item.indexOf("=");
+          return [item.slice(0, offset), item.slice(offset + 1)];
+        }),
+    );
+  }
+  const secret = {
+    secretId: environment?.TENCENTCLOUD_SECRETID,
+    secretKey: environment?.TENCENTCLOUD_SECRETKEY,
+    token: environment?.TENCENTCLOUD_SESSIONTOKEN,
   };
-  return cloudbase.init(initOptions);
+  return isSessionSecret(secret)
+    ? { extendedContext: { tmpSecret: secret } }
+    : null;
+}
+
+function isSessionSecret(value) {
+  return (
+    value &&
+    [value.secretId, value.secretKey, value.token].every(
+      (item) =>
+        typeof item === "string" && item.length > 0 && item.length <= 8192,
+    )
+  );
 }
 
 function isDuplicateWriteError(error) {

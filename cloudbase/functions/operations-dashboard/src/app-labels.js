@@ -35,6 +35,22 @@ function validateAppLabels(value) {
 // controlled by cloudbase/apps.json and the reviewed runtime app mapping.
 const APP_LABELS = validateAppLabels(require("./app-labels.json"));
 
+// The personal dashboard config supplies one display name per registered app.
+// Deployments without this contract continue to use their packaged catalog.
+function parseConfiguredAppLabels(value, apps) {
+  try {
+    const labels = validateAppLabels(JSON.parse(value));
+    if (
+      Object.keys(labels).length !== apps.length ||
+      !apps.every(({ appId }) => Object.hasOwn(labels, appId))
+    )
+      return null;
+    return labels;
+  } catch {
+    return null;
+  }
+}
+
 function getAppLabel(appId, labels = APP_LABELS) {
   return Object.hasOwn(labels, appId) ? labels[appId] : appId;
 }
@@ -51,6 +67,7 @@ function projectAppLabels(apps, labels = APP_LABELS) {
 module.exports = {
   APP_LABELS,
   getAppLabel,
+  parseConfiguredAppLabels,
   projectAppLabels,
   validateAppLabels,
 };
