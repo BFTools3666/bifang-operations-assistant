@@ -91,12 +91,24 @@ function createCloudBaseRepository(options = {}) {
   }
 
   return {
-    async createVersion(appId, record, audit) {
+    async releaseRevision(appId, code) {
+      const ref = getDatabase()
+        .collection(select(appId).versionCollection)
+        .doc(internalDocumentId("release-revision", code));
+      return (await readTransactionDocument(ref))?.revision ?? null;
+    },
+    async createVersion(appId, record, audit, expectedRevision) {
       const resource = select(appId);
       const database = getDatabase();
       try {
         await database.runTransaction(async (transaction) => {
           const versions = transaction.collection(resource.versionCollection);
+          await advanceRevision(
+            versions,
+            record.code,
+            audit.id,
+            expectedRevision,
+          );
           const key = versionKeyDocumentId(record.code, record.versionKey);
           if (await transactionDocumentExists(versions.doc(key)))
             throw conflict();
@@ -119,7 +131,14 @@ function createCloudBaseRepository(options = {}) {
       }
     },
 
-    async updateVersion(appId, id, record, audit, authorizedCodes) {
+    async updateVersion(
+      appId,
+      id,
+      record,
+      audit,
+      authorizedCodes,
+      expectedRevision,
+    ) {
       const resource = select(appId);
       const database = getDatabase();
       try {
@@ -131,6 +150,14 @@ function createCloudBaseRepository(options = {}) {
           const existing = fromVersionDocument(existingDocument);
           assertCodeAuthorized(authorizedCodes, existing.code);
           assertCodeAuthorized(authorizedCodes, record.code);
+          await advanceRevision(
+            versions,
+            record.code,
+            audit.id,
+            expectedRevision,
+          );
+          if (existing.code !== record.code)
+            await advanceRevision(versions, existing.code, audit.id);
           const previousKey = versionKeyDocumentId(
             existing.code,
             existing.versionKey,
@@ -468,6 +495,21 @@ function internalDocumentId(kind, value) {
     .update(`${kind}\u0000${value}`, "utf8")
     .digest("hex")
     .slice(0, 24);
+}
+
+async function advanceRevision(collection, code, revision, expected) {
+  const ref = collection.doc(internalDocumentId("release-revision", code));
+  if (
+    expected !== undefined &&
+    ((await readTransactionDocument(ref))?.revision ?? null) !== expected
+  )
+    throw conflict();
+  await ref.set({
+    doc_type: "release_revision",
+    schema_version: 1,
+    code,
+    revision,
+  });
 }
 
 async function transactionDocumentExists(reference) {

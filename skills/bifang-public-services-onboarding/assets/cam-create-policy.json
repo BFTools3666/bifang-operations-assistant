@@ -9,7 +9,6 @@
         "tcb:CreateFunction",
         "tcb:CreateHTTPServiceRoute",
         "tcb:UpdateTable",
-        "scf:CreateTrigger",
         "scf:UpdateFunctionConfiguration"
       ],
       "resource": ["*"]

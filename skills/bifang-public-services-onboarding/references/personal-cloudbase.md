@@ -4,13 +4,13 @@
 
 ## 第一门禁：免费环境、CAM 权限与管理密钥交接
 
-客户已经选择「1. 接入统计和更新」或明确要求首次接入后，先确认：“你是否已经在自己的腾讯云账号下创建好了 CloudBase 免费体验版环境？请选择：已创建 / 尚未创建 / 不确定。”复用本次明确回答。未创建按下文给完整开通步骤；不确定先指导查看套餐与环境，不能把账号注册、订单成功或笼统“继续”当环境创建完成。
+客户已经选择「1. 接入统计和更新」或明确要求首次接入后，先确认：“你是否已经在自己的腾讯云账号下创建好了 CloudBase 免费体验版环境？打开[云开发环境列表](https://tcb.cloud.tencent.com/dev#/select-env)，点自己的环境名称或 ID，在环境信息中查看套餐版本。1. 已创建　2. 尚未创建　3. 不确定。”复用本次明确回答。未创建按下文给完整开通步骤；不确定先指导查看套餐与环境，不能把账号注册、订单成功或笼统“继续”当环境创建完成。
 
 **已有免费环境只通过环境子项，不代表第一门禁通过。** 本门禁严格按以下顺序完成：
 
 1. 客户确认目标免费体验环境已创建；已有用户跳过开户和购买指引。
 2. 引导客户准备专用 CAM 子用户，在第一门禁一次性关联检查策略和创建策略，再准备 API 密钥；已有同用途有效子用户与密钥直接复用，不强制重建。
-3. 助手运行 `npm run cloudbase:personal:init`，给出刚创建的仓库外私有 `resource-input.json` 实际绝对路径和链接；客户在本机填写环境信息及 `SecretId` / `SecretKey`，告知“已填写”。不得要求粘贴密钥到聊天。
+3. 助手运行 `npm run cloudbase:personal:init`。在对话列出缺少的环境字段并回写，再给实际私有文件链接；客户只在本机填写 `credentials.SecretId` 和 `credentials.SecretKey`，完成后告知。
 4. 已向客户说明只读环境/套餐检查范围后，运行 `npm run cloudbase:personal:access -- --file <实际私有路径>`。此命令只读取目标环境、套餐、账期、额度及 PostgreSQL 系统目录，验证签名凭据可用于这些查询，不扫描项目、不盘点业务资源、不创建或修改云资源。填好文件不是云写入授权；已有明确只读/不联网限制须遵守。
 5. 只有客户环境确认、检查与创建权限均已关联的明确依据、私有密钥交接和 `access-verified` 均完成，才通过第一门禁。认证失败、权限不足、过期、非免费套餐或密钥缺失继续停在此门禁；不要把“文件已填写”或仅格式合法当作可用。
 
@@ -79,16 +79,16 @@
 
 第一门禁提供并同时关联两份策略，不按后续手动/自动创建选择延后写权限准备。回复中给两份文件的实际链接，并展开两份完整 JSON；说明作用范围后由客户在 CAM 审阅、创建和关联。已有等价权限经核对后复用，文件不含密钥。
 
-| 准备阶段           | 自定义策略名称与文件                                                                           | 权限及用途                                                                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 第一门禁，必须准备 | `BifangPersonalCloudBaseInspect`：[cam-inspect-policy.json](../assets/cam-inspect-policy.json) | 环境/套餐/账期/额度、路由、集合/权限、函数查询及索引盘点所需 RunCommands，及 PostgreSQL 系统目录查询，共 13 个明确 action（含 ListTriggers）              |
-| 第一门禁，同时准备 | `BifangPersonalCloudBaseCreate`：[cam-create-policy.json](../assets/cam-create-policy.json)    | EnablePGDocumentExt、CreateTable、UpdateTable、CreateFunction、CreateHTTPServiceRoute、scf:CreateTrigger、scf:UpdateFunctionConfiguration，共 7 个 action |
+| 准备阶段           | 自定义策略名称与文件                                                                           | 权限及用途                                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 第一门禁，必须准备 | `BifangPersonalCloudBaseInspect`：[cam-inspect-policy.json](../assets/cam-inspect-policy.json) | 环境/套餐/账期/额度、路由、集合/权限、函数查询及索引盘点所需 RunCommands，及 PostgreSQL 系统目录查询，共 12 个明确 action              |
+| 第一门禁，同时准备 | `BifangPersonalCloudBaseCreate`：[cam-create-policy.json](../assets/cam-create-policy.json)    | EnablePGDocumentExt、CreateTable、UpdateTable、CreateFunction、CreateHTTPServiceRoute、scf:UpdateFunctionConfiguration，共 6 个 action |
 
 无论第二门禁选择手动还是自动创建，第一门禁都先把这两份权限准备好；第二门禁只选择执行方式、确认资源计划并执行/核验。客户使用其他控制台身份手动操作时，助手仍保留已准备的身份供检查，操作行为遵守客户选择。控制台额外菜单权限若实际缺失，再按具体报错处理，不盲加管理员。
 
-检查策略完整 action：`tcb:DescribeEnvs`、`tcb:DescribeBillingInfo`、`tcb:DescribeEnvAccountCircle`、`tcb:DescribeBaasPackageList`、`tcb:DescribeCreditsUsage`、`tcb:DescribeHTTPServiceRoute`、`tcb:DescribeTable`、`tcb:DescribeDatabaseACL`、`tcb:RunCommands`、`tcb:ExecutePGSql`、`scf:ListFunctions`、`scf:GetFunction`、`scf:ListTriggers`。
+检查策略完整 action：`tcb:DescribeEnvs`、`tcb:DescribeBillingInfo`、`tcb:DescribeEnvAccountCircle`、`tcb:DescribeBaasPackageList`、`tcb:DescribeCreditsUsage`、`tcb:DescribeHTTPServiceRoute`、`tcb:DescribeTable`、`tcb:DescribeDatabaseACL`、`tcb:RunCommands`、`tcb:ExecutePGSql`、`scf:ListFunctions`、`scf:GetFunction`。
 
-第一门禁同时关联的创建策略完整 action：`tcb:EnablePGDocumentExt`、`tcb:CreateTable`、`tcb:CreateFunction`、`tcb:CreateHTTPServiceRoute`、`tcb:UpdateTable`、`scf:CreateTrigger`、`scf:UpdateFunctionConfiguration`。本工具通过 TCB 创建函数，不要求 `scf:CreateFunction`；不授予删除环境、下单/购买、CAM 写入或所有服务的 `*` action。
+第一门禁同时关联的创建策略完整 action：`tcb:EnablePGDocumentExt`、`tcb:CreateTable`、`tcb:CreateFunction`、`tcb:CreateHTTPServiceRoute`、`tcb:UpdateTable`、`scf:UpdateFunctionConfiguration`。本工具通过 TCB 创建函数，不要求 `scf:CreateFunction`；不授予删除环境、下单/购买、CAM 写入或所有服务的 `*` action。
 
 2026-11-19 按[腾讯云更新函数配置接口](https://cloud.tencent.com/document/product/583/18580)核对，共享函数追加应用需 `scf:UpdateFunctionConfiguration`。新接入用上表两份策略一次准备。旧子用户使用六项创建策略时，核对已关联策略的生效版本或等价授权依据；确实缺少时，由客户更新原创建策略，或关联[旧账号单项补充策略](../assets/cam-shared-update-policy.json)。保持现有子用户和密钥。已在第二门禁的任务补齐差异后复核计划。技能文件更新不会改变云端策略。
 
@@ -108,7 +108,7 @@
 
 依据：[TCB 支持的 CAM action 与授权粒度](https://cloud.tencent.com/document/product/598/98174)、[SCF 支持的 CAM action 与授权粒度](https://intl.cloud.tencent.com/zh/document/product/598/57149)、[自定义策略创建与关联](https://cloud.tencent.com/document/product/876/47057)、[TCB 预设策略范围](https://cloud.tencent.com/document/product/876/47056)。策略来自本工具实际调用集合与官方 action 表，尚未在客户账号实测；第一门禁 `access` 只证明五项环境读取有效，不能宣布后续全部权限已获验证。
 
-旧版任务升级到普通索引＋清理方案时，需要客户按新计划补 `tcb:UpdateTable`、`scf:CreateTrigger`、`scf:ListTriggers` 的差异；助手不能因旧两份策略已关联而宣称新 action 已有权限，也不修改 CAM。UpdateTable 服务自身可删除/替换索引，本工具只发 CreateIndexes，并在写前重新检查同名冲突。详见 [清理方案](retention-cleanup.md)。
+版本、广告和审计集合的普通索引使用 `tcb:UpdateTable`。工具仅按确认计划发送 CreateIndexes，并在写前核对同名冲突。
 
 ### 8. 在哪里创建 SecretId / SecretKey
 
@@ -116,7 +116,7 @@
 2. 进入 **API 密钥** 页签，点击 **新建密钥**，按页面完成身份验证。创建用户时如果已生成同一有效密钥，直接复用，不再新建。
 3. 创建成功窗口保存 **SecretId 和 SecretKey 两项**，填入助手给出的私有文件，不发到聊天。腾讯云 SecretKey 只在创建时展示，之后不能再次查询；遗失时由客户按官方流程创建新密钥并处理旧密钥，助手不擅自删除或轮换。
 4. 这是子用户管理密钥；不要去主账号 API 密钥页创建主账号长期密钥，也不要拿 CloudBase 客户端 API Key 替代。
-5. 使用 STS 临时密钥时，除了 SecretId/SecretKey，还要把同一组 Token 和 UTC 到期时间填入文件；长期子用户密钥的 Token、expires_at 保持空字符串。
+5. 使用 STS 时，若无可复用材料，在对话收集 `credentials.Token` 和 `credentials.expires_at`，助手回写。长期密钥的这两项保持空字符串。
 
 依据：[子账号访问密钥管理](https://cloud.tencent.com/document/product/598/37140)。
 
@@ -124,19 +124,21 @@
 
 助手先运行 `cloudbase:personal:init` 并给客户返回的真实文件路径，不给尚不存在的占位路径，不让客户编辑仓库模板。文件使用 Windows 当前用户+SYSTEM ACL 或 Unix 0700/0600，位于仓库外受限目录；本地明文依靠文件权限保护，不称已加密。
 
+索取环境信息时，随题给[环境列表](https://tcb.cloud.tencent.com/dev#/select-env)：点目标环境名称或 ID，在环境信息中查看「环境 ID（EnvId）」和「地域」，分别对应 `cloudbase.env_id`、`cloudbase.region`；地域显示中文时可直接回复中文。只有两项 CAM 密钥走本机填写，给[CAM 用户列表](https://console.cloud.tencent.com/cam/user)及「目标子用户 → API 密钥 → 新建密钥」的位置。缺少哪个字段就展示哪一项指引。[官方环境说明](https://docs.cloudbase.net/quick-start/create-env) · [官方密钥说明](https://cloud.tencent.com/document/product/598/37140)
+
 第一门禁只填这些字段，其余 resources/applications 保持模板的未知/空值：
 
-| 字段                             | 填写要求                                                                                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| cloudbase.env_id / region        | 当前目标环境的真实 ID、地域；已有部署资料自动复用，否则客户从环境详情填入。工具支持 ap-shanghai / ap-beijing / ap-guangzhou，不猜地域 |
-| cloudbase.database_type          | 模板已填 postgresql，无需客户输入；由 API 自动核验，不能凭默认值放行                                                                  |
-| cloudbase.http_origin            | 本门禁可空；第二门禁从域名盘点自动读取，已有可信值可复用                                                                              |
-| credentials.mode                 | 固定 api-key                                                                                                                          |
-| credentials.SecretId / SecretKey | 专用子用户同一组 API 密钥，必填，不展示原值、部分值或摘要                                                                             |
-| credentials.Token / expires_at   | 长期密钥均空；STS 必须同时填同一组 Token 和未来 UTC ISO 时间，至少剩余 60 秒                                                          |
-| acknowledge_zero_cost_only       | 保持 true                                                                                                                             |
+| 字段                             | 填写要求                                                                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cloudbase.env_id / region        | 当前目标环境的真实 ID、地域；已有部署资料自动复用，否则客户从环境详情取得值，在对话回复。工具支持 ap-shanghai / ap-beijing / ap-guangzhou，不猜地域 |
+| cloudbase.database_type          | 模板已填 postgresql，无需客户输入；由 API 自动核验，不能凭默认值放行                                                                                |
+| cloudbase.http_origin            | 本门禁可空；第二门禁从域名盘点自动读取，已有可信值可复用                                                                                            |
+| credentials.mode                 | 固定 api-key                                                                                                                                        |
+| credentials.SecretId / SecretKey | 专用子用户同一组 API 密钥，必填，不展示原值、部分值或摘要                                                                                           |
+| credentials.Token / expires_at   | 长期密钥均空；STS 必须同时填同一组 Token 和未来 UTC ISO 时间，至少剩余 60 秒                                                                        |
+| acknowledge_zero_cost_only       | 保持 true                                                                                                                                           |
 
-客户回复“已填写”后，助手按已说明只读范围执行 `cloudbase:personal:access -- --file <同一实际路径>`。脚本本地读取并校验，不运行通用文件输出；仅返回脱敏状态、目标环境、PostgreSQL/pgdoc 核验状态、套餐/额度和回执路径。JSON 错误不回显原文。收到鉴权/权限错误只报告固定错误分类和缺少的具体 action，让客户在同一文件或 CAM 修正后重检。
+客户回复“已填写”后，助手按已说明只读范围执行 `cloudbase:personal:access -- --file <同一实际路径>`。脚本本地读取并校验，不运行通用文件输出；仅返回脱敏状态、目标环境、PostgreSQL/pgdoc 核验状态、套餐/额度和回执路径。JSON 错误不回显原文。收到鉴权/权限错误只报告固定错误分类和缺少的具体 action，按错误来源处理：普通字段在对话纠正并回写，两项 CAM 密钥在本机修正，策略由客户在 CAM 修正，再重检。
 
 ## 第一门禁产出与通过条件
 

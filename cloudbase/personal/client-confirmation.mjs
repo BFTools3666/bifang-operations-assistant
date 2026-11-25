@@ -326,7 +326,8 @@ export function prepareConfirmation(
               day_timezone: "Asia/Shanghai",
               max_attempts_per_day: 1,
               retry: false,
-              retention_days: 30,
+              expires_at_after_days: 30,
+              automatic_deletion_provisioned: false,
             },
           }
         : {}),

@@ -1,5 +1,7 @@
 # 共享函数增量接入
 
+本流程涉及客户操作云端时，在当次提示逐项展开[官方页面指引](../assets/console-guides.json)中适用的 policy、grant、functionConfig、functionCode：给可点击入口、页面内位置、目标字段或操作和完成标志。
+
 适用于同一免费环境中已有个人版 `application-version-api` 和 `operations-dashboard-api`，需要加入一个尚未登记的新应用。用户明确要求保留旧应用并扩展时使用；维护工具或生成计划不授权实际部署。核对日期：2026-11-19。
 
 ## 范围与材料
@@ -7,7 +9,7 @@
 - 复用原私有 resource-input.json；`resources.update` 和 `resources.dashboard` 同时设为 `extend`。统计按本次实际盘点设 missing/created。应用列表只填新应用；不把旧应用加入本次待创建范围。
 - 先 validate，再 plan。首次 plan 在免费预检后用 GetFunction 只读捕获两个共享函数，将原环境变量、配置、修改时间存入同任务受限 `shared-baseline.json`。已有基线直接复用，失败重试不自动刷新。源配置变化时先审阅新差异，再另行准备新基线和计划，不能自动接受远端变化。
 - 只接受 Active、Event、Nodejs20.19、index.main、256 MB、3 秒、TCB_QcsRole、具有个人工具部署标记及已知解析合同的共享函数。标记和配置是控制面证据，不是远端源码内容或 HTTP 业务成功证明。其他部署来源/格式继续停止适配。
-- 新应用 ID、集合名、发布 code、凭据标识或 key 冲突均停止，不重命名旧目标。当前仅支持新增完整应用，不支持给既有应用追加发布流或轮换凭据。
+- 新应用 ID、集合名、发布 code、凭据标识或 key 冲突均停止，不重命名旧目标。支持新增完整应用，也支持为只在大屏登记且发布流为空、版本服务尚未登记的应用首次开通更新。已有版本身份的应用按[旧环境升级](dashboard-install.md)核验其现有发布流。
 - 保留全部既有环境变量；版本映射追加新应用；合并凭据保留旧 credential_id、应用/code 绑定、scope、key 摘要和所有 secret 轮换摘要。只为新应用生成 runtime、managementRead、managementWrite 原值，并存同任务 service-credentials.json。
 - 大屏映射追加新应用与发布流，两个大屏 Token 摘要保持原值；新任务不会生成替代大屏口令，也不能由摘要恢复原口令。第六步需要交付原登录口令时，仅从用户指定、绑定该环境的既有私有材料读取；缺少如实报告，禁止扫描其他任务凭据或擅自轮换。
 - 新建个人大屏带 `personal-onboarding:labels-v1:` 部署标记。工具核对原 `DASHBOARD_APP_LABELS_JSON` 与原注册应用逐一对应，再把本次已填的名称随应用映射一起追加。两项在同一次大屏配置更新中生效。原名称缺失、配置异常或超过容量时停止并列出原因。
@@ -16,7 +18,7 @@
 
 ## 审阅与执行
 
-plan 输出 `materials_sha256`、保留应用、追加应用、修改的变量名、资源清单、第一门禁已准备的所需权限及免费预检。完整精确 API 载荷写入受限 `resource-plan-*.json`，其中含凭据摘要配置，不能通用打印、提交或分享。正文只展示脱敏摘要和文件链接。新建集合、索引、统计/清理函数、路由和 timer 继续沿用第二门禁的完整计划与授权要求。
+plan 输出 `materials_sha256`、保留应用、追加应用、修改的变量名、资源清单、第一门禁已准备的所需权限及免费预检。完整精确 API 载荷写入受限 `resource-plan-*.json`，其中含凭据摘要配置，不能通用打印、提交或分享。正文只展示脱敏摘要和文件链接。新建集合、索引、统计函数和 HTTP 路由 继续沿用第二门禁的完整计划与授权要求。
 
 共享更新使用 SCF `UpdateFunctionConfiguration`，载荷仅 Namespace、FunctionName、完整合并后的 Environment，不提交代码、内存、超时或其他配置。第一门禁的[创建策略](../assets/cam-create-policy.json)已包含 `scf:UpdateFunctionConfiguration`，复用已记录的权限依据。旧账号已有等价授权时直接复用，确实缺少才按[第一门禁升级说明](personal-cloudbase.md)补齐。策略使用 resource:*，限制 action，不能称单环境最小权限；该 action 本身可修改其他配置，而本工具仅允许经计划绑定的环境变量载荷。权限准备与本次写入计划的确认分别记录。
 

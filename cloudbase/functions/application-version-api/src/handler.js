@@ -2,6 +2,7 @@
 
 const { randomBytes, randomInt } = require("node:crypto");
 const { isIP } = require("node:net");
+const { dashboardRelease } = require("./dashboard-releases");
 
 const {
   authenticate,
@@ -110,6 +111,20 @@ function createHandler(options = {}) {
     try {
       if (!basePath || !applications || !credentials) {
         throw new ApiError(500, "server.unavailable", "服务暂时不可用");
+      }
+      if (event?.dashboardRelease) {
+        return await dashboardRelease({
+          input: event.dashboardRelease,
+          token: event.dashboardToken,
+          tokenHash:
+            options.dashboardTokenHash ??
+            process.env.DASHBOARD_RELEASE_TOKEN_SHA256,
+          credentials,
+          repository: fixedRepository || repositoryFactory(context),
+          now,
+          makeId: () => idGenerator("version", now()),
+          makeAuditId: auditIdGenerator,
+        });
       }
       const request = extractRequest(event, context);
       const route = matchRoute(request.path, request.method, basePath);

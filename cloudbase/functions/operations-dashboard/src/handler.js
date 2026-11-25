@@ -125,6 +125,10 @@ function createHandler(options = {}) {
   }
 
   const handleWebRequest = createDashboardWebHandler({
+    apps,
+    appLabels,
+    environmentId,
+    invokeRelease: options.invokeRelease,
     webPath,
     accessTokenHash,
     handleMetrics,

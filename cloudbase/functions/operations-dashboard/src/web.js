@@ -8,6 +8,8 @@ const {
 } = require("node:crypto");
 const { readFile } = require("node:fs/promises");
 const { join, resolve } = require("node:path");
+const { releaseToken, invokeRelease } = require("./release-service");
+const { projectAppLabels } = require("./app-labels");
 
 const SESSION_COOKIE = "bifang_dashboard_session";
 const SESSION_TTL_SECONDS = 12 * 60 * 60;
@@ -18,6 +20,8 @@ const MAX_BODY_BYTES = 8 * 1024;
 const BASE_PATH_PLACEHOLDER = "__DASHBOARD_BASE_PATH__";
 
 const STATIC_FILES = new Map([
+  ["/releases", ["releases.html", "text/html; charset=utf-8"]],
+  ["/assets/releases.js", ["releases.js", "text/javascript; charset=utf-8"]],
   ["", ["index.html", "text/html; charset=utf-8"]],
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/index.html", ["index.html", "text/html; charset=utf-8"]],
@@ -97,6 +101,86 @@ function createDashboardWebHandler(options = {}) {
       );
     }
 
+    if (relativePath === "/api/releases") {
+      if (!isAuthenticated(request.headers, accessTokenHash, nowSeconds(now)))
+        return jsonResponse(401, { error: "登录已过期" });
+      const apps = options.apps || [];
+      if (request.method === "GET")
+        return jsonResponse(200, {
+          apps: apps.map(({ appId, releaseStreams }) => ({
+            appId,
+            releaseStreams,
+          })),
+          labels: projectAppLabels(apps, options.appLabels ?? undefined),
+        });
+      if (request.method !== "POST")
+        return jsonResponse(
+          405,
+          { error: "请求方法无效" },
+          { Allow: "GET, POST" },
+        );
+      // Custom header + JSON requires an approved CORS preflight for cross-origin scripts.
+      const site = findHeader(request.headers, "sec-fetch-site");
+      if (
+        findHeader(request.headers, "x-dashboard-request") !== "release" ||
+        (site && site !== "same-origin")
+      )
+        return jsonResponse(403, { error: "请求来源无效" });
+      let input;
+      try {
+        input = parseJsonBody(request, false);
+      } catch {
+        return jsonResponse(400, { error: "表单格式无效" });
+      }
+      if (
+        !apps.some(
+          (a) =>
+            a.appId === input.appId &&
+            a.releaseStreams.some((s) => s.code === input.code),
+        )
+      )
+        return jsonResponse(400, { error: "未登记的应用或发布流" });
+      try {
+        const result = await (options.invokeRelease || invokeRelease)(
+          {
+            dashboardRelease: {
+              ...input,
+              displayName: projectAppLabels(
+                apps,
+                options.appLabels ?? undefined,
+              )[input.appId],
+            },
+            dashboardToken: releaseToken(
+              accessTokenHash,
+              options.environmentId,
+            ),
+          },
+          context,
+        );
+        if (
+          !result ||
+          ![200, 400, 401, 403, 404, 409, 429, 500, 503].includes(
+            result.statusCode,
+          )
+        )
+          throw new Error();
+        const body = JSON.parse(result.body);
+        return jsonResponse(
+          result.statusCode,
+          result.statusCode === 200
+            ? body
+            : {
+                error:
+                  body.errors?.datas?.[0]?.message ||
+                  "版本服务尚未就绪，请核对部署和绑定",
+              },
+        );
+      } catch {
+        return jsonResponse(503, {
+          error: "版本服务不可用，请重新查看当前设置",
+        });
+      }
+    }
     if (relativePath === "/api/metrics") {
       if (request.method !== "GET") {
         return jsonResponse(
@@ -127,7 +211,7 @@ function createDashboardWebHandler(options = {}) {
     const [fileName, contentType] = staticFile;
     try {
       let body = await readFileImpl(join(publicDirectory, fileName), "utf8");
-      if (fileName === "index.html" || fileName === "app.js") {
+      if (fileName.endsWith(".html") || fileName.endsWith(".js")) {
         body = body.replaceAll(BASE_PATH_PLACEHOLDER, webPath);
       }
       const bodyLength = Buffer.byteLength(body, "utf8");
@@ -246,7 +330,7 @@ function serializeCookie(value, webPath, maxAge) {
   return fields.join("; ");
 }
 
-function parseJsonBody(request) {
+function parseJsonBody(request, login = true) {
   const contentType = findHeader(request.headers, "content-type");
   if (
     typeof contentType !== "string" ||
@@ -259,13 +343,15 @@ function parseJsonBody(request) {
     const raw = request.isBase64Encoded
       ? Buffer.from(request.body, "base64").toString("utf8")
       : request.body;
-    if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
+    if (Buffer.byteLength(raw, "utf8") > (login ? MAX_BODY_BYTES : 65536)) {
       throw new Error("body_too_large");
     }
     parsed = JSON.parse(raw);
   } else if (isPlainObject(request.body)) {
     const serialized = JSON.stringify(request.body);
-    if (Buffer.byteLength(serialized, "utf8") > MAX_BODY_BYTES) {
+    if (
+      Buffer.byteLength(serialized, "utf8") > (login ? MAX_BODY_BYTES : 65536)
+    ) {
       throw new Error("body_too_large");
     }
     parsed = request.body;
@@ -274,8 +360,9 @@ function parseJsonBody(request) {
   }
   if (
     !isPlainObject(parsed) ||
-    Object.keys(parsed).length !== 1 ||
-    typeof parsed.accessToken !== "string"
+    (login &&
+      (Object.keys(parsed).length !== 1 ||
+        typeof parsed.accessToken !== "string"))
   ) {
     throw new Error("invalid_body_shape");
   }

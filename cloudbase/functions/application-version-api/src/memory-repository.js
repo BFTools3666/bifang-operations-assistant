@@ -4,6 +4,7 @@ const { ApiError } = require("./errors");
 
 function createMemoryRepository() {
   const stores = new Map();
+  const revisions = new Map();
 
   function appStore(appId) {
     if (!stores.has(appId)) {
@@ -13,21 +14,33 @@ function createMemoryRepository() {
   }
 
   return {
-    async createVersion(appId, record, audit) {
+    async releaseRevision(appId, code) {
+      return revisions.get(appId + "/" + code) ?? null;
+    },
+    async createVersion(appId, record, audit, expected) {
       const store = appStore(appId);
       assertVersionKeyAvailable(store, record.code, record.versionKey);
       if (store.versions.has(record.id)) throw conflict();
+      const key = appId + "/" + record.code;
+      if (expected !== undefined && (revisions.get(key) ?? null) !== expected)
+        throw conflict();
+      revisions.set(key, audit.id);
       store.versions.set(record.id, structuredClone(record));
       store.audit.push(structuredClone(audit));
     },
 
-    async updateVersion(appId, id, record, audit, authorizedCodes) {
+    async updateVersion(appId, id, record, audit, authorizedCodes, expected) {
       const store = appStore(appId);
       const existing = store.versions.get(id);
       if (!existing) return null;
       assertCodeAuthorized(authorizedCodes, existing.code);
       assertCodeAuthorized(authorizedCodes, record.code);
       assertVersionKeyAvailable(store, record.code, record.versionKey, id);
+      const key = appId + "/" + record.code;
+      if (expected !== undefined && (revisions.get(key) ?? null) !== expected)
+        throw conflict();
+      revisions.set(key, audit.id);
+      revisions.set(appId + "/" + existing.code, audit.id);
       const updated = {
         ...structuredClone(record),
         id,

@@ -34,12 +34,19 @@ const required = [
   "cloudbase/personal/cli.mjs",
   "cloudbase/personal/client-confirmation.mjs",
   "cloudbase/personal/release-management.mjs",
+  "cloudbase/personal/dashboard-upgrade.mjs",
+  "cloudbase/personal/deployed-source.mjs",
+  "cloudbase/functions/application-version-api/src/dashboard-releases.js",
+  "cloudbase/functions/application-version-api/src/release-form.js",
+  "cloudbase/functions/operations-dashboard/src/release-service.js",
+  "cloudbase/functions/operations-dashboard/public/releases.html",
+  "cloudbase/functions/operations-dashboard/public/releases.js",
   "cloudbase/personal/private-files.mjs",
+  "cloudbase/personal/input-values.mjs",
   "cloudbase/personal/spec.mjs",
   "cloudbase/personal/cloud.mjs",
   "cloudbase/personal/shared.mjs",
   "cloudbase/personal/postgresql.mjs",
-  "cloudbase/functions/telemetry/src/cleanup.js",
   "cloudbase/functions/telemetry/src/writer.js",
   "cloudbase/tencent-cloud-api.mjs",
   "cloudbase/generate-cloudbaserc.mjs",
@@ -116,7 +123,53 @@ test("local installer binds a renamed ZIP checkout without network or npm depend
   const installed = await resolveInstalled(f);
   assert.equal(installed.via, "installation-binding");
   assert.equal(installed.installedCopyMatchesSource, true);
+  assert.deepEqual(installed.numberedConfirmation, [
+    { choice: "1", answer: true, label: "可以" },
+    { choice: "2", answer: false, label: "不可以" },
+  ]);
   assert.equal(installed.bareInvocation.action, "show-menu-and-wait");
+  assert.deepEqual(installed.fileInput.customerEditsLocally, [
+    "credentials.SecretId",
+    "credentials.SecretKey",
+  ]);
+  assert.equal(installed.fileInput.channel, "conversation-key-value");
+  const menus = installed.choiceMenus;
+  const manifest = await json(path.join(f.source, "bifang-onboarding.json"));
+  assert.deepEqual(
+    Object.values(menus.environment),
+    manifest.firstGate.options,
+  );
+  assert.deepEqual(Object.values(menus.resources), manifest.secondGate.options);
+  assert.equal(menus.services["3"], "更新和统计都接入");
+  const html = await readFile(
+    path.join(
+      f.source,
+      "cloudbase/functions/operations-dashboard/public/releases.html",
+    ),
+    "utf8",
+  );
+  for (const [name, menu, values] of [
+    [
+      "action",
+      menus.releaseAction,
+      ["", "new", "reset", "recommend", "force", "cancel"],
+    ],
+    ["mode", menus.releaseMode, ["recommend", "force", "manual", "cancel"]],
+    ["updateCriteria", menus.applicability, ["", "lt", "le", "gt", "ge"]],
+  ]) {
+    const select = html
+      .split('<select name="' + name + '">')[1]
+      .split("</select>")[0];
+    assert.deepEqual(
+      [...select.matchAll(/<option value="([^"]*)">([^<]+)<\/option>/g)].map(
+        ([, value, label]) => [value, label],
+      ),
+      Object.entries(menu).map(([number, label], index) => [
+        values[index],
+        number + ". " + label,
+      ]),
+    );
+  }
   assert.deepEqual(
     installed.bareInvocation.options.map(({ choice, route }) => [
       choice,

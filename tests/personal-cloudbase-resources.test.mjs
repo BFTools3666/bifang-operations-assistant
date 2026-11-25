@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile, writeFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import {
   validateInput,
   validateAccessInput,
   createServiceSecrets,
   buildSpec,
+  sourceBundle,
   ROOT,
 } from "../cloudbase/personal/spec.mjs";
 import {
@@ -22,6 +24,7 @@ import {
   privateRoot,
 } from "../cloudbase/personal/private-files.mjs";
 import { run, safeFailure } from "../cloudbase/personal/cli.mjs";
+import { saveInputValues } from "../cloudbase/personal/input-values.mjs";
 import { PGDOC_PROBE_SQL } from "../cloudbase/personal/postgresql.mjs";
 import { captureShared, variables } from "../cloudbase/personal/shared.mjs";
 import { createRequire } from "node:module";
@@ -34,6 +37,96 @@ const {
 
 const now = Date.parse("2026-11-18T00:00:00Z");
 const clone = (v) => structuredClone(v);
+
+test("conversation values merge into the original intake, preserve local CAM keys and only report field names", async (t) => {
+  const original = input();
+  const file = await privateFixture(t, original);
+  const patch = {
+    "cloudbase.env_id": "new-env",
+    "credentials.Token": "mock-sts",
+    "applications[0].display_name": "新版便签",
+  };
+  const result = await saveInputValues(file, patch);
+  assert.deepEqual(result, {
+    status: "saved-and-read-back",
+    fields: Object.keys(patch),
+  });
+  const updated = await readPrivate(file);
+  assert.deepEqual(updated.credentials, {
+    ...original.credentials,
+    Token: "mock-sts",
+  });
+  assert.equal(updated.applications[0].display_name, "新版便签");
+  for (const key of [
+    "credentials.SecretKey",
+    "credentials.secretId",
+    "credentials",
+    "credentials.__proto__",
+  ]) {
+    await assert.rejects(
+      saveInputValues(file, {
+        "cloudbase.region": "invalid",
+        [key]: "forbidden",
+      }),
+      /FIELD_NOT_EDITABLE/,
+    );
+  }
+  assert.deepEqual(await saveInputValues(file, patch), result);
+  assert.deepEqual(await readPrivate(file), updated);
+});
+
+test("integration and release forms accept scoped typed fields, with immutable plan files", async (t) => {
+  const folder = dirname(await privateFixture(t));
+  const file = join(folder, "integration-input.json");
+  await writePrivate(file, {
+    services: { update: false },
+    targets: [],
+    update: { credentials: [] },
+  });
+  await saveInputValues(file, {
+    "services.update": true,
+    "targets[0].channel": "stable",
+    "update.credentials[0].codes[0]": "demo",
+    "update.credentials[0].app_secret": "mock-only",
+  });
+  const result = await readPrivate(file);
+  assert.deepEqual(result.update.credentials, [
+    { codes: ["demo"], app_secret: "mock-only" },
+  ]);
+  assert.deepEqual(result.targets, [{ channel: "stable" }]);
+  for (const name of [
+    "windows-release-handoff.json",
+    "release-settings-abcd.json",
+  ]) {
+    const form = join(folder, name);
+    await writePrivate(form, {
+      release: { code: "demo", updateCriteria: "lt", versionCriteria: "2" },
+    });
+    await saveInputValues(form, {
+      "release.codeVersion": "2.0",
+      "release.updateContent": "一行\n二行",
+      "release.forcedUpdate": false,
+      "release.updateCriteria": null,
+      "release.versionCriteria": null,
+    });
+    assert.deepEqual((await readPrivate(form)).release, {
+      code: "demo",
+      codeVersion: "2.0",
+      updateContent: "一行\n二行",
+      forcedUpdate: false,
+    });
+    await assert.rejects(
+      saveInputValues(form, { "release.forcedUpdate": "false" }),
+      /INVALID_FIELD_TYPE/,
+    );
+  }
+  await assert.rejects(
+    saveInputValues(join(folder, "release-plan-abcd.json"), {
+      "release.codeVersion": "3",
+    }),
+    /EDITABLE_INPUT_REQUIRED/,
+  );
+});
 
 test("PostgreSQL default is verified from environment metadata and a fixed read-only catalog query", async () => {
   const { data, spec } = await fixture();
@@ -216,8 +309,7 @@ async function fixture() {
 function fakeCloud(spec) {
   const tables = new Map(),
     functions = new Map(),
-    routes = [],
-    triggers = [];
+    routes = [];
   const writes = [];
   let billed = false,
     failAction = null;
@@ -303,26 +395,6 @@ function fakeCloud(spec) {
         };
       case "GetFunction":
         return clone(functions.get(p.FunctionName));
-      case "ListTriggers": {
-        const selected = triggers.filter(
-          (t) => t.FunctionName === p.FunctionName,
-        );
-        return {
-          TotalCount: selected.length,
-          Triggers: clone(selected.slice(p.Offset, p.Offset + p.Limit)),
-        };
-      }
-      case "CreateTrigger":
-        assert.equal(service, "scf");
-        assert.ok(functions.has(p.FunctionName));
-        writes.push({ action, p: clone(p) });
-        triggers.push({
-          ...clone(p),
-          Enable: 1,
-          AvailableStatus: "Available",
-          TriggerDesc: JSON.stringify({ cron: p.TriggerDesc }),
-        });
-        return {};
       case "DescribeTable":
         assert.equal(plugin, "ready");
         if (!tables.has(p.TableName))
@@ -414,7 +486,6 @@ function fakeCloud(spec) {
     tables,
     functions,
     routes,
-    triggers,
     writes,
     environment,
     setPlugin: (value) => {
@@ -606,7 +677,7 @@ test("index readback accepts pgdoc JSON rows with EJSON numbers and rejects inco
 
 test("packages only customer resources, isolated credentials and dashboard labels", async () => {
   const { data, secrets, spec } = await fixture();
-  assert.equal(spec.functions.length, 4);
+  assert.equal(spec.functions.length, 3);
   assert.equal(spec.collections.length, 4);
   assert.equal(spec.routes.length, 4);
   const wire = JSON.stringify(spec);
@@ -628,43 +699,40 @@ test("packages only customer resources, isolated credentials and dashboard label
   );
 });
 
-test("cleanup ZIP exposes a root handler without changing the telemetry entrypoint", async () => {
+test("telemetry ships only its HTTP handler and provisions no scheduled deletion", async () => {
   const { spec } = await fixture();
-  const cleanup = spec.functions.find((f) => f.name.startsWith("cleanup-"));
-  const telemetry = spec.functions.find((f) => f.name.startsWith("telemetry-"));
-  const entrypoint = (fn) => {
-    const zip = Buffer.from(fn.payload.Code.ZipFile, "base64");
-    let offset = 0;
-    while (zip.readUInt32LE(offset) === 0x04034b50) {
-      assert.equal(zip.readUInt16LE(offset + 8), 0);
-      const size = zip.readUInt32LE(offset + 18);
-      const nameLength = zip.readUInt16LE(offset + 26);
-      const extraLength = zip.readUInt16LE(offset + 28);
-      const name = zip
-        .subarray(offset + 30, offset + 30 + nameLength)
-        .toString();
-      const start = offset + 30 + nameLength + extraLength;
-      if (name === "index.js")
-        return zip.subarray(start, start + size).toString();
-      offset = start + size;
-    }
-    throw new Error("missing root entrypoint");
-  };
-  assert.equal(cleanup.payload.Handler, "index.main");
-  const code = entrypoint(cleanup);
-  const handler = () => {};
-  const exports = {};
-  new Function("exports", "require", code)(exports, (path) => {
-    assert.equal(path, "./src/cleanup.js");
-    return { main: handler };
-  });
-  assert.equal(exports.main, handler);
-  assert.equal(
-    entrypoint(telemetry),
-    await readFile(
-      join(ROOT, "cloudbase/functions/telemetry/index.js"),
-      "utf8",
+  assert.ok(spec.functions.every((fn) => !fn.name.startsWith("cleanup-")));
+  assert.ok(!("triggers" in spec));
+  const telemetry = spec.functions.find((fn) =>
+    fn.name.startsWith("telemetry-"),
+  );
+  const zip = Buffer.from(telemetry.payload.Code.ZipFile, "base64");
+  assert.ok(!zip.includes(Buffer.from("src/cleanup.js")));
+  assert.ok(
+    zip.includes(
+      await readFile(join(ROOT, "cloudbase/functions/telemetry/index.js")),
     ),
+  );
+  assert.deepEqual(
+    spec.collections.find((c) => c.name.startsWith("telemetry_")).indexes,
+    [],
+  );
+});
+
+test("an upgrade over an older source directory excludes the orphaned module from the HTTP ZIP", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "bifang-telemetry-zip-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dir = "cloudbase/functions/telemetry";
+  const target = join(root, dir);
+  await mkdir(target, { recursive: true });
+  await cp(join(ROOT, dir), target, {
+    recursive: true,
+    filter: (path) => !/(?:node_modules|[\\/]test)$/.test(path),
+  });
+  await writeFile(join(target, "src/cleanup.js"), "orphaned module");
+  assert.deepEqual(
+    await sourceBundle(dir, {}, root),
+    await sourceBundle(dir, {}, ROOT),
   );
 });
 
@@ -673,7 +741,7 @@ test("full create then repeat is idempotent and never writes business records", 
     cloud = fakeCloud(spec);
   const plan = await planResources(cloud.api, spec, now);
   assert.equal(cloud.writes.length, 0);
-  assert.equal(plan.operations.length, 17);
+  assert.equal(plan.operations.length, 14);
   const result = await applyResources(cloud.api, spec, plan.digest, {
     now: () => now,
     sleep: async () => {},
@@ -693,7 +761,6 @@ test("full create then repeat is idempotent and never writes business records", 
       [
         "CreateTable",
         "UpdateTable",
-        "CreateTrigger",
         "CreateFunction",
         "CreateHTTPServiceRoute",
       ].includes(w.action),
@@ -712,7 +779,7 @@ test("paid environment blocks before any mutation", async () => {
   assert.equal(cloud.writes.length, 0);
 });
 
-test("ordinary indexes reject concurrent replacement and timer conflicts cannot pass verification", async () => {
+test("ordinary indexes reject a concurrent change before writing", async () => {
   const { spec } = await fixture(),
     cloud = fakeCloud(spec);
   const plan = await planResources(cloud.api, spec, now);
@@ -721,20 +788,18 @@ test("ordinary indexes reject concurrent replacement and timer conflicts cannot 
       .filter((o) => o.kind === "indexes")
       .every((o) => o.action === "UpdateTable" && !o.payload.DropIndexes),
   );
-  assert.equal(plan.operations.at(-1).kind, "trigger");
-  assert.equal(
-    spec.routes.some((r) => r.UpstreamResourceName.startsWith("cleanup-")),
-    false,
-  );
+  const target = spec.collections.find((c) => c.indexes.length > 0);
   await assert.rejects(
     applyResources(cloud.api, spec, plan.digest, {
       now: () => now,
       sleep: async () => {},
       onProgress: (e) => {
-        if (e.kind === "collection" && e.status === "readback-passed")
-          cloud.tables
-            .get(e.target)
-            .indexes.push({ ...spec.collections[0].indexes[0] });
+        if (
+          e.kind === "collection" &&
+          e.target === target.name &&
+          e.status === "readback-passed"
+        )
+          cloud.tables.get(e.target).indexes.push({ ...target.indexes[0] });
       },
     }),
     /INDEX_CHANGED_REPLAN_REQUIRED/,
@@ -745,26 +810,82 @@ test("ordinary indexes reject concurrent replacement and timer conflicts cannot 
     now: () => now,
     sleep: async () => {},
   });
-  for (const patch of [
-    { Enable: 0 },
-    { Qualifier: "$DEFAULT" },
-    { CustomArgument: "other" },
-    { TriggerDesc: "0 0 * * * * *" },
-    { AvailableStatus: "Unavailable" },
+});
+
+test("existing or manually removed legacy cleanup resources never become provisioning targets", async () => {
+  const { spec } = await fixture();
+  const cloud = fakeCloud(spec);
+  const legacy =
+    "cleanup-" +
+    spec.functions
+      .find((f) => f.name.startsWith("telemetry-"))
+      .name.slice("telemetry-".length);
+  cloud.functions.set(legacy, { FunctionName: legacy });
+  const table = spec.collections.find((c) => c.name.startsWith("telemetry_"));
+  const index = { name: "expires_at_cleanup", key: { expires_at: 1, _id: 1 } };
+  cloud.tables.set(table.name, { acl: "ADMINONLY", indexes: [index] });
+  const api = async (service, action, payload) => {
+    assert.doesNotMatch(action, /Trigger/);
+    assert.notEqual(payload.FunctionName, legacy);
+    return cloud.api(service, action, payload);
+  };
+  const plan = await planResources(api, spec, now);
+  await applyResources(api, spec, plan.digest, {
+    now: () => now,
+    sleep: async () => {},
+  });
+  assert.ok(cloud.functions.has(legacy));
+  assert.deepEqual(cloud.tables.get(table.name).indexes, [index]);
+  cloud.functions.delete(legacy);
+  cloud.tables.get(table.name).indexes = [];
+  const again = await planResources(api, spec, now);
+  assert.deepEqual(again.operations, []);
+});
+
+test("stale cleanup plans are rejected before any cloud request", async () => {
+  const { spec } = await fixture();
+  for (const stale of [
+    { ...spec, triggers: [{ FunctionName: "cleanup-old" }] },
+    {
+      ...spec,
+      functions: [
+        { name: "cleanup-old", payload: { FunctionName: "cleanup-old" } },
+      ],
+    },
   ]) {
-    const prior = { ...cloud.triggers[0] };
-    Object.assign(cloud.triggers[0], patch);
     await assert.rejects(
-      planResources(cloud.api, spec, now),
-      /TRIGGER_CONFLICT/,
+      planResources(() => assert.fail("unexpected API request"), stale, now),
+      /PLAN_CHANGED_REVIEW_REQUIRED/,
     );
-    Object.assign(cloud.triggers[0], prior);
   }
-  const incomplete = (s, a, p) =>
-    a === "ListTriggers" ? { TotalCount: 2, Triggers: [] } : cloud.api(s, a, p);
+});
+
+test("a verified previous telemetry package can be reused only with the original configuration", async () => {
+  const { spec } = await fixture();
+  const cloud = fakeCloud(spec);
+  const telemetry = spec.functions.find((fn) =>
+    fn.name.startsWith("telemetry-"),
+  );
+  const marker = "personal-onboarding:" + "a".repeat(40);
+  const deployed = {
+    ...clone(telemetry.payload),
+    Namespace: spec.envId,
+    Status: "Active",
+    Description: marker,
+  };
+  cloud.functions.set(telemetry.name, deployed);
+  const known = (fn, description) =>
+    fn.name === telemetry.name && description === marker;
   await assert.rejects(
-    planResources(incomplete, spec, now),
-    /INCOMPLETE_TRIGGER_INVENTORY/,
+    planResources(cloud.api, spec, now),
+    /FUNCTION_CONFLICT/,
+  );
+  const plan = await planResources(cloud.api, spec, now, known);
+  assert.ok(plan.summary.preserved.some((r) => r.target === telemetry.name));
+  deployed.Timeout = 5;
+  await assert.rejects(
+    planResources(cloud.api, spec, now, known),
+    /FUNCTION_CONFLICT/,
   );
 });
 
@@ -772,7 +893,7 @@ test("new write APIs require exact approved payloads and reject scope changes", 
   const { data, spec } = await fixture(),
     cloud = fakeCloud(spec);
   const plan = await planResources(cloud.api, spec, now);
-  for (const kind of ["indexes", "trigger"]) {
+  for (const kind of ["indexes", "function"]) {
     const op = plan.operations.find((o) => o.kind === kind);
     let calls = 0;
     const transport = async () => {
@@ -860,7 +981,7 @@ test("function creation tolerates bounded eventual visibility", async () => {
     now: () => now,
     sleep: async () => {},
   });
-  assert.equal(delayed, 4);
+  assert.equal(delayed, 3);
 });
 
 test("route appearing during execution is never overwritten", async () => {
@@ -919,17 +1040,19 @@ test("conflicting function, ACL, index and route all fail closed", async () => {
         acl: "READONLY",
         indexes: [],
       });
-    if (kind === "index")
-      cloud.tables.set(spec.collections[0].name, {
+    if (kind === "index") {
+      const target = spec.collections.find((c) => c.indexes.length > 0);
+      cloud.tables.set(target.name, {
         acl: "ADMINONLY",
         indexes: [
           {
-            name: "expires_at_cleanup",
+            name: target.indexes[0].name,
             key: { different: 1 },
             expireAfterSeconds: 0,
           },
         ],
       });
+    }
     if (kind === "route")
       cloud.routes.push({ ...spec.routes[0], UpstreamResourceName: "other" });
     await assert.rejects(planResources(cloud.api, spec, now), /CONFLICT/);
@@ -975,7 +1098,7 @@ test("unsupported index creation stops writes and preserves cloud correlation in
     /UnsupportedOperation/,
   );
   assert.equal(attempts, 1);
-  assert.equal(cloud.tables.size, 1);
+  assert.equal(cloud.tables.size, 2);
   assert.equal(cloud.functions.size, 0);
   assert.equal(cloud.routes.length, 0);
   const receipt = await readPrivate(output.at(-1).receipt);
@@ -1015,7 +1138,7 @@ test("unselected existing services and unrelated cloud resources are never rewri
   data.resources.dashboard = "created";
   const v = validateInput(data, now),
     spec = await buildSpec(v, createServiceSecrets(v));
-  assert.equal(spec.functions.length, 2);
+  assert.equal(spec.functions.length, 1);
   assert.equal(spec.collections.length, 1);
   assert.equal(spec.routes.length, 1);
   const cloud = fakeCloud(spec);
@@ -1269,12 +1392,27 @@ test("manual preparation produces private deployable ZIPs and exact settings wit
   });
   const result = output[0];
   assert.equal(result.cloud_requests, 0);
-  assert.equal(result.function_zip_files.length, 4);
+  assert.equal(result.function_zip_files.length, 3);
   const material = await readPrivate(result.materials_file);
   const secrets = await readPrivate(result.service_credentials_file);
   const spec = await buildSpec(validateInput(data, now), secrets);
   assert.equal(material.collections.length, 4);
+  assert.deepEqual(material.console_guides, result.console_guides);
+  for (const item of [
+    "Document 编辑器",
+    "索引管理",
+    "ZIP",
+    "环境变量",
+    "路由管理",
+  ]) {
+    assert.ok(
+      result.console_guides.some((guide) => guide.where.includes(item)),
+      item,
+    );
+  }
   assert.equal(material.routes.length, 4);
+  assert.ok(!("triggers" in material));
+  assert.ok(!JSON.stringify(material.console_guides).includes("定时触发器"));
   for (const fn of material.functions) {
     const planned = spec.functions.find(
       (f) => f.name === fn.settings.FunctionName,
@@ -1479,7 +1617,7 @@ test("shared extension preserves old credentials, scopes, settings, code and das
   );
   assert.equal(
     plan.operations.filter((o) => o.action === "CreateFunction").length,
-    2,
+    1,
   );
   for (const fn of spec.shared) {
     assert.equal(

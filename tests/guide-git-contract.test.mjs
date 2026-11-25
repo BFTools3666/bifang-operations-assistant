@@ -9,6 +9,52 @@ import { promisify } from "node:util";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const execFileAsync = promisify(execFile);
 const skillRoot = "skills/bifang-public-services-onboarding";
+test("every customer console task has a usable official destination, location and completion instruction", async () => {
+  const manifest = JSON.parse(
+    await readFile(path.join(root, "bifang-onboarding.json"), "utf8"),
+  );
+  const { guides } = JSON.parse(
+    await readFile(path.join(root, manifest.consoleGuidance.catalog), "utf8"),
+  );
+  for (const id of [
+    "register",
+    "identity",
+    "serviceAccess",
+    "createEnv",
+    "environment",
+    "quota",
+    "user",
+    "policy",
+    "grant",
+    "camKey",
+    "sts",
+    "postgres",
+    "collections",
+    "indexes",
+    "functionCreate",
+    "functionCode",
+    "functionConfig",
+    "domain",
+    "routes",
+    "logs",
+  ]) {
+    const guide = guides[id];
+    assert.ok(guide, id);
+    for (const field of ["entry", "source"]) {
+      const url = new URL(guide[field]);
+      assert.equal(url.protocol, "https:");
+      assert.match(
+        url.hostname,
+        /^(?:[a-z]+\.)*cloud\.tencent\.com$|^docs\.cloudbase\.net$|^intl\.cloud\.tencent\.com$/,
+      );
+    }
+    for (const field of ["title", "where", "result"])
+      assert.ok(guide[field].trim(), id + "." + field);
+  }
+  assert.match(guides.environment.result, /cloudbase\.env_id/);
+  assert.match(guides.environment.result, /cloudbase\.region/);
+  assert.match(guides.camKey.result, /本机/);
+});
 const listFiles = async (dir) => {
   const entries = await readdir(path.join(root, dir), { withFileTypes: true });
   const nested = await Promise.all(
@@ -27,12 +73,14 @@ test("personal onboarding ships only its declared skill and valid local document
     [
       skillRoot + "/SKILL.md",
       skillRoot + "/agents/openai.yaml",
+      skillRoot + "/assets/console-guides.json",
       skillRoot + "/references/personal-cloudbase.md",
       skillRoot + "/references/personal-resources.md",
       skillRoot + "/references/personal-client-confirmation.md",
       skillRoot + "/references/personal-client-implementation.md",
       skillRoot + "/references/personal-update-preflight.md",
       skillRoot + "/references/personal-release-management.md",
+      skillRoot + "/references/dashboard-install.md",
       skillRoot + "/references/personal-artifact-testing.md",
       skillRoot + "/references/local-source.md",
       skillRoot + "/references/postgresql.md",

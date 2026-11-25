@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>版本管理 · 毕方运营统计</title>
+    <link rel="stylesheet" href="__DASHBOARD_BASE_PATH__/assets/styles.css" />
+    <script defer src="__DASHBOARD_BASE_PATH__/assets/releases.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <strong>毕方运营统计</strong
+        ><a class="ghost-button" href="__DASHBOARD_BASE_PATH__/"
+          >返回统计大屏</a
+        >
+      </div>
+    </header>
+    <main class="dashboard-main release-page">
+      <h1>版本管理</h1>
+      <label
+        >应用
+        <select id="app"></select
+      ></label>
+      <p id="message" role="status" aria-live="polite"></p>
+      <div id="streams"></div>
+      <div class="top-actions">
+        <button class="primary-button" id="preview" hidden>预览所选变更</button
+        ><button class="primary-button" id="apply" hidden>确认生效</button>
+      </div>
+    </main>
+    <template id="stream"
+      ><section class="panel">
+        <h2></h2>
+        <p class="status"></p>
+        <details>
+          <summary>查看当前更新详情</summary>
+          <dl class="current"></dl>
+        </details>
+        <label
+          >操作
+          <select name="action">
+            <option value="">1. 仅查看</option>
+            <option value="new">2. 发布新版</option>
+            <option value="reset">3. 重新设置更新</option>
+            <option value="recommend">4. 改为推荐更新</option>
+            <option value="force">5. 改为强制更新</option>
+            <option value="cancel">6. 取消当前更新</option>
+          </select></label
+        >
+        <fieldset class="editor" hidden>
+          <legend>发布内容</legend>
+          <label>发布名称<input name="name" required /></label>
+          <label>发布流标识<input name="code" readonly /></label>
+          <label>版本号<input required name="codeVersion" maxlength="50" /></label
+          ><label>下载地址<input name="downloadUrl" required type="url" maxlength="500" /></label>
+          <label>提示文案<input name="promptContent" required /></label
+          ><label
+            >详细更新说明（选填）<textarea name="updateContent"></textarea>
+          </label>
+          <label
+            >更新方式<select name="mode">
+              <option value="recommend">1. 推荐更新</option>
+              <option value="force">2. 强制更新</option>
+              <option value="manual">3. 仅手动检查</option>
+              <option value="cancel">4. 停止更新</option>
+            </select></label
+          >
+          <label
+            >适用版本<select name="updateCriteria">
+              <option value="">1. 所有符合条件的旧版本</option>
+              <option value="lt">2. 低于</option>
+              <option value="le">3. 低于或等于</option>
+              <option value="gt">4. 高于</option>
+              <option value="ge">5. 高于或等于</option>
+            </select></label
+          >
+          <label
+            >条件版本号<input name="versionCriteria" maxlength="50"
+          /></label>
+        </fieldset>
+        <div class="diff" aria-live="polite"></div></section
+    ></template>
+  </body>
+</html>

@@ -1,8 +1,13 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+const { guides } = createRequire(import.meta.url)(
+  "../../skills/bifang-public-services-onboarding/assets/console-guides.json",
+);
 import {
+  assertPrivate,
   createIntake,
   readPrivate,
   writePrivate,
@@ -14,6 +19,7 @@ import {
   validateAccessInput,
   createServiceSecrets,
   buildSpec,
+  hash,
   ROOT,
 } from "./spec.mjs";
 import {
@@ -28,6 +34,45 @@ const TEMPLATE = join(
   ROOT,
   "skills/bifang-public-services-onboarding/assets/resource-input.template.json",
 );
+// Before .29 the HTTP telemetry ZIP also contained an unused cleanup module.
+// Recognize the released ZIP (including LF/CRLF checkouts) from prior local
+// deployment materials. Only its digest is trusted; it is never uploaded.
+const priorTelemetryDigests = new Set([
+  "4fe1fe772114b1d302a8c90dd0bef2c24d0a07f25678c236e6bfce993aaec892",
+  "78e150721d26ad20d96e691f0c543bc76b2ff583cbc7386f51e612d257f13484",
+  "f328e99bfb08c0b26e4d8d2db4c7602f3227cb634aaf5ab9b6e30acbc047bab0",
+]);
+async function priorTelemetryMarkers(folder, fn) {
+  const markers = new Set();
+  for (const entry of await readdir(folder)) {
+    const manual = entry.startsWith(fn.name + "-") && entry.endsWith(".zip");
+    const plan = /^resource-plan-[a-f0-9-]{36}\.json$/.test(entry);
+    if (!manual && !plan) continue;
+    const path = await assertPrivate(join(folder, entry));
+    const size = (await stat(path)).size;
+    if (size > (manual ? 30_000 : 16_000_000)) continue;
+    let bytes;
+    if (manual) bytes = await readFile(path);
+    else {
+      const previous = JSON.parse(await readFile(path, "utf8"));
+      const upload = previous.operations?.find(
+        (op) =>
+          op.service === "tcb" &&
+          op.action === "CreateFunction" &&
+          op.payload?.EnvId === fn.payload.EnvId &&
+          op.payload.FunctionName === fn.name,
+      )?.payload.Code?.ZipFile;
+      if (typeof upload !== "string" || upload.length > 40_000) continue;
+      bytes = Buffer.from(upload, "base64");
+    }
+    if (priorTelemetryDigests.has(hash(bytes)))
+      markers.add(
+        "personal-onboarding:" +
+          hash([bytes.toString("base64"), fn.payload.Environment]).slice(0, 40),
+      );
+  }
+  return markers;
+}
 export async function run(
   argv,
   { print = console.log, apiFactory = createPersonalApi, now = Date.now } = {},
@@ -55,6 +100,7 @@ export async function run(
         status: "input-created",
         file,
         contains_credentials: false,
+        console_guides: [guides.environment, guides.camKey],
       }),
     );
     return;
@@ -156,7 +202,20 @@ export async function run(
       dirname(file),
       "manual-resources-" + materialId + ".json",
     );
+    const consoleGuides = [
+      guides.postgres,
+      ...(spec.collections.length ? [guides.collections] : []),
+      ...(spec.collections.some((c) => c.indexes.length)
+        ? [guides.indexes]
+        : []),
+      ...(functions.length ? [guides.functionCreate, guides.functionCode] : []),
+      ...(functions.length || spec.shared?.length
+        ? [guides.functionConfig]
+        : []),
+      ...(spec.routes.length ? [guides.domain, guides.routes] : []),
+    ];
     await writePrivate(materials, {
+      console_guides: consoleGuides,
       env_id: spec.envId,
       region: spec.region,
       database: {
@@ -176,13 +235,12 @@ export async function run(
       })),
       expected_dashboard_labels: spec.dashboardLabels,
       routes: spec.routes,
-      triggers: spec.triggers,
-      retention: spec.retention,
       skipped: spec.skipped,
     });
     print(
       JSON.stringify({
         status: "manual-materials-prepared",
+        console_guides: consoleGuides,
         materials_file: materials,
         function_zip_files: functions.map((f) => f.zip_file),
         service_credentials_file: secretsFile,
@@ -193,7 +251,13 @@ export async function run(
     return;
   }
   const readApi = apiFactory(data);
-  const plan = await planResources(readApi, spec, now());
+  const priorMarkers = new Map();
+  const isPriorTelemetry = async (fn, marker) => {
+    if (!priorMarkers.has(fn.name))
+      priorMarkers.set(fn.name, await priorTelemetryMarkers(dirname(file), fn));
+    return priorMarkers.get(fn.name).has(marker);
+  };
+  const plan = await planResources(readApi, spec, now(), isPriorTelemetry);
   if (mode === "verify") {
     check(plan.operations.length === 0, "FINAL_READBACK_INCOMPLETE");
     const result = {
@@ -241,6 +305,7 @@ export async function run(
   const events = [];
   try {
     const result = await applyResources(api, spec, args[3], {
+      isPriorTelemetry,
       onProgress: (e) => {
         events.push(e);
         print(JSON.stringify(e));
@@ -347,11 +412,6 @@ export function safeFailure(error) {
     "COLLECTION_ACL_CONFLICT",
     "INDEX_CONFLICT",
     "INDEX_CHANGED_REPLAN_REQUIRED",
-    "INVALID_TRIGGER_INVENTORY",
-    "TRIGGER_INVENTORY_DRIFT",
-    "INCOMPLETE_TRIGGER_INVENTORY",
-    "TRIGGER_CONFLICT",
-    "TRIGGER_CHANGED_REPLAN_REQUIRED",
     "FUNCTION_CONFLICT",
     "ROUTE_CONFLICT",
     "ROUTE_CHANGED_REPLAN_REQUIRED",
@@ -392,8 +452,6 @@ export function safeFailure(error) {
     "ExecutePGSql",
     "EnablePGDocumentExt",
     "ListFunctions",
-    "ListTriggers",
-    "CreateTrigger",
     "UpdateTable",
     "GetFunction",
     "UpdateFunctionConfiguration",

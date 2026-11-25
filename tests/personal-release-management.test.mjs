@@ -411,10 +411,17 @@ test("ambiguous targets require one selection before any remote access", async (
     "--platform",
     "windows",
   ];
-  await assert.rejects(
-    f.process(args),
-    (e) => e.message === "SELECT_ONE_STREAM" && e.choices.length === 2,
-  );
+  await assert.rejects(f.process(args), (e) => {
+    assert.equal(e.message, "SELECT_ONE_STREAM");
+    assert.deepEqual(
+      e.choices.map(({ choice, arch }) => [choice, arch]),
+      [
+        ["1", "x64"],
+        ["4", "arm64"],
+      ],
+    );
+    return true;
+  });
   assert.equal(requests, 0);
   assert.equal((await f.process([...args, "--arch", "x64"])).target.code, code);
 });

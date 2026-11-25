@@ -4,10 +4,10 @@
 
 ## 必须按顺序执行
 
-1. **确认本次客户端范围**：仅更新、仅统计或两项都接入。复用本次明确选择；仅有“资源全部创建”不等于选择客户端范围，需问一次。模板默认勾选两项不是客户回答。未选项保持原状，不为其索取参数或凭据。
+1. **确认本次客户端范围**：1. 仅更新　2. 仅统计　3. 更新和统计都接入。复用本次明确选择；仅有“资源全部创建”不等于选择客户端范围，需问一次。模板默认勾选两项不是客户回答。未选项保持原状，不为其索取参数或凭据。
 2. **自动收集**：读取目标项目及实际构建配置，取得应用标识/名称、当前运行版本、目标平台和架构；从第二门禁回执、目标登记或客户已明确提供的部署资料取得真实路由与发布流映射。不要把本仓库登记或开发机架构当客户事实。记录每项来源与证据类型，不为能自动确定的数据增加问答。
-3. **创建私有输入文件**：用下文 init 命令创建实际文件，自动填已知非敏感值和明确范围，把完整绝对路径及链接交给客户。先用 preview 离线校验。资料齐全就直接展示确认单；仍有缺项才给实际文件链接、字段和原因，客户补齐后继续；已有可用服务凭据由本地进程复用，不让客户再次抄写。
-4. **本地读取与补齐循环**：用 preview 命令解析。缺项、格式错误或绑定冲突只输出字段路径，客户继续编辑同一个文件。不得用 Get-Content、cat、原始 readFile 输出读取私有内容，不把错误行、密钥或个人设备标识送入工具结果。未知地址、凭据、平台/发布流映射必须标待补，不能编造。
+3. **创建私有输入文件**：用下文 init 命令创建实际文件，自动填已知非敏感值和明确范围，把完整绝对路径及链接交给客户。先用 preview 离线校验。资料齐全就直接展示确认单；仍有缺项就在对话给 key 和原因，客户回复 value 后助手回写、读回并继续；已有可用服务凭据由本地进程复用，不让客户再次抄写。
+4. **本地读取与补齐循环**：用 preview 命令解析。缺项、格式错误或绑定冲突只输出字段路径，助手在对话收取对应 value，再回写同一文件。不得用 Get-Content、cat、原始 readFile 输出读取私有内容，不把错误行、密钥或个人设备标识送入工具结果。未知地址、凭据、平台/发布流映射必须标待补，不能编造。
 5. **完整返回确认单**：所有所选分支参数就绪后，对每个目标分别展示实际完整 URL、方法、请求头名称、路径参数、query/body 的有无与全部字段、来源、默认行为、响应判定及未执行事项。工具输出只是材料，助手须在回复正文展开，不只给文件链接。真实密钥只出现在私有请求文件，正文用“从私有文件读取”标注相应请求头；动态字段给出本次预览值及实际运行生成规则。
 6. **等待客户明确确认**：提示“请确认这份更新/统计接入参数及请求实例；需要调整请指出字段，确认后才进入下一阶段。”记录 confirmation_id、所选范围、客户原话、待补项为零及对应文件。已填写、已创建、继续生成实例或未回复都不算确认。两项均选必须一起完成参数和确认，不能让其中一项先跨门禁实施。
 
@@ -15,26 +15,28 @@
 
 ## 输入文件与必要字段
 
+本流程涉及客户操作云端时，在当次提示逐项展开[官方页面指引](../assets/console-guides.json)中适用的 domain、routes：给可点击入口、页面内位置、目标字段或操作和完成标志。
+
 模板：[integration-input.template.json](../assets/integration-input.template.json)。实际文件位于 `%LOCALAPPDATA%\Bifang\PersonalCloudBase\intake\<任务标识>\integration-input.json`，其他系统采用当前用户私有配置目录。先实际创建再给地址，不把占位路径交给客户填写。沿用第一、第二门禁的仓库外、非同步目录、无符号链接、Unix 0700/0600 或 Windows 当前用户+SYSTEM 权限边界；只复用所需运行时凭据，不复制 CAM 管理密钥。
 
-| 字段                                 | 条件、值与来源                                                                                                                                                                                                          |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| schema_version / purpose             | 助手固定为 1 / personal-client-integration-confirmation                                                                                                                                                                 |
-| services.update / services.telemetry | boolean，反映客户明确选择，至少一项 true                                                                                                                                                                                |
-| app.app_id / app.display_name        | 本次真实应用标识与名称；复用第二门禁、项目事实。app_id 与该环境部署映射一致，当前工具采用 1～50 位小写字母、数字、连字符，首尾字母或数字                                                                                |
-| targets[].platform / arch            | 真实程序目标 windows/macos/linux；x64/arm64/ia32。多目标逐个列出，不填 x86_64 冒充本合同 arch                                                                                                                           |
-| targets[].channel                    | 发布流已有事实优先；未设通道时默认 stable。与第二门禁的发布流一致，工具接受 1～32 位小写字母、数字、连字符、首尾字母或数字                                                                                              |
-| targets[].app_version                | 从最终包的权威版本字段自动读，不默认 0.0.0。更新要求 1～50 字符的纯数字点分版本；统计要求完整 SemVer，最长 64 字符。两项均选时同时满足，不能静默去掉 prerelease/build、v 前缀或让客户填假版本绕过；不兼容则列冲突待解决 |
-| targets[].update_code                | 仅更新必填；该 app/platform/arch/channel 已登记的唯一 code，规则同本工具 app_id；不能拿 APP_ID 自动替代发布流 code                                                                                                      |
-| targets[].runtime_credential_id      | 仅更新必填；定位本次发布流的 runtime 凭据，自动从已授权私有文件匹配；同一 app、准确 code、唯一记录                                                                                                                      |
-| update.protocol / base_url           | 仅更新；固定 application-version-api-v1，实际 HTTPS origin + `/tools/version-control/v1`，无尾斜杠、query、fragment、userinfo。从真实部署资料/回执取得；不能根据 env_id 拼域名                                          |
-| update.credentials_file              | 优先自动填第二门禁实际 service-credentials.json 的绝对路径，本地读取其中 version_credentials，不复制整个管理凭据文件到客户端。外部旧凭据文件若不符合私有目录/权限要求，指导客户把所需 runtime 记录填入本任务文件        |
-| update.credentials                   | 与 credentials_file 二选一；引用文件时保持 []。没有可复用文件时由客户只在私有文件中填写下列 runtime 记录，绝不粘贴到聊天；统计单独接入无需任何此类值                                                                    |
-| telemetry.protocol / url             | 仅统计；固定 daily-active-v2，真实 HTTPS origin + `/apps/<真实app_id>/v1/track`，无尾斜杠、query、fragment、userinfo                                                                                                    |
+| 字段                                 | 条件、值与来源                                                                                                                                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| schema_version / purpose             | 助手固定为 1 / personal-client-integration-confirmation                                                                                                                                                                      |
+| services.update / services.telemetry | boolean，反映客户明确选择，至少一项 true                                                                                                                                                                                     |
+| app.app_id / app.display_name        | 本次真实应用标识与名称；复用第二门禁、项目事实。app_id 与该环境部署映射一致，当前工具采用 1～50 位小写字母、数字、连字符，首尾字母或数字                                                                                     |
+| targets[].platform / arch            | 真实程序目标 windows/macos/linux；x64/arm64/ia32。多目标逐个列出，不填 x86_64 冒充本合同 arch                                                                                                                                |
+| targets[].channel                    | 发布流已有事实优先；未设通道时默认 stable。与第二门禁的发布流一致，工具接受 1～32 位小写字母、数字、连字符、首尾字母或数字                                                                                                   |
+| targets[].app_version                | 从最终包的权威版本字段自动读，不默认 0.0.0。更新要求 1～50 字符的纯数字点分版本；统计要求完整 SemVer，最长 64 字符。两项均选时同时满足，不能静默去掉 prerelease/build、v 前缀或让客户填假版本绕过；不兼容则列冲突待解决      |
+| targets[].update_code                | 仅更新必填；该 app/platform/arch/channel 已登记的唯一 code，规则同本工具 app_id；不能拿 APP_ID 自动替代发布流 code                                                                                                           |
+| targets[].runtime_credential_id      | 仅更新必填；定位本次发布流的 runtime 凭据，自动从已授权私有文件匹配；同一 app、准确 code、唯一记录                                                                                                                           |
+| update.protocol / base_url           | 仅更新；固定 application-version-api-v1，实际 HTTPS origin + `/tools/version-control/v1`，无尾斜杠、query、fragment、userinfo。从真实部署资料/回执取得；不能根据 env_id 拼域名                                               |
+| update.credentials_file              | 优先自动填第二门禁实际 service-credentials.json 的绝对路径，本地读取其中 version_credentials，不复制整个管理凭据文件到客户端。外部旧凭据文件若不符合私有目录/权限要求，助手复用受限来源或在对话收取缺失的 runtime 字段并回写 |
+| update.credentials                   | 与 credentials_file 二选一；引用文件时保持 []。没有可复用文件时按实际 key 在对话收取缺失的 runtime 字段，由助手写入本任务私有文件；统计单独接入无需任何此类值                                                                |
+| telemetry.protocol / url             | 仅统计；固定 daily-active-v2，真实 HTTPS origin + `/apps/<真实app_id>/v1/track`，无尾斜杠、query、fragment、userinfo                                                                                                         |
 
 未选服务对应对象可保持模板空值，工具不校验、读取或生成该服务请求。每次一个应用，最多 12 个明确发行目标；多应用分别建确认单。不得向模板增加 CAM SecretId/SecretKey、管理面凭据或“已确认”字段。凭据不足只补运行时值，不要求新建 CAM 管理身份。
 
-客户必须补已有运行时凭据时，update.credentials 中每条记录的字段为：credential_id、app_id、codes（恰好一个本次 update_code）、role（固定 runtime）、app_key、app_secret。前四项助手根据来源填写，后两项由客户在本机填写；每个原值 1～512 字符，不能带空白或控制字符。第二门禁生成值是 32 字节随机 base64url，无需再次生成。匹配本地记录仅证明本地声明及映射一致，不证明云端接受；未经授权不得做探测或轮换。
+客户必须补已有运行时凭据时，update.credentials 中每条记录的字段为：credential_id、app_id、codes（恰好一个本次 update_code）、role（固定 runtime）、app_key、app_secret。前四项助手根据来源填写，后两项仅在无法复用时在对话按 key 收取并由助手回写；每个原值 1～512 字符，不能带空白或控制字符。第二门禁生成值是 32 字节随机 base64url，无需再次生成。匹配本地记录仅证明本地声明及映射一致，不证明云端接受；未经授权不得做探测或轮换。
 
 ## 更新检查：当前已部署源码的精确合同
 
@@ -75,7 +77,7 @@
 
 仅允许这十个字段，多发或少发均不符合当前服务。请求 UTF-8 JSON 最多 4096 字节。成功为 **HTTP 202，{"ok":true}**；400 参数错误、403 应用不匹配、404 路由不符、429 限频、500 写入失败都不能当作成功。
 
-默认：北京时间自然日（Asia/Shanghai）每个应用每安装最多尝试一次，先原子占位再后台发送，失败不立即重试、不阻塞主业务；启动触发，不为跨天额外常驻轮询。超时 2,000ms，与当前统计 SDK 默认一致。服务端按可信接收时间划分北京时间日活，不能发送 active_date、source_ip、expires_at 等服务端字段。服务端从可信请求上下文记录来源 IP，与安装标识一起保留 30 天；确认单说明此隐私事实，不称完全无标识统计。
+默认：北京时间自然日（Asia/Shanghai）每个应用每安装最多尝试一次，先原子占位再后台发送，失败不立即重试、不阻塞主业务；启动触发，不为跨天额外常驻轮询。超时 2,000ms，与当前统计 SDK 默认一致。服务端按可信接收时间划分北京时间日活，不能发送 active_date、source_ip、expires_at 等服务端字段。服务端保存安装标识，并从可信请求上下文记录来源 IP。服务端写入接收时间加 30 天的到期标记，技能没有配置自动删除，记录可能保留超过 30 天；确认单说明此隐私事实，不称完全无标识统计。
 
 ## 本地命令、实例与客户确认
 
@@ -103,6 +105,6 @@
 ## 源码依据
 
 - `cloudbase/functions/application-version-api/src/handler.js`、`auth.js`、`validation.js`、`version.js`：更新路由、双请求头、版本格式和七字段响应。
-- `cloudbase/functions/telemetry/src/handler.js`、`validation.js`：十字段、202 成功、无客户端密钥、服务器日活日期和 30 天保留。
+- `cloudbase/functions/telemetry/src/handler.js`、`validation.js`：十字段、202 成功、无客户端密钥、服务器日活日期和到期时间标记。
 - `cloudbase/personal/spec.mjs`：个人部署的路由、app/code 与独立 runtime 凭据绑定。
 - `cloudbase/personal/client-confirmation.mjs`：离线字段校验、请求构造、脱敏输出、私有实例落盘；不包含业务集成或真实网络请求。

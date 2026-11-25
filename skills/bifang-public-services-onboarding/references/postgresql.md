@@ -4,6 +4,8 @@
 
 ## 第一门禁：默认值与只读取证
 
+本流程涉及客户操作云端时，在当次提示逐项展开[官方页面指引](../assets/console-guides.json)中适用的 postgres、collections、indexes：给可点击入口、页面内位置、目标字段或操作和完成标志。
+
 - init 已填 `postgresql`，不再让客户选择或填写数据库类型。旧文件空值按该默认值验证；旧文件明确填 `document` 时，只在客户已确认 PostgreSQL 后本地更正该非敏感字段，保留其他字段和原凭据，不能重新索要密钥。
 - `DescribeEnvs` 必须返回目标环境唯一的 `PostgreSQL` 条目，读取 `Name`、`InstanceName`、`Region`。不能检查 `Databases[0].InstanceId` 是否以 `tnt-` 开头来判定 PostgreSQL；官方 `Status` 未列出完整枚举，不能把示例整数当状态契约。
 - 免费套餐/账期/额度通过后，`ExecutePGSql` 只执行工具内固定的系统目录 SELECT，确认 SQL 可访问及 `pgdoc` 扩展、schema 是否存在。该查询不读取客户业务数据，不接受客户 SQL、角色或连接串。
@@ -40,7 +42,7 @@
 
 三个部署包统一锁定 `@cloudbase/node-sdk@3.18.3`，为官方说明支持的 Node SDK v3 `/admin` 入口；不把 Web SDK 临时凭据配置原样套进 Node SDK。当前调用的可信运行时 STS 映射为 `secretId/secretKey/sessionToken`，未提供时使用平台运行时身份。管理文件的长期 CAM 密钥不进入函数包/环境变量/客户端。仅从函数 context 取临时凭据，不接受请求 body、header 自报身份。客户端可信职责仍由 Rust 实现。
 
-统计保留策略采用普通索引 `expires_at_cleanup {expires_at:1,_id:1}` 与每应用专用定时清理函数，详见 [清理方案](retention-cleanup.md)。到期 Date 仍为接收时间后 30 天，不再要求 TTL。完整计划包含清理函数、timer、权限差异和未来到期记录删除；不能仅删掉 TTL 核验而省略替代机制。控制面索引和 timer 读回不证明实际清理已运行；真实删除验收另行授权。已有 TTL 保留并报告，不自动删除或改写。
+统计集合写入接收时间加 30 天的 `expires_at` 字段。新环境由技能创建的统计集合没有自动删除策略。旧环境的额外索引由环境所有者管理。见[统计数据与旧任务](retention-cleanup.md)。
 
 ## 验证与证据层级
 

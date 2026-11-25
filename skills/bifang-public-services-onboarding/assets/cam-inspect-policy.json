@@ -15,8 +15,7 @@
         "tcb:RunCommands",
         "tcb:ExecutePGSql",
         "scf:ListFunctions",
-        "scf:GetFunction",
-        "scf:ListTriggers"
+        "scf:GetFunction"
       ],
       "resource": ["*"]
     }

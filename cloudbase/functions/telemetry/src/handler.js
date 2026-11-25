@@ -105,9 +105,8 @@ function createHandler(options = {}) {
         ),
         active_date: activeDate,
         received_at: receivedAtIso,
-        // Date marks eligibility for the configured retention mechanism.
-        // Personal deployments use bounded scheduled cleanup after expiry;
-        // writing this field alone does not delete any records.
+        // Preserve the stored expiry timestamp for existing consumers.
+        // Data removal depends on the environment’s own retention policy.
         expires_at: new Date(
           receivedAt.getTime() + TELEMETRY_RETENTION_MILLISECONDS,
         ),

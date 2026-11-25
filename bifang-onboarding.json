@@ -5,7 +5,7 @@
   "sourceBranch": "codex/personal-cloudbase",
   "skill": {
     "name": "bifang-public-services-onboarding",
-    "version": "3.0.0-personal.21",
+    "version": "3.0.0-personal.29",
     "path": "skills/bifang-public-services-onboarding"
   },
   "intentRouting": {
@@ -29,13 +29,98 @@
     "ambiguous": "show-menu-if-intent-remains-unclear",
     "skillMaintenance": "local-skill-work"
   },
+  "consoleGuidance": {
+    "catalog": "skills/bifang-public-services-onboarding/assets/console-guides.json",
+    "requiredWhen": "every-customer-cloud-console-lookup-create-change-or-retry",
+    "includeInCurrentPrompt": ["entry", "where", "result", "source"]
+  },
+  "fileInput": {
+    "channel": "conversation-key-value",
+    "customerEditsLocally": ["credentials.SecretId", "credentials.SecretKey"],
+    "writer": "cloudbase/personal/input-values.mjs",
+    "afterReply": "assistant-merge-readback-and-gate-validation"
+  },
+  "numberedConfirmation": [
+    { "choice": "1", "answer": true, "label": "可以" },
+    { "choice": "2", "answer": false, "label": "不可以" }
+  ],
+  "choiceMenus": {
+    "environment": { "1": "已创建", "2": "尚未创建", "3": "不确定" },
+    "resources": {
+      "1": "手动创建",
+      "2": "自动创建并检查",
+      "3": "已有资源仅检查"
+    },
+    "services": { "1": "仅更新", "2": "仅统计", "3": "更新和统计都接入" },
+    "implementation": {
+      "1": "确认方案并开始实施",
+      "2": "仅确认方案，暂不实施",
+      "3": "调整方案后再确认"
+    },
+    "releaseEntry": { "1": "大屏自助办理", "2": "对话办理" },
+    "releaseAction": {
+      "1": "仅查看",
+      "2": "发布新版",
+      "3": "重新设置更新",
+      "4": "改为推荐更新",
+      "5": "改为强制更新",
+      "6": "取消当前更新"
+    },
+    "releaseMode": {
+      "1": "推荐更新",
+      "2": "强制更新",
+      "3": "仅手动检查",
+      "4": "停止更新"
+    },
+    "applicability": {
+      "1": "所有符合条件的旧版本",
+      "2": "低于",
+      "3": "低于或等于",
+      "4": "高于",
+      "5": "高于或等于"
+    },
+    "scenario": {
+      "1": "发现普通更新",
+      "2": "强制更新",
+      "3": "无需更新",
+      "4": "停更"
+    },
+    "saveMethod": {
+      "1": "助手自动保存",
+      "2": "客户自行保存",
+      "3": "已保存，仅核验"
+    },
+    "artifact": { "1": "安装版", "2": "便携版" },
+    "platform": { "1": "windows", "2": "macos", "3": "linux" },
+    "architecture": { "1": "x64", "2": "arm64", "3": "ia32" },
+    "stableStream": {
+      "1": "windows/x64",
+      "2": "macos/arm64",
+      "3": "macos/x64",
+      "4": "windows/arm64",
+      "5": "windows/ia32",
+      "6": "linux/x64",
+      "7": "linux/arm64",
+      "8": "linux/ia32",
+      "9": "macos/ia32"
+    }
+  },
   "releaseManagement": {
     "reference": "skills/bifang-public-services-onboarding/references/personal-release-management.md",
     "tool": "cloudbase/personal/release-management.mjs",
+    "dashboardSelfService": {
+      "reference": "skills/bifang-public-services-onboarding/references/personal-release-management.md#大屏自助发布",
+      "availability": "bundled-personal-dashboard-and-version-service; verify-deployed-session-and-service-binding",
+      "access": "one-dashboard-session-all-registered-apps-and-streams-in-this-backend",
+      "submission": "one-reviewed-confirmation; per-stream-write-and-readback",
+      "upgradePreparation": "cloudbase/personal/dashboard-upgrade.mjs",
+      "installation": "skills/bifang-public-services-onboarding/references/dashboard-install.md",
+      "fallback": "existing-conversation-workflow"
+    },
     "steps": [
       "inspect-current-stream-and-client-result",
       "select-action-or-return-details",
-      "prepare-settings-file",
+      "prefill-dashboard-form-or-conversation-settings-file",
       "review-diff-and-confirm-specific-plan",
       "apply-readback-and-runtime-check"
     ],
@@ -127,7 +212,7 @@
       "explain-manual-free-environment-setup",
       "record-customer-confirmation",
       "prepare-private-local-input-file",
-      "read-customer-designated-input-after-ready",
+      "collect-values-in-chat-and-read-back-private-input",
       "authorized-read-only-resource-preflight",
       "offline-client-request-preview-through-private-files",
       "project-style-inspection-and-isolated-mock-ui-preview-after-gate-three",
@@ -155,7 +240,7 @@
     "inputTemplate": "skills/bifang-public-services-onboarding/assets/integration-input.template.json",
     "tool": "cloudbase/personal/client-confirmation.mjs",
     "commands": ["init", "preview"],
-    "onMissing": "private-file-supplement; no-secret-chat-input",
+    "onMissing": "collect-missing-keys-in-conversation; assistant-private-write-and-readback",
     "onReady": "show-complete-redacted-request-details; provide-private-examples-path; await-explicit-confirmation",
     "onChanged": "regenerate-and-reconfirm-affected-details",
     "requiresExplicitConfirmation": true,
@@ -238,6 +323,7 @@
     "id": "personal-confirmed-release-and-preflight",
     "dependsOn": "personal-client-ui-and-implementation",
     "requiredWhen": "update-selected",
+    "onDashboardSubmission": "reuse-target-bound-confirmation-and-receipt; read-back-and-preflight-without-repeated-write",
     "enforcedBy": "skill-plan-confirmation-and-save-readback-preflight-evidence; no-automatic-runner",
     "reference": "skills/bifang-public-services-onboarding/references/personal-update-preflight.md",
     "checkpoints": [
@@ -246,8 +332,8 @@
         "dependsOn": "personal-client-ui-and-implementation",
         "requires": [
           "existing-target-parameters",
-          "existing-private-handoff-file-absolute-path-and-clickable-link-when-file-input-needed",
-          "exact-editable-field-paths-values-requiredness-and-prefilled-fields",
+          "existing-target-bound-private-handoff-file-managed-by-assistant",
+          "prompt-for-missing-key-values-in-chat-and-write-back",
           "local-release-validation",
           "reviewable-exact-save-plan-and-private-input-binding",
           "explicit-specific-save-plan-confirmation",
@@ -385,14 +471,8 @@
     "legacyDocumentMigration": "not-authorized-or-automated",
     "runtimeSdk": "@cloudbase/node-sdk@3.18.3",
     "retention": {
-      "mode": "ordinary-index-and-scheduled-cleanup",
-      "index": "expires_at_cleanup",
-      "expiresAfterDays": 30,
-      "intervalMinutes": 15,
-      "maxRecordsPerRun": 100,
-      "reference": "skills/bifang-public-services-onboarding/references/retention-cleanup.md",
-      "activationRequires": "new-plan-approval-including-future-expired-telemetry-deletion",
-      "liveCleanupVerification": "separate-scoped-test-authorization"
+      "expiresAtAfterDays": 30,
+      "automaticDeletionProvisioned": false
     }
   }
 }

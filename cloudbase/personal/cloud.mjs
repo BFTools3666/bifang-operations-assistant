@@ -16,7 +16,7 @@ const READS = {
     "RunCommands",
     "ExecutePGSql",
   ]),
-  scf: new Set(["ListFunctions", "GetFunction", "ListTriggers"]),
+  scf: new Set(["ListFunctions", "GetFunction"]),
 };
 export function createPersonalApi(
   input,
@@ -418,62 +418,21 @@ function matchesIndex(a, b) {
 function matchesRoute(a, b) {
   return Object.entries(b).every(([k, v]) => a[k] === v);
 }
-async function triggerInventory(api, trigger) {
-  const items = [];
-  let total;
-  for (let offset = 0; offset < 1000; offset += 100) {
-    const page = await api("scf", "ListTriggers", {
-      Namespace: trigger.Namespace,
-      FunctionName: trigger.FunctionName,
-      Limit: 100,
-      Offset: offset,
-    });
-    check(
-      Array.isArray(page.Triggers) &&
-        Number.isInteger(page.TotalCount) &&
-        page.TotalCount >= 0,
-      "INVALID_TRIGGER_INVENTORY",
-    );
-    check(
-      total === undefined || total === page.TotalCount,
-      "TRIGGER_INVENTORY_DRIFT",
-    );
-    total = page.TotalCount;
-    items.push(...page.Triggers);
-    if (items.length === total) break;
-    check(
-      items.length < total && page.Triggers.length === 100,
-      "INCOMPLETE_TRIGGER_INVENTORY",
-    );
-  }
+export async function planResources(
+  api,
+  spec,
+  now = Date.now(),
+  isPriorTelemetry,
+) {
   check(
-    items.length === total &&
-      items.every((t) => typeof t?.TriggerName === "string") &&
-      new Set(items.map((t) => JSON.stringify([t.TriggerName, t.Qualifier])))
-        .size === total,
-    "INCOMPLETE_TRIGGER_INVENTORY",
+    !spec.triggers?.length &&
+      !spec.functions.some(
+        (fn) =>
+          fn.name.startsWith("cleanup-") ||
+          fn.payload.FunctionName.startsWith("cleanup-"),
+      ),
+    "PLAN_CHANGED_REVIEW_REQUIRED",
   );
-  return items;
-}
-function matchesTrigger(actual, expected) {
-  let cron = actual.TriggerDesc;
-  if (typeof cron !== "string") return false;
-  try {
-    if (cron.startsWith("{")) cron = JSON.parse(cron).cron;
-  } catch {
-    return false;
-  }
-  return (
-    actual.TriggerName === expected.TriggerName &&
-    actual.Type === "timer" &&
-    actual.Qualifier === expected.Qualifier &&
-    actual.Enable === 1 &&
-    actual.AvailableStatus === "Available" &&
-    cron === expected.TriggerDesc &&
-    actual.CustomArgument === expected.CustomArgument
-  );
-}
-export async function planResources(api, spec, now = Date.now()) {
   const cost = await costPreflight(api, spec, now);
   const domain = await domainState(api, spec);
   const names = await functionNames(api, spec);
@@ -536,7 +495,18 @@ export async function planResources(api, spec, now = Date.now()) {
         FunctionName: fn.name,
         ShowCode: "FALSE",
       });
-      check(matchesFunction(current, fn), "FUNCTION_CONFLICT");
+      if (!matchesFunction(current, fn)) {
+        const marker = current?.Description;
+        check(
+          fn.name.startsWith("telemetry-") &&
+            /^personal-onboarding:[a-f0-9]{40}$/.test(marker) &&
+            matchesFunction(current, {
+              payload: { ...fn.payload, Description: marker },
+            }) &&
+            (await isPriorTelemetry?.(fn, marker)),
+          "FUNCTION_CONFLICT",
+        );
+      }
       state.push([fn.name, hash(current.Environment), current.Description]);
       preserved.push({ kind: "function", target: fn.name });
     } else push("function", fn.name, "CreateFunction", fn.payload);
@@ -580,20 +550,6 @@ export async function planResources(api, spec, now = Date.now()) {
         EnvId: spec.envId,
         Domain: { Domain: domain.Domain, Routes: [r] },
       });
-  }
-  // Timer activation is last: approval includes future scoped expiry deletion.
-  for (const trigger of spec.triggers || []) {
-    const existing = names.has(trigger.FunctionName)
-      ? await triggerInventory(api, trigger)
-      : [];
-    state.push(["triggers", trigger.FunctionName, existing]);
-    const found = existing.filter((t) => t.TriggerName === trigger.TriggerName);
-    check(found.length <= 1, "TRIGGER_CONFLICT");
-    const target = trigger.FunctionName + "/" + trigger.TriggerName;
-    if (found.length) {
-      check(matchesTrigger(found[0], trigger), "TRIGGER_CONFLICT");
-      preserved.push({ kind: "trigger", target });
-    } else push("trigger", target, "CreateTrigger", trigger, "scf");
   }
   const digest = hash({
     spec,
@@ -642,8 +598,6 @@ export async function planResources(api, spec, now = Date.now()) {
         })),
         shared_functions: (spec.shared || []).map((f) => f.summary),
         routes: spec.routes,
-        triggers: spec.triggers || [],
-        retention: spec.retention,
       },
       preserved,
       skipped_customer_confirmed: spec.skipped,
@@ -675,10 +629,11 @@ export async function applyResources(
     now = Date.now,
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
     onProgress = () => {},
+    isPriorTelemetry,
   } = {},
 ) {
   check(/^[a-f0-9]{64}$/.test(expected), "EXPECTED_PLAN_REQUIRED");
-  const plan = await planResources(api, spec, now());
+  const plan = await planResources(api, spec, now(), isPriorTelemetry);
   check(plan.digest === expected, "PLAN_CHANGED_REVIEW_REQUIRED");
   const completed = [];
   for (const op of plan.operations) {
@@ -731,13 +686,6 @@ export async function applyResources(
         "SHARED_FUNCTION_CHANGED_REPLAN_REQUIRED",
       );
     }
-    if (op.kind === "trigger") {
-      const current = await triggerInventory(api, op.payload);
-      check(
-        !current.some((t) => t.TriggerName === op.payload.TriggerName),
-        "TRIGGER_CHANGED_REPLAN_REQUIRED",
-      );
-    }
     onProgress({ status: "creating", kind: op.kind, target: op.target });
     const response = await api(op.service, op.action, op.payload);
     if (op.kind === "pgdoc")
@@ -752,13 +700,6 @@ export async function applyResources(
           check(env?.length === 1, "AMBIGUOUS_ENVIRONMENT");
           verified =
             (await inspectPostgreSQL(api, env[0], spec)).plugin === "ready";
-        } else if (op.kind === "trigger") {
-          const current = await triggerInventory(api, op.payload);
-          const found = current.filter(
-            (t) => t.TriggerName === op.payload.TriggerName,
-          );
-          check(found.length <= 1, "TRIGGER_CONFLICT");
-          verified = found.length === 1 && matchesTrigger(found[0], op.payload);
         } else if (op.kind === "function-configuration") {
           const fn = spec.shared.find((f) => f.name === op.target);
           const current = await api("scf", "GetFunction", {
@@ -818,14 +759,19 @@ export async function applyResources(
     if (op.kind === "pgdoc") {
       // The disabled document endpoint could not be inventoried before enabling.
       // Re-read it now; any unexpected resource or drift stops before more writes.
-      const afterEnable = await planResources(api, spec, now());
+      const afterEnable = await planResources(
+        api,
+        spec,
+        now(),
+        isPriorTelemetry,
+      );
       check(
         same(afterEnable.operations, plan.operations.slice(1)),
         "POST_ENABLE_PLAN_CHANGED_REVIEW_REQUIRED",
       );
     }
   }
-  const final = await planResources(api, spec, now());
+  const final = await planResources(api, spec, now(), isPriorTelemetry);
   check(final.operations.length === 0, "FINAL_READBACK_INCOMPLETE");
   return {
     status: "resources-created-control-plane-verified",

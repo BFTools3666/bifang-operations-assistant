@@ -72,7 +72,11 @@ test("the CloudBase adapter writes transactional records, uniqueness keys and au
 
   assert.equal(factoryCalls.length, 1);
   assert.equal(factoryCalls[0].runtimeContext, runtimeContext);
-  assert.equal(database.documents("versions_bifang_mouse_clicker").length, 2);
+  assert.equal(database.documents("versions_bifang_mouse_clicker").length, 3);
+  assert.equal(
+    await repository.releaseRevision(APP_A, "tool-a"),
+    "audit-version",
+  );
   assert.equal(database.documents("ads_bifang_mouse_clicker").length, 1);
   assert.equal(database.documents("audit_bifang_mouse_clicker").length, 2);
   assert.equal(database.documents("versions_bifang_screen_recorder").length, 0);

@@ -1,6 +1,6 @@
 # 每日启动遥测与客户端更新
 
-当前个人分支数据库默认 PostgreSQL + pgdoc，HTTP 合同保持不变；三类服务统一使用 Node SDK v3。数据库资源及 TTL 核验边界见 [PostgreSQL 适配](../skills/bifang-public-services-onboarding/references/postgresql.md)。
+当前个人分支数据库默认 PostgreSQL + pgdoc，HTTP 合同保持不变；三类服务统一使用 Node SDK v3。数据库资源及统计数据保留说明见 [PostgreSQL 适配](../skills/bifang-public-services-onboarding/references/postgresql.md)。
 
 > 本文记录既有基础设施与公司模式历史，不是个人版执行入口；正文所称“新接入”和门禁均按历史语境理解。个人流程已定义环境、资源、参数/请求、UI 与本地实施、客户手动发布配置及预检五道门禁，以 [个人版接入指南](毕方小工具公共服务分步接入指南.md) 和 [个人版第五门禁](../skills/bifang-public-services-onboarding/references/personal-update-preflight.md) 为准，预检通过后才进入 EXE 测试；不得把历史公司 POST/201 或 block_new_operations 套入个人 GET/200。历史协议链接固定到旧版标签。
 

@@ -16,6 +16,44 @@
   box-sizing: border-box;
 }
 
+.release-page {
+  max-width: 940px;
+  margin: 2rem auto;
+  padding: 0 1rem 3rem;
+}
+.release-page .panel {
+  margin: 1rem 0;
+  padding: 1.25rem;
+}
+.release-page details {
+  margin: 1rem 0;
+}
+.release-page label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--ink);
+}
+.release-page :is(input, select, textarea) {
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  padding: 0.65rem;
+  min-width: 0;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+}
+.release-page fieldset:not([hidden]) {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  border: 1px solid var(--line);
+  margin: 1rem 0;
+}
+.release-page .diff,
+.release-page .current {
+  overflow-wrap: anywhere;
+}
+
 html {
   min-width: 320px;
   background: var(--paper);

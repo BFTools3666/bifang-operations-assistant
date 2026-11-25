@@ -15,6 +15,9 @@ import { DASHBOARD_LABEL_MARKER, extendShared } from "./shared.mjs";
 
 const require = createRequire(import.meta.url);
 const {
+  releaseToken,
+} = require("../functions/operations-dashboard/src/release-service.js");
+const {
   parseCredentials,
 } = require("../functions/application-version-api/src/auth.js");
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -275,9 +278,11 @@ function credentialConfig(v, secrets) {
     check(parseCredentials(result, appIds) !== null, "INVALID_SERVICE_SECRETS");
   return result;
 }
-export async function sourceBundle(dir, labels, root = ROOT, cleanup = false) {
+export async function sourceBundle(dir, labels, root = ROOT) {
   const entries = [];
   async function walk(relative) {
+    // An in-place upgrade of an unpacked distribution can leave this orphan.
+    if (dir.endsWith("/telemetry") && relative === "src/cleanup.js") return;
     const full = join(root, dir, relative);
     await noLinks(full);
     const s = await lstat(full);
@@ -287,10 +292,6 @@ export async function sourceBundle(dir, labels, root = ROOT, cleanup = false) {
     } else {
       check(s.isFile() && s.size < 1000000, "INVALID_SOURCE");
       let body = await readFile(full);
-      if (cleanup && relative === "index.js")
-        body = Buffer.from(
-          'exports.main = require("./src/cleanup.js").main;\n',
-        );
       if (relative === "src/app-labels.json")
         body = Buffer.from(JSON.stringify(labels));
       entries.push({ name: relative, body });
@@ -318,7 +319,6 @@ export async function buildSpec(
     v.input.applications.map((a) => [a.app_id, a.display_name]),
   );
   const functions = [];
-  const triggers = [];
   for (const fn of config.functions) {
     const kind = fn.name.startsWith("telemetry-")
       ? "telemetry"
@@ -328,6 +328,11 @@ export async function buildSpec(
     if (selected[kind] !== "missing") continue;
     const variables = { ...fn.envVariables, CLOUDBASE_ENV_ID: c.env_id };
     if (kind === "update") variables.APPLICATION_VERSION_CREDENTIALS_B64 = b64;
+    if (kind === "update" && secrets.dashboard?.DASHBOARD_ACCESS_TOKEN) {
+      variables.DASHBOARD_RELEASE_TOKEN_SHA256 = hash(
+        releaseToken(hash(secrets.dashboard.DASHBOARD_ACCESS_TOKEN), c.env_id),
+      );
+    }
     if (kind === "dashboard") {
       const d = secrets.dashboard;
       check(
@@ -372,43 +377,6 @@ export async function buildSpec(
       (kind === "dashboard" ? DASHBOARD_LABEL_MARKER : "personal-onboarding:") +
       hash([zip.toString("base64"), payload.Environment]).slice(0, 40);
     functions.push({ name: fn.name, payload });
-    if (kind === "telemetry") {
-      const cleanupName = "cleanup-" + variables.ALLOWED_APP_IDS;
-      const cleanupZip = await sourceBundle(fn.dir, labels, root, true);
-      const cleanupPayload = {
-        ...payload,
-        FunctionName: cleanupName,
-        Handler: "index.main",
-        Code: { ZipFile: cleanupZip.toString("base64") },
-        Environment: {
-          Variables: payload.Environment.Variables.filter((v) =>
-            [
-              "ALLOWED_APP_IDS",
-              "TELEMETRY_COLLECTION",
-              "CLOUDBASE_ENV_ID",
-            ].includes(v.Key),
-          ),
-        },
-      };
-      cleanupPayload.Description =
-        "personal-onboarding:" +
-        hash([
-          cleanupZip.toString("base64"),
-          cleanupPayload.Environment,
-          cleanupPayload.Handler,
-        ]).slice(0, 40);
-      functions.push({ name: cleanupName, payload: cleanupPayload });
-      triggers.push({
-        Namespace: c.env_id,
-        FunctionName: cleanupName,
-        TriggerName: "cleanup-expired",
-        Type: "timer",
-        TriggerDesc: "0 */15 * * * * *",
-        Qualifier: "$LATEST",
-        Enable: "OPEN",
-        CustomArgument: "telemetry-cleanup-v1",
-      });
-    }
   }
   const collections = [];
   const index = (name, key, extra = {}) => ({ name, key, ...extra });
@@ -417,7 +385,7 @@ export async function buildSpec(
     if (selected.telemetry === "missing")
       collections.push({
         name: "telemetry_" + suffix,
-        indexes: [index("expires_at_cleanup", { expires_at: 1, _id: 1 })],
+        indexes: [],
       });
     if (["missing", "extend"].includes(selected.update))
       collections.push(
@@ -478,20 +446,6 @@ export async function buildSpec(
     shared,
     collections,
     routes,
-    triggers,
-    retention:
-      selected.telemetry === "missing"
-        ? {
-            mode: "ordinary-index-and-scheduled-cleanup",
-            expires_after_days: 30,
-            schedule_minutes: 15,
-            max_records_per_run: 100,
-            deletion_scope:
-              "configured-app-telemetry-only; expires_at <= server-start-time",
-            timing: "eventual; backlog-or-failures-delay-deletion",
-            live_cleanup_verified: false,
-          }
-        : null,
     skipped: Object.entries(selected)
       .filter(([, s]) => s === "created")
       .map(([k]) => k),

@@ -221,7 +221,9 @@ export function extendShared(v, snapshot, newCredentialConfig) {
     oldIds = oldApps.map((a) => a.appId);
   check(
     newIds.every(
-      (id) => !oldIds.includes(id) && !oldDashApps.some((a) => a.appId === id),
+      (id) =>
+        !oldIds.includes(id) &&
+        !oldDashApps.some((a) => a.appId === id && a.releaseStreams.length),
     ),
     "SHARED_APPLICATION_CONFLICT",
   );
@@ -256,8 +258,9 @@ export function extendShared(v, snapshot, newCredentialConfig) {
       newIds,
     ),
   };
+  const retainedApps = oldDashApps.filter((a) => !newIds.includes(a.appId));
   const mapping = createDashboardApplicationMapping([
-    ...oldDashApps,
+    ...retainedApps,
     ...v.apps,
   ]);
   const dashboardVars = {
@@ -276,6 +279,13 @@ export function extendShared(v, snapshot, newCredentialConfig) {
       oldDashApps,
     );
     check(previous, "SHARED_DASHBOARD_LABELS_INVALID");
+    check(
+      newIds.every(
+        (id) =>
+          !Object.hasOwn(previous, id) || previous[id] === addedLabels[id],
+      ),
+      "SHARED_APPLICATION_CONFLICT",
+    );
     dashboardVars.DASHBOARD_APP_LABELS_JSON = JSON.stringify({
       ...previous,
       ...addedLabels,
@@ -288,8 +298,8 @@ export function extendShared(v, snapshot, newCredentialConfig) {
   }
   const parsedDashboard = parseDashboardApps(dashboardVars.DASHBOARD_APPS_JSON);
   check(
-    parsedDashboard.length === oldDashApps.length + v.apps.length &&
-      same(parsedDashboard.slice(0, oldDashApps.length), oldDashApps),
+    parsedDashboard.length === retainedApps.length + v.apps.length &&
+      same(parsedDashboard.slice(0, retainedApps.length), retainedApps),
     "SHARED_APPLICATION_CONFLICT",
   );
   const changes = [versionVars, dashboardVars].map((vars, i) => {

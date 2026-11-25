@@ -8,14 +8,14 @@
 
 首次接入按下列门禁推进。已接入应用想查看更新、推荐改强制、取消或重设版本，直接进入[版本更新管理](skills/bifang-public-services-onboarding/references/personal-release-management.md)。
 
-目标明确时由助手查状态、预填并校验。客户只补真实缺项，在看到目标、差异和生效范围后回复“确认执行”。
+若该部署已提供「版本管理」，客户可在大屏一次登录后管理本后台全部已接入应用和发布流，在页面确认并提交。新环境随个人资源包安装。老环境按[版本管理安装与升级](skills/bifang-public-services-onboarding/references/dashboard-install.md)补齐缺项。对话办理时由助手查状态、预填并校验。客户只补真实缺项，在看到目标、差异和生效范围后回复“确认执行”。
 
 ## 当前可用范围
 
 - 第一门禁：免费环境确认后，引导 CAM 子用户，在第一门禁同时关联检查与创建策略（含共享函数更新所需的 `scf:UpdateFunctionConfiguration`），再准备 SecretId/SecretKey；私有文件交接并通过只读 access 检查才通过。已有环境不能跳过密钥准备。
 - 未创建环境：给详细注册、实名、零元创建指引；未回答、凭据/权限缺失或检查失败留在第一门禁。
 - 第二门禁：先给统计、更新、大屏及配套资源清单，让客户选择手动或自动创建；手动交付专属 ZIP/配置并在客户完成后检查，自动按已授权计划创建且逐项/最终读回。已有只跳过创建，不跳过核验。
-- 第三门禁：自动取值、私有文件补缺项、离线生成完整请求并等待客户确认。
+- 第三门禁：自动取值、在对话收取缺项并回写私有文件、离线生成完整请求并等待客户确认。
 - 第四门禁：展示普通更新、强更、手动入口及触发位置，等 UI 确认后核验项目架构与编码规范，再在授权内实施和本地验收。
 - 第五门禁：收集发布信息并本地校验，确认具体计划后由助手自动保存、读回并预检；通过后进入制品测试。仅统计跳过本门禁更新部分。
 
@@ -29,7 +29,7 @@
 npm run skill:install
 ```
 
-脚本自动识别当前源码位置，安装/更新本地 Skill 至 `3.0.0-personal.21` 并记录目录；原同名 Skill 先备份。此后在客户项目调用即可，不需要填写源码路径：
+脚本自动识别当前源码位置，安装/更新本地 Skill 至 `3.0.0-personal.29` 并记录目录；原同名 Skill 先备份。此后在客户项目调用即可，不需要填写源码路径：
 
 ```text
 $bifang-public-services-onboarding
@@ -45,7 +45,7 @@ Application-version API v1 的底层合同位于 [contracts/application-version-
 
 ## 资源创建工具
 
-在本仓库根目录、Node.js 20 或以上运行。第一门禁先执行 `npm run cloudbase:personal:init`，将输出的实际私有路径交给客户填环境和 CAM 密钥，再用 `npm run cloudbase:personal:access -- --file <同一实际路径>` 做只读环境检查；不能把密钥填进仓库模板。第二门禁复用已准备的检查/创建权限和同一密钥文件，并补好应用参数，展示资源清单让客户选创建方式。
+在本仓库根目录、Node.js 20 或以上运行。第一门禁先执行 `npm run cloudbase:personal:init`，环境缺项在对话给 key 并由助手回写，仅将实际私有路径交给客户填 CAM SecretId、SecretKey，再用 `npm run cloudbase:personal:access -- --file <同一实际路径>` 做只读环境检查；不能把密钥填进仓库模板。第二门禁复用已准备的检查/创建权限和同一密钥文件，并补好应用参数，展示资源清单让客户选创建方式。
 
 1. `npm run cloudbase:personal:validate -- --file <实际私有文件绝对路径>`：仅本地校验，不联网。
 2. `npm run cloudbase:personal:plan -- --file <同一文件路径>`：只读云端预检，输出脱敏资源计划及 `materials_sha256`，本地生成独立服务凭据。
@@ -61,9 +61,9 @@ Application-version API v1 的底层合同位于 [contracts/application-version-
 
 ## 参数与请求确认工具
 
-第二门禁通过后运行 `npm run cloudbase:personal:client:init`，自动补好项目事实并将返回的私有文件路径给客户填写缺项。运行时密钥优先引用第二门禁服务凭据文件；统计不需要客户端密钥。
+第二门禁通过后运行 `npm run cloudbase:personal:client:init`，自动补好项目事实，在对话给出缺项 key，客户回复 value 后由助手回写并读回。运行时密钥优先引用第二门禁服务凭据文件；统计不需要客户端密钥。
 
-客户回复已填写后，执行 `npm run cloudbase:personal:client:preview -- --file <实际私有文件绝对路径>`。工具只在本地校验并生成请求实例，缺项列出字段路径；完整时输出脱敏请求、confirmation_id 及含密钥的私有实例文件路径。助手在正文展示明细并等待客户明确确认，不能把脚本成功当客户确认，不发送真实请求或编写业务代码。
+助手回写并读回后，执行 `npm run cloudbase:personal:client:preview -- --file <实际私有文件绝对路径>`。工具只在本地校验并生成请求实例，缺项列出字段路径；完整时输出脱敏请求、confirmation_id 及含密钥的私有实例文件路径。助手在正文展示明细并等待客户明确确认，不能把脚本成功当客户确认，不发送真实请求或编写业务代码。
 
 ## UI 确认与本地实施
 
@@ -81,4 +81,4 @@ Application-version API v1 的底层合同位于 [contracts/application-version-
 
 第六步完成后，同一条最终回复主动交付测试结果及未验证项、实际 EXE/目标制品链接和校验信息、统计大屏实际地址及该客户的 `DASHBOARD_ACCESS_TOKEN` 登录凭据。凭据只向当前客户交付，不写入仓库或日志，不返回其他服务密钥；缺失如实报告，仅更新时大屏项不适用。详见第六步交付规则。
 
-个人版统计保留采用普通索引与专用定时清理函数（每 15 分钟、每轮最多 100 条），包含新增 UpdateTable / CreateTrigger / ListTriggers 权限差异；完整资源与免费支持证据规则见 [清理方案](skills/bifang-public-services-onboarding/references/retention-cleanup.md)。旧 TTL 计划不能授权新增资源或未来到期删除；新计划确认前只改本地和只读盘点。
+个人版按需部署统计、版本和大屏函数。统计记录仍带有 `expires_at`，新环境不配置自动删除。旧环境中的清理函数及触发器由客户手动管理。

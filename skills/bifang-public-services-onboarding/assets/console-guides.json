@@ -1,0 +1,145 @@
+{
+  "verifiedOn": "2026-11-24",
+  "guides": {
+    "register": {
+      "title": "注册或登录腾讯云",
+      "entry": "https://cloud.tencent.com/",
+      "where": "腾讯云中国站首页 → 注册或登录 → 按页面完成账号验证",
+      "result": "成功进入本人账号；已有账号直接登录。",
+      "source": "https://cloud.tencent.com/document/product/378/52700"
+    },
+    "identity": {
+      "title": "办理或查看实名认证",
+      "entry": "https://console.cloud.tencent.com/developer/auth",
+      "where": "账号中心 → 实名认证 → 个人认证 → 按当前页面指引提交",
+      "result": "在实名认证页查看认证状态；客户仅回复是否完成。",
+      "source": "https://cloud.tencent.com/document/product/378/56760"
+    },
+    "serviceAccess": {
+      "title": "首次开通 CloudBase",
+      "entry": "https://tcb.cloud.tencent.com/dev",
+      "where": "主账号登录云开发平台 → 首次开通的服务授权提示 → 审阅平台服务角色授权",
+      "result": "授权后可进入环境选择或创建页面。",
+      "source": "https://cloud.tencent.com/document/product/876/47057"
+    },
+    "createEnv": {
+      "title": "创建免费体验环境",
+      "entry": "https://tcb.cloud.tencent.com/dev#/select-env",
+      "where": "环境列表 → 创建环境 → 选择免费体验版、地域及本项目的 PostgreSQL 配置 → 核对订单；如提示兑换码，按购买页活动指引领取",
+      "result": "仅提交应付 0 元且无付费附加项的申请；返回环境列表，能打开新环境才算已创建。",
+      "source": "https://docs.cloudbase.net/quick-start/create-env"
+    },
+    "environment": {
+      "title": "获取环境 ID 与地域",
+      "entry": "https://tcb.cloud.tencent.com/dev#/select-env",
+      "where": "在环境列表点本次环境名称或 ID，进入环境信息，查看「环境 ID（EnvId）」和「地域」。列表或详情已显示的字段可直接复制",
+      "result": "cloudbase.env_id 填完整 ID；cloudbase.region 填同一环境地域，可回复界面中文名由助手转换，例如上海对应 ap-shanghai。",
+      "source": "https://docs.cloudbase.net/quick-start/create-env"
+    },
+    "quota": {
+      "title": "查看套餐、到期日和资源点",
+      "entry": "https://tcb.cloud.tencent.com/dev#/select-env",
+      "where": "选本次环境 → 环境总览的套餐详情查看套餐名称、有效期；到套餐用量查看本账期资源点用量与配额",
+      "result": "核对是否为免费体验版、到期日及本账期已用/总点数。助手已有只读结果时直接复用。",
+      "source": "https://cloud.tencent.com/document/product/876/46895"
+    },
+    "user": {
+      "title": "创建或查看专用 CAM 子用户",
+      "entry": "https://console.cloud.tencent.com/cam/user",
+      "where": "访问管理 → 用户 → 用户列表 → 新建用户；已有专用用户直接点用户名。创建时按第一门禁选择编程访问",
+      "result": "列表可找到本次专用子用户，后续策略与 API 密钥都绑定这个用户。",
+      "source": "https://cloud.tencent.com/document/product/598/54458"
+    },
+    "policy": {
+      "title": "创建或补充 CAM 策略",
+      "entry": "https://console.cloud.tencent.com/cam/policy",
+      "where": "访问管理 → 策略 → 新建自定义策略 → 按策略语法创建 → 空白模板。按本次给出的名称和 JSON 分别保存；已有策略点名称查看当前生效策略内容",
+      "result": "策略列表可找到检查和创建策略，缺权限时按本次具体 action 与当前策略逐项核对。",
+      "source": "https://cloud.tencent.com/document/product/598/80789"
+    },
+    "grant": {
+      "title": "把策略关联到子用户",
+      "entry": "https://console.cloud.tencent.com/cam/user",
+      "where": "访问管理 → 用户列表 → 找到专用子用户 → 操作列「授权」→ 勾选本次要求的策略 → 确定；返回用户详情查看已关联策略",
+      "result": "核对是本次子用户，检查、创建及本次确需的补充策略均已关联。",
+      "source": "https://intl.cloud.tencent.com/zh/document/product/598/10602"
+    },
+    "camKey": {
+      "title": "获取 SecretId、SecretKey",
+      "entry": "https://console.cloud.tencent.com/cam/user",
+      "where": "用户列表 → 本次专用子用户名称 → API 密钥页签。已有可用密钥直接复用；缺少时点「新建密钥」，在弹窗保存两项",
+      "result": "客户只在本机给定的私有文件填写 credentials.SecretId、credentials.SecretKey；旧密钥列表只可查 SecretId，不能重新查看 SecretKey。",
+      "source": "https://cloud.tencent.com/document/product/598/37140"
+    },
+    "sts": {
+      "title": "找到临时凭证的 Token 和有效期",
+      "entry": "https://cloud.tencent.com/document/product/1312/48198",
+      "where": "仅使用 STS 时，打开本次签发凭证的返回结果或原交接材料，查看同一份返回中的 Credentials.Token 和过期时间；这是签发结果，没有通用控制台回看页",
+      "result": "credentials.Token 与 credentials.expires_at 来自同一组凭证，时间按 UTC 填。临时 ID 和密钥仍只在本机填写。",
+      "source": "https://cloud.tencent.com/document/product/1312/48198"
+    },
+    "postgres": {
+      "title": "查看数据库类型或启用 pgdoc",
+      "entry": "https://tcb.cloud.tencent.com/dev",
+      "where": "先切到本次环境，进入数据库的 PostgreSQL 管理页确认类型；需要手动启用 pgdoc 时，进入该库的 Document 编辑器并按启用提示操作",
+      "result": "类型由助手只读核验。手动启用只在已选创建范围内进行；出现清空旧库、迁移或付费提示即停。返回编辑器后由助手核验插件。",
+      "source": "https://docs.cloudbase.net/database/postgresql/pg-doc"
+    },
+    "collections": {
+      "title": "创建集合并设置访问权限",
+      "entry": "https://tcb.cloud.tencent.com/dev",
+      "where": "在目标 PostgreSQL 的 Document 编辑器中，进入集合列表，按材料 collections 的名称逐个创建；选中集合进入权限设置，设置仅管理员可读写",
+      "result": "逐项核对集合名与 ADMINONLY；助手按当前环境读回。",
+      "source": "https://cloud.tencent.com/document/product/876/19371"
+    },
+    "indexes": {
+      "title": "创建或核对普通索引",
+      "entry": "https://tcb.cloud.tencent.com/dev",
+      "where": "目标环境 → PostgreSQL 的 Document 编辑器 → 选择目标集合 → 索引管理 → 新建索引。按材料填名称、字段顺序、升降序和唯一性",
+      "result": "在同一集合的索引列表核对各项；统计过期字段按普通索引配置。",
+      "source": "https://docs.cloudbase.net/model/data-index"
+    },
+    "functionCreate": {
+      "title": "创建云函数",
+      "entry": "https://tcb.cloud.tencent.com/dev#/scf?tab=function",
+      "where": "选本次环境 → 云函数列表 → 新建云函数 → 选择事件函数及对应运行时，按本次材料设置名称、入口、角色、内存和超时",
+      "result": "逐项对应 functions[].settings；函数列表中名称、地域和环境均与计划一致。",
+      "source": "https://docs.cloudbase.net/cloud-function/quick-start"
+    },
+    "functionCode": {
+      "title": "部署或更新函数 ZIP",
+      "entry": "https://tcb.cloud.tencent.com/dev#/scf?tab=function",
+      "where": "云函数列表 → 目标函数 → 函数代码；使用本地 ZIP 上传方式，选择本函数对应的 zip_file 并按已确认计划部署。新建页面若提供代码上传区，可在那里选择同一包",
+      "result": "等待函数可用并由助手核对包及部署标记；旧环境只替换已确认的函数代码。",
+      "source": "https://intl.cloud.tencent.com/zh/document/product/583/40704"
+    },
+    "functionConfig": {
+      "title": "配置函数或检查中文名映射",
+      "entry": "https://tcb.cloud.tencent.com/dev#/scf?tab=function",
+      "where": "云函数列表 → 目标函数 → 函数配置 → 编辑 → 环境变量。按该函数的完整配置核对键名；共享大屏核对 DASHBOARD_APP_LABELS_JSON 中本应用的映射",
+      "result": "仅在已确认计划内保存并核对配置，保留其他应用和凭据；若旧版从代码读取名称，走对应代码修复计划。",
+      "source": "https://docs.cloudbase.net/cloud-function/function-configuration/env"
+    },
+    "domain": {
+      "title": "查看或启用 HTTP 默认域名",
+      "entry": "https://tcb.cloud.tencent.com/dev?#/env/http-access",
+      "where": "确认当前环境 → HTTP 网关（旧界面为「环境配置 → HTTP 访问服务」）→ 查看默认域名及状态。尚未启用或已过期时，按当前页的免费开通或续期入口操作",
+      "result": "cloudbase.http_origin 取实际 HTTPS 域名，不含路由路径。只在当前页明确免费的情况下开通或续期。",
+      "source": "https://cloud.tencent.com/document/product/876/122894"
+    },
+    "routes": {
+      "title": "创建或核对 HTTP 路由",
+      "entry": "https://tcb.cloud.tencent.com/dev?#/env/http-access",
+      "where": "目标环境 → HTTP 网关 → 路由管理 → 新建；选材料指定的域名、触发路径、云函数及实例。核对高级设置里的路径透传与身份认证",
+      "result": "以清单逐条核对域名、路径、目标函数和启用状态。更新、统计与大屏入口各取其已登记路由。",
+      "source": "https://docs.cloudbase.net/service/access-cloud-function"
+    },
+    "logs": {
+      "title": "查看函数运行日志",
+      "entry": "https://tcb.cloud.tencent.com/dev#/scf?tab=function",
+      "where": "云函数列表 → 出错的函数 → 详情页的日志 → 按故障时间或请求 ID 查对应调用",
+      "result": "仅在确需客户协助时反馈时间、请求 ID 和脱敏错误信息。",
+      "source": "https://docs.cloudbase.net/cloud-function/debugging/log"
+    }
+  }
+}
